@@ -115,9 +115,9 @@ class ActivityReference:
     morth_spec: str
     data_book_item: str
     page_number: Optional[int] = None
-    source_file: str = "guidelines.json"
+    source_file: str = "road_guidelines.json"
     guideline_ref: str = "MoRTH SDB (2019)"
-    assumption_ref: str = "assumptions.yaml"
+    assumption_ref: str = "road_assumptions.yaml"
 
 @dataclass
 class ActivityCostBreakdown:
@@ -312,8 +312,8 @@ class UpdatePlanInput:
     output_path: str = "road_project_schedule_updated.xlsx"
     # Optional activity-level progress: {activity_id: completion_pct}
     activity_progress: Optional[Dict[str, float]] = None
-    guidelines_path: str = "guidelines.json"
-    assumptions_path: str = "assumptions.yaml"
+    guidelines_path: str = "road_guidelines.json"
+    assumptions_path: str = "road_assumptions.yaml"
     enable_acceleration_cost: bool = True
 
 

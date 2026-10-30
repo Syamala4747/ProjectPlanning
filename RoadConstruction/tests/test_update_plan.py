@@ -394,13 +394,11 @@ class TestActivityLevelProgress:
         planner = UpdatePlanner(result, update_input, loader)
         r = planner.plan()
         # No scaling limitation should be reported
-        assert not any("Activity-level actual progress was not provided"
-                       in lim for lim in r.limitations)
+        assert not any("Earned Schedule" in lim for lim in r.limitations)
 
     def test_limitation_without_activity_progress(self, update_result):
         """Without activity-level progress, the limitation is reported."""
-        assert any("Activity-level actual progress was not provided"
-                   in lim for lim in update_result.limitations)
+        assert any("Earned Schedule" in lim for lim in update_result.limitations)
 
 
 # ==================================================================

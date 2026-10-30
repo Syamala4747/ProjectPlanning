@@ -1687,7 +1687,7 @@ statutory_and_overheads:
 # MoRTH SDB ON-COSTS — THE BASIS OF EVERY `direct_unit_rates_inr` VALUE
 # -----------------------------------------------------------------------------
 # Each MoRTH direct rate in this file is NOT a bare resource cost. The rate
-# analysis behind it (guidelines.json → data.basic_parameters.overheads_and_profit,
+# analysis behind it (road_guidelines.json → data.basic_parameters.overheads_and_profit,
 # and the "Overheads @" / "Contractor's profit @" lines in every analysis_basis)
 # builds the rate as:
 #
@@ -1924,8 +1924,8 @@ direct_unit_rates_inr:
 # -----------------------------------------------------------------------------
 # MASTER ACTIVITY DEFINITIONS & WORK BREAKDOWN
 # -----------------------------------------------------------------------------
-# NOTE: activity_master has been moved to guidelines.json as the master
-# MoRTH specification catalog and is loaded directly from guidelines.json.
+# NOTE: activity_master has been moved to road_guidelines.json as the master
+# MoRTH specification catalog and is loaded directly from road_guidelines.json.
 
 # NOTE: material wastage is priced per material from the `wastage` block via the
 # recipe in material_per_unit; fuel, plant and labour utilisation losses are in

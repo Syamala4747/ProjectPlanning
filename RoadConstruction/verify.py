@@ -49,10 +49,10 @@ def main():
     from src.data_loader import DataLoader
     from src.cost_calculator import CostCalculator
 
-    with open("assumptions.yaml", encoding="utf-8") as f:
+    with open("road_assumptions.yaml", encoding="utf-8") as f:
         a = yaml.safe_load(f)
-    loader = DataLoader(guidelines_path="guidelines.json",
-                        assumptions_path="assumptions.yaml")
+    loader = DataLoader(guidelines_path="road_guidelines.json",
+                        assumptions_path="road_assumptions.yaml")
     loader.load_all()
     cc = CostCalculator(loader.assumptions, 8.0, 10.0)
 
@@ -79,7 +79,7 @@ def main():
     # top-level `productivity:` block is reference documentation under its own
     # descriptive keys, so it cannot be mirrored value-for-value; what we can
     # and must verify is that it says so, so nobody edits it expecting a change.
-    with open("assumptions.yaml", encoding="utf-8") as f:
+    with open("road_assumptions.yaml", encoding="utf-8") as f:
         raw = f.read()
     prod_block = a.get("productivity") or {}
     if prod_block:

@@ -33,7 +33,7 @@ def chk(label, ok, detail=""):
 def near(a, b, tol): return abs(a - b) <= tol
 
 # ---------------------------------------------------------------- raw YAML
-loader = DataLoader(guidelines_path="guidelines.json", assumptions_path="assumptions.yaml")
+loader = DataLoader(guidelines_path="road_guidelines.json", assumptions_path="road_assumptions.yaml")
 loader.load_all()
 A = loader.assumptions
 cc = CostCalculator(A, 8.0, 10.0)

@@ -280,9 +280,9 @@ class ConstraintScheduler:
                 morth_spec=spec.get("morth_spec", ""),
                 data_book_item=spec.get("morth_item", ""),
                 page_number=spec.get("page", 0),
-                source_file="guidelines.json",
+                source_file="road_guidelines.json",
                 guideline_ref=f"MoRTH SDB 2019 Item {spec.get('morth_item', '')}",
-                assumption_ref=f"assumptions.yaml ({key})"
+                assumption_ref=f"road_assumptions.yaml ({key})"
             )
 
             if crews > base_crews or shifts > 1.0 or work_fronts > 1:

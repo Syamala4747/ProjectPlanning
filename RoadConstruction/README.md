@@ -10,7 +10,7 @@ A Python-based engineering scheduling and cost estimation system for **Road & Hi
 User Input (Length km, Required Duration, Max Budget, Start Date)
    │
    ▼
-DataLoader (guidelines.json + assumptions.yaml)
+DataLoader (road_guidelines.json + road_assumptions.yaml)
    │
    ▼
 QuantityCalculator (IRC:73 / MoRTH Cross-section Quantities)
@@ -120,8 +120,8 @@ python main.py --title "25 KM 4-Lane Highway Project" --terrain hilly --duration
 RoadConstruction/
 │
 ├── main.py                          # Application CLI entry point (new-project + update-plan)
-├── assumptions.yaml                 # Baseline rates, norms & calendar assumptions
-├── guidelines.json                  # MoRTH Standard Data Book 2019 specification
+├── road_assumptions.yaml            # Baseline rates, norms & calendar assumptions
+├── road_guidelines.json             # MoRTH Standard Data Book 2019 specification
 │
 ├── src/
 │   ├── __init__.py
@@ -191,8 +191,8 @@ python main.py update-plan \
 | `--start-date` | Original project start date. If omitted, the date from the workbook is used. |
 | `--target-progress` | Cumulative progress target at the target date. If omitted, the baseline target for that date is used. |
 | `--activity-progress` | JSON file with activity-level progress: `{"ACT-01": 100.0, "ACT-02": 50.0, ...}` |
-| `--guidelines` | Path to guidelines.json (default: `guidelines.json`) |
-| `--assumptions` | Path to assumptions.yaml (default: `assumptions.yaml`) |
+| `--guidelines` | Path to road_guidelines.json (default: `road_guidelines.json`) |
+| `--assumptions` | Path to road_assumptions.yaml (default: `road_assumptions.yaml`) |
 | `--no-accel-cost` | Disable time-driven acceleration cost terms |
 
 ### How It Works
