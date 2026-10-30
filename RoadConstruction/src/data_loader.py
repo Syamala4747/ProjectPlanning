@@ -1,5 +1,5 @@
 """
-Data loader module for reading guidelines.json and assumptions.yaml.
+Data loader module for reading road_guidelines.json and road_assumptions.yaml.
 """
 import os
 import json
@@ -8,7 +8,7 @@ import yaml
 from typing import Dict, Any, List
 
 class DataLoader:
-    def __init__(self, guidelines_path: str = "guidelines.json", assumptions_path: str = "assumptions.yaml"):
+    def __init__(self, guidelines_path: str = "road_guidelines.json", assumptions_path: str = "road_assumptions.yaml"):
         self.guidelines_path = guidelines_path
         self.assumptions_path = assumptions_path
         self.guidelines: Dict[str, Any] = {}
@@ -43,7 +43,7 @@ class DataLoader:
             catalog = hilly.get("activity_master") or []
             if not catalog:
                 raise ValueError(
-                    "Hilly terrain was requested, but assumptions.yaml has no "
+                    "Hilly terrain was requested, but road_assumptions.yaml has no "
                     "hilly_terrain_standards.activity_master catalog."
                 )
             plain_by_key = {
@@ -77,7 +77,7 @@ class DataLoader:
 
     def validate(self) -> List[str]:
         """
-        Cross-checks assumptions.yaml against guidelines.json.
+        Cross-checks road_assumptions.yaml against road_guidelines.json.
 
         Every activity must carry a resolvable MoRTH/SDB item reference and a
         published unit rate: `guideline_ref` is printed on the report, and a
@@ -105,7 +105,7 @@ class DataLoader:
             problems.append(
                 f"{len(unresolvable)} of {len(self.assumptions.get('activity_master', []))} "
                 f"activities cite a MoRTH/SDB item that does not exist in "
-                f"guidelines.json (the printed guideline_ref will be a dangling "
+                f"road_guidelines.json (the printed guideline_ref will be a dangling "
                 f"citation): " + "; ".join(unresolvable))
         if unpriced:
             problems.append(
@@ -173,7 +173,7 @@ class DataLoader:
         register = self.assumptions.get("sources") or {}
         if not register:
             problems.append(
-                "no `sources:` register in assumptions.yaml - no rate in this "
+                "no `sources:` register in road_assumptions.yaml - no rate in this "
                 "file can currently be traced to an official publication.")
         for block, label in (("material_rates_inr", "CPWD DSR / GeM / state PWD"),
                              ("equipment_hire_inr_per_day", "CPWD DSR equipment schedule")):
@@ -199,7 +199,7 @@ class DataLoader:
             if legacy_variations:
                 leftovers.append("planning_rate_variations")
             problems.append(
-                f"{' and '.join(leftovers)} is/are present in assumptions.yaml but "
+                f"{' and '.join(leftovers)} is/are present in road_assumptions.yaml but "
                 f"the planner no longer reads them: the planned rate and its "
                 f"variation are derived from the resource build-up (material "
                 f"recipes, crew day rates, plant hire, fuel lph). Remove the "
@@ -208,7 +208,7 @@ class DataLoader:
         return problems
 
     def load_assumptions(self) -> Dict[str, Any]:
-        """Loads assumptions.yaml."""
+        """Loads road_assumptions.yaml."""
         if not os.path.exists(self.assumptions_path):
             raise FileNotFoundError(f"Assumptions file not found at: {self.assumptions_path}")
         
@@ -225,7 +225,7 @@ class DataLoader:
         return self.assumptions
 
     def load_guidelines(self) -> Dict[str, Any]:
-        """Loads guidelines.json."""
+        """Loads road_guidelines.json."""
         if not os.path.exists(self.guidelines_path):
             raise FileNotFoundError(f"Guidelines file not found at: {self.guidelines_path}")
         
@@ -245,7 +245,7 @@ class DataLoader:
 
     def get_overhead_percentage(self, project_budget_crore: float) -> float:
         """
-        Determines overhead percentage based on project size from assumptions.yaml statutory_and_overheads.
+        Determines overhead percentage based on project size from road_assumptions.yaml statutory_and_overheads.
         """
         statutory = self.assumptions.get("statutory_and_overheads", {})
         slabs = statutory.get("overhead_slabs", [])
@@ -255,6 +255,6 @@ class DataLoader:
         return float(statutory.get("overhead_pct", 8.0))
 
     def get_profit_percentage(self) -> float:
-        """Returns contractor profit percentage from assumptions.yaml."""
+        """Returns contractor profit percentage from road_assumptions.yaml."""
         statutory = self.assumptions.get("statutory_and_overheads", {})
         return float(statutory.get("profit_pct", 10.0))

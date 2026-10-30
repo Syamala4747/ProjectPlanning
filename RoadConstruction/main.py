@@ -60,8 +60,8 @@ def parse_start_date(raw_input: str) -> date:
 
 def run_project_planning(
     project_input: ProjectInput,
-    guidelines_path: str = "guidelines.json",
-    assumptions_path: str = "assumptions.yaml",
+    guidelines_path: str = "road_guidelines.json",
+    assumptions_path: str = "road_assumptions.yaml",
     output_path: str = "road_project_schedule.xlsx",
     enable_acceleration_cost: bool = True
 ) -> ProjectScheduleResult:
@@ -108,7 +108,7 @@ def run_project_planning(
     print(f"Required Target Duration:   {project_input.duration_days} days (Hard Maximum Constraint)")
     print(f"Approved Maximum Budget:    ₹ {project_input.budget_crore:,.2f} Crore (Hard Ceiling Constraint)")
     print(f"Project Start Date:         {project_input.start_date}")
-    print(" Calendar rules in force (assumptions.yaml -> calendar):")
+    print(" Calendar rules in force (road_assumptions.yaml -> calendar):")
     for _line in scheduler.calendar.describe():
         print(f"   • {_line}")
     print("--------------------------------------------------------------------------------")
@@ -351,10 +351,10 @@ def _build_update_plan_parser() -> argparse.ArgumentParser:
     p.add_argument("--activity-progress", type=str, default=None,
                    help="Optional JSON file with activity-level progress: "
                         '{"ACT-01": 100.0, "ACT-02": 50.0, ...}')
-    p.add_argument("--guidelines", type=str, default="guidelines.json",
-                   help="Path to guidelines.json")
-    p.add_argument("--assumptions", type=str, default="assumptions.yaml",
-                   help="Path to assumptions.yaml")
+    p.add_argument("--guidelines", type=str, default="road_guidelines.json",
+                   help="Path to road_guidelines.json")
+    p.add_argument("--assumptions", type=str, default="road_assumptions.yaml",
+                   help="Path to road_assumptions.yaml")
     p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true",
                    help="Disable time-driven acceleration cost terms")
     return p
@@ -376,8 +376,8 @@ def main():
     parser.add_argument("--start-date", type=str, default="", help="Project Start Date (YYYY-MM-DD)")
     parser.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="",
                         help="Terrain model; defaults to plain unless the title says hilly, hill, or mountain")
-    parser.add_argument("--guidelines", type=str, default="guidelines.json", help="Path to guidelines.json")
-    parser.add_argument("--assumptions", type=str, default="assumptions.yaml", help="Path to assumptions.yaml")
+    parser.add_argument("--guidelines", type=str, default="road_guidelines.json", help="Path to road_guidelines.json")
+    parser.add_argument("--assumptions", type=str, default="road_assumptions.yaml", help="Path to road_assumptions.yaml")
     parser.add_argument("--output", type=str, default="road_project_schedule.xlsx", help="Output Excel filename")
     parser.add_argument("--lanes", type=int, default=0, help="Number of Highway Lanes (auto-detected from title if omitted)")
     parser.add_argument(
