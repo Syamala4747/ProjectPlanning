@@ -89,10 +89,19 @@ class UpdatePlanner:
         self.spec_by_id = {s["id"]: s for s in self.activity_specs}
         self.spec_by_key = {s["key"]: s for s in self.activity_specs}
 
-        # Crashing infrastructure
+        # Crashing infrastructure — max work fronts for acceleration during replanning.
+        # Uses the same project-type-aware logic as ConstraintScheduler.
         self.night_ok = set(self.assumptions.get("night_work_eligible", []) or [])
-        length = float(self.p_in.length_km or 0.0)
-        self.corridor_fronts = max(2, min(8, int(math.ceil(length / 3.5))))
+        ptype = str(getattr(self.p_in, "project_type", "road") or "road").lower()
+        if ptype == "pipeline":
+            supplied_fronts = max(1, int(getattr(self.p_in, "number_of_work_fronts", 1) or 1))
+            self.corridor_fronts = min(supplied_fronts, 4)
+        elif ptype == "building":
+            supplied_blocks = max(1, int(getattr(self.p_in, "number_of_blocks", 1) or 1))
+            self.corridor_fronts = min(supplied_blocks, 6)
+        else:
+            length = float(self.p_in.length_km or 0.0)
+            self.corridor_fronts = max(2, min(8, int(math.ceil(length / 3.5))))
         cap = float(self.assumptions.get("crew_multiplier_cap", 6) or 6)
         self.max_multiplier = max(1, int(min(cap, self.corridor_fronts)))
 

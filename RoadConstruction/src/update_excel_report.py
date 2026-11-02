@@ -172,8 +172,20 @@ class UpdateExcelReportGenerator:
         p = self.p_in
 
         # KPI cards
+        ptype = str(getattr(p, "project_type", "road") or "road").lower()
+        if ptype == "pipeline":
+            mat = getattr(p, "pipe_material", "DI") or "DI"
+            dia = int(getattr(p, "pipe_diameter_mm", 0) or 0)
+            scope_val = f"{p.length_km:.1f} km, DN{dia} {mat} Pipeline"
+        elif ptype == "building":
+            bua = getattr(p, "built_up_area_sqm", 0) or 0
+            floors = getattr(p, "number_of_floors", 1) or 1
+            scope_val = f"{bua:,.0f} sqm, G+{floors-1} {getattr(p, 'building_type', 'Residential').title()} Building"
+        else:
+            scope_val = f"{p.length_km:.1f} km, {p.lanes}-Lane Highway"
+
         kpis = [
-            ("Project Scope", f"{p.length_km:.1f} km, {p.lanes}-Lane Highway"),
+            ("Project Scope", scope_val),
             ("Original Start Date", str(p.start_date)),
             ("Current Status Date", str(r.status_date)),
             ("Actual Progress", f"{r.actual_progress_pct:.1f}%"),

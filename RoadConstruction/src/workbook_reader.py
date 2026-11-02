@@ -77,6 +77,8 @@ class WorkbookReader:
         """
         Parse Sheet 02 (Project Inputs) to reconstruct the ProjectInput.
         Column A holds the parameter name, column B holds the value.
+        Auto-detects project type from Sheet 01 banner title or from the
+        parameters present in Sheet 02.
         """
         ws = wb["02_Project_Inputs"]
 
@@ -88,42 +90,63 @@ class WorkbookReader:
             if label is not None:
                 values[str(label).strip()] = val
 
-        # --- Length ---
-        length_km = self._parse_float(values.get("Project Length"))
-        if length_km is None or length_km <= 0:
-            raise ValueError(
-                "Could not read 'Project Length' from Sheet 02. "
-                "Ensure the workbook is a valid planner output.")
+        # --- Detect project type from Sheet 01 banner or from parameter keys ---
+        project_type = self._detect_project_type(wb, values)
 
-        # --- Lanes ---
-        lanes = self._parse_int(values.get("Number of Lanes"))
-        if lanes is None or lanes <= 0:
-            raise ValueError(
-                "Could not read 'Number of Lanes' from Sheet 02.")
-
-        # --- Terrain ---
-        terrain_raw = str(values.get("Terrain", "")).strip().lower()
-        terrain = "hilly" if terrain_raw in ("hilly", "hill", "mountain") else "plain"
-
-        # --- Duration ---
+        # --- Common fields (all project types) ---
         duration_days = self._parse_int(values.get("Required Completion Duration"))
         if duration_days is None or duration_days <= 0:
             raise ValueError(
                 "Could not read 'Required Completion Duration' from Sheet 02.")
 
-        # --- Budget ---
         budget_crore = self._parse_float(values.get("Maximum Available Budget"))
         if budget_crore is None or budget_crore <= 0:
             raise ValueError(
                 "Could not read 'Maximum Available Budget' from Sheet 02.")
 
-        # --- Start date ---
         start_date_raw = values.get("Project Start Date", "")
         start_date = self._parse_date(start_date_raw) or date.today()
 
-        # Reconstruct a title (not stored directly; auto-detect lanes/length).
-        title = f"{length_km:g} KM {lanes}-Lane Highway Project"
+        if project_type == "pipeline":
+            return self._extract_pipeline_input(values, duration_days, budget_crore, start_date)
+        elif project_type == "building":
+            return self._extract_building_input(values, duration_days, budget_crore, start_date)
+        else:
+            return self._extract_road_input(values, duration_days, budget_crore, start_date)
 
+    def _detect_project_type(self, wb, values: Dict[str, Any]) -> str:
+        """Detect project type from the Sheet 01 dashboard banner title."""
+        if "01_Project_Summary" in wb.sheetnames:
+            ws = wb["01_Project_Summary"]
+            banner = str(ws.cell(1, 1).value or "").upper()
+            if "PIPELINE" in banner or "WATER" in banner:
+                return "pipeline"
+            if "BUILDING" in banner:
+                return "building"
+        # Fall back to checking which parameter labels are present in Sheet 02
+        if "Pipeline Type" in values or "Pipe Diameter" in values or "Total Pipeline Length" in values:
+            return "pipeline"
+        if "Building Type" in values or "Built-up Area" in values or "Number of Floors" in values:
+            return "building"
+        return "road"
+
+    def _extract_road_input(self, values: Dict[str, Any],
+                            duration_days: int, budget_crore: float,
+                            start_date: date) -> ProjectInput:
+        """Reconstruct a road ProjectInput from Sheet 02 values."""
+        length_km = self._parse_float(values.get("Project Length"))
+        if length_km is None or length_km <= 0:
+            raise ValueError(
+                "Could not read 'Project Length' from Sheet 02.")
+
+        lanes = self._parse_int(values.get("Number of Lanes"))
+        if lanes is None or lanes <= 0:
+            lanes = 4
+
+        terrain_raw = str(values.get("Terrain", "")).strip().lower()
+        terrain = "hilly" if terrain_raw in ("hilly", "hill", "mountain") else "plain"
+
+        title = f"{length_km:g} KM {lanes}-Lane Highway Project"
         return ProjectInput(
             title=title,
             length_km=length_km,
@@ -132,6 +155,105 @@ class WorkbookReader:
             start_date=start_date,
             lanes=lanes,
             terrain=terrain,
+            project_type="road",
+        )
+
+    def _extract_pipeline_input(self, values: Dict[str, Any],
+                                duration_days: int, budget_crore: float,
+                                start_date: date) -> ProjectInput:
+        """Reconstruct a pipeline ProjectInput from Sheet 02 values."""
+        # Total Pipeline Length
+        length_km = self._parse_float(
+            values.get("Total Pipeline Length") or values.get("Project Length"))
+        if length_km is None or length_km <= 0:
+            raise ValueError("Could not read pipeline length from Sheet 02.")
+
+        # Pipe Diameter
+        dia_raw = values.get("Pipe Diameter (Nominal)", 0)
+        dia_mm = float(self._parse_float(dia_raw) or 300.0)
+
+        # Pipe Material
+        mat_raw = str(values.get("Pipe Material", "DI") or "DI").strip().upper()
+        if mat_raw not in {"DI", "HDPE", "MS", "RCC"}:
+            mat_raw = "DI"
+
+        # Trench depth
+        trench_depth = float(
+            self._parse_float(values.get("Trench Depth (Average)")) or 2.0)
+
+        # Work fronts
+        fronts = int(self._parse_int(values.get("Number of Work Fronts")) or 1)
+
+        # Terrain
+        terrain_raw = str(values.get("Terrain Type", "plain") or "plain").strip().lower()
+        terrain = "hilly" if "hill" in terrain_raw else "plain"
+
+        # Pipeline type
+        pipe_type = str(values.get("Pipeline Type", "water") or "water").strip().lower()
+        if pipe_type not in {"water", "sewerage", "gas"}:
+            pipe_type = "water"
+
+        title = f"{length_km:g} km DN{int(dia_mm)} {mat_raw} Pipeline"
+        return ProjectInput(
+            title=title,
+            length_km=length_km,
+            duration_days=duration_days,
+            budget_crore=budget_crore,
+            start_date=start_date,
+            project_type="pipeline",
+            pipe_diameter_mm=dia_mm,
+            pipe_material=mat_raw,
+            trench_depth_m=trench_depth,
+            number_of_work_fronts=fronts,
+            pipeline_type=pipe_type,
+            terrain=terrain,
+        )
+
+    def _extract_building_input(self, values: Dict[str, Any],
+                                duration_days: int, budget_crore: float,
+                                start_date: date) -> ProjectInput:
+        """Reconstruct a building ProjectInput from Sheet 02 values."""
+        # Built-up area
+        bua = self._parse_float(values.get("Built-up Area (Total)") or
+                                values.get("Built-up Area"))
+        if bua is None or bua <= 0:
+            raise ValueError("Could not read built-up area from Sheet 02.")
+
+        # Floors
+        floors_raw = values.get("Number of Floors", 4)
+        floors = int(self._parse_int(floors_raw) or 4)
+
+        # Building type
+        btype = str(values.get("Building Type", "residential") or "residential").strip().lower()
+        if btype not in {"residential", "commercial"}:
+            btype = "residential"
+
+        # Construction type
+        ctype_raw = str(values.get("Construction Type", "RCC") or "RCC").strip().lower()
+        ctype = "rcc" if "rcc" in ctype_raw else ("steel" if "steel" in ctype_raw else "load_bearing")
+
+        # Quality finish
+        quality_raw = str(values.get("Quality / Finish Level", "standard") or "standard").strip().lower()
+        quality = quality_raw if quality_raw in {"basic", "standard", "premium"} else "standard"
+
+        # Basement
+        basement_raw = str(values.get("Basement", "No") or "No").strip().lower()
+        basement = basement_raw in {"yes", "true", "1"}
+
+        title = f"{bua:,.0f} sqm G+{floors - 1} {btype.title()} Building"
+        return ProjectInput(
+            title=title,
+            length_km=bua,  # carries bua for routing
+            duration_days=duration_days,
+            budget_crore=budget_crore,
+            start_date=start_date,
+            project_type="building",
+            built_up_area_sqm=bua,
+            number_of_floors=floors,
+            building_type=btype,
+            construction_type=ctype,
+            quality_finish=quality,
+            basement=basement,
         )
 
     # ------------------------------------------------------------------ summary
