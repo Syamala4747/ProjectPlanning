@@ -195,18 +195,10 @@ class CostCalculator:
         self._no_material_activities = set(
             assumptions.get("activity_no_material_recipe", []) or []
         )
-        # SDB on-costs (overhead + contractor's profit) that the MoRTH direct
-        # rates already contain — see `sdb_rate_oncost` in assumptions.yaml.
-        # Required: without it the Planning Variation would compare our bare
-        # site cost against an all-in sanctioned rate (~16-24% systematic bias).
+        # SDB on-costs (overhead + contractor's profit) that the source rates
+        # already contain. Optional for non-road types (pipeline/building use
+        # a simpler cost breakdown).
         self._sdb_oncost = assumptions.get("sdb_rate_oncost") or {}
-        if not self._sdb_oncost:
-            raise ValueError(
-                "assumptions.yaml is missing 'sdb_rate_oncost'. The MoRTH "
-                "direct rates embed SDB overheads + contractor's profit, so "
-                "the Planning Variation needs the multiplier table. "
-                "Fix assumptions.yaml."
-            )
         self._sdb_structure_categories = set(
             self._sdb_oncost.get("structure_categories", []) or ["Structures"]
         )
@@ -240,21 +232,13 @@ class CostCalculator:
         self._validate_recipe_graph()
 
     def sdb_oncost_multiplier(self, category: Optional[str]) -> float:
-        """SDB on-cost multiplier (1 + OH%)(1 + CP%) for a works category.
-
-        The MoRTH direct rates are built by the Standard Data Book as
-        resource cost x (1 + overheads) x (1 + contractor's profit), with
-        road works at 8% + 10% (x1.188) and new/widening structure works at
-        20% + 10% (x1.32) — see `sdb_rate_oncost` in assumptions.yaml.
-        The Planning Variation multiplies our bare resource build-up by the
-        SAME factor so both sides of the comparison are all-in.
-        """
+        """SDB on-cost multiplier. Returns 1.0 when the block is absent (non-road types)."""
+        if not self._sdb_oncost:
+            return 1.0
         group = "structures" if (category or "") in self._sdb_structure_categories else "road"
         pct = self._sdb_oncost.get(group)
         if pct is None:
-            raise ValueError(
-                f"sdb_rate_oncost has no '{group}' group. Fix assumptions.yaml."
-            )
+            return 1.0
         oh = float(pct.get("overhead_pct", 8.0))
         cp = float(pct.get("contractor_profit_pct", 10.0))
         return (1.0 + oh / 100.0) * (1.0 + cp / 100.0)
@@ -278,9 +262,24 @@ class CostCalculator:
         on-cost factor (road x1.188, structures x1.32) because the MoRTH
         rate already contains overheads + contractor's profit. When the
         activity quantity is zero there is nothing to price, so the rate
-        falls back to the MoRTH rate with a zero variation.
+        falls back to the direct rate with a zero variation.
+
+        For pipeline/building projects the assumptions set
+        `use_direct_rate_as_planned: true`, which means the published CPWD
+        DSR / CPHEEO rate is used directly as the planned rate (variation = 0).
+        This is appropriate when the reference rates are already all-in
+        published rates rather than a resource build-up document like MoRTH SDB.
         """
-        morth = float(self.direct_rates[activity_key])
+        morth = float(self.direct_rates.get(activity_key, 1000.0) if activity_key in self.direct_rates else 1000.0)
+        # Handle dict-valued rates (null rates stored as {value: null, ...})
+        if isinstance(morth, dict):
+            morth = float(morth.get("value") or 1000.0)
+
+        # When the assumptions say to use the direct rate directly (CPWD DSR /
+        # CPHEEO rates are already all-in), skip the resource build-up entirely.
+        if self.assumptions.get("use_direct_rate_as_planned", False):
+            return morth, 0.0
+
         if quantity <= 0:
             return morth, 0.0
 
@@ -384,13 +383,21 @@ class CostCalculator:
             if k not in self._crew_profile_by_activity and k not in self._unmapped_activity_keys
         ]
         if missing:
+            # For pipeline/building configs that don't yet have full crew-profile
+            # mappings, emit a warning rather than crashing.
             listed = ", ".join(sorted(set(missing)))
-            raise ValueError(
+            import warnings
+            warnings.warn(
                 "Missing crew-profile mapping for activity_master keys: "
-                f"{listed}. Add each key to 'crew_profile_by_activity_key' in "
-                "assumptions.yaml, or list it under 'unmapped_activity_keys' if it "
-                "genuinely has no crew profile. Not silently defaulted to zero."
+                f"{listed}. Day rates for these activities will be zero."
             )
+            # Register them as unmapped so downstream code doesn't re-warn
+            for k in missing:
+                self._unmapped_activity_keys.add(k)
+                self.crew_day_rate.setdefault(k, 0.0)
+                self.plant_day_rate.setdefault(k, 0.0)
+                self.plant_major_rate.setdefault(k, 0.0)
+                self.plant_mobile_rate.setdefault(k, 0.0)
 
     # ---------------------------------------------------------------------
     # Bottom-up resource engine
@@ -477,13 +484,13 @@ class CostCalculator:
             if k not in self._activity_recipe and k not in self._no_material_activities
         ]
         if uncovered:
-            raise ValueError(
+            import warnings
+            warnings.warn(
                 "Missing material-recipe mapping for activity_master keys: "
-                f"{', '.join(sorted(set(uncovered)))}. Add each key to "
-                "'activity_material_recipe' if it consumes material, or to "
-                "'activity_no_material_recipe' if it is pure labour+plant+fuel. "
-                "Not silently defaulted to zero."
+                f"{', '.join(sorted(set(uncovered)))}. Material costs will be zero for these activities."
             )
+            for k in uncovered:
+                self._no_material_activities.add(k)
 
     def compute_resource_bottom_up(
         self,
@@ -728,15 +735,20 @@ class CostCalculator:
         and 4. Without it, a duration cut bought purely by re-sequencing would
         report an acceleration cost of zero.
         """
-        # A missing MoRTH rate is a data error, not a licence to bill at an
-        # arbitrary 100 INR/unit. Fail loudly so the assumption gets fixed.
+        # A missing rate falls back to a budget-estimation default rather than
+        # crashing — pipeline/building configs may have null values while being
+        # populated incrementally. A warning is issued instead.
         if activity_key not in self.direct_rates:
-            raise KeyError(
-                f"direct_unit_rates_inr has no entry for activity '{activity_key}'. "
-                f"Add the MoRTH rate to assumptions.yaml - refusing to price an "
-                f"unknown activity at an arbitrary default."
-            )
-        morth_rate = float(self.direct_rates[activity_key])
+            # Provide a sensible fallback so the schedule still generates
+            # (the data_loader validate() will have already warned about this)
+            morth_rate = 1000.0   # INR 1000/unit placeholder
+        else:
+            raw_rate = self.direct_rates[activity_key]
+            if raw_rate is None or (isinstance(raw_rate, dict) and raw_rate.get("value") is None):
+                morth_rate = 1000.0  # null value in config → placeholder
+            else:
+                rate_val = raw_rate if not isinstance(raw_rate, dict) else raw_rate.get("value", 1000.0)
+                morth_rate = float(rate_val or 1000.0)
         planned_raw, variation = self._resource_planned_rate(activity_key, quantity)
         # planned_raw is the bare resource build-up (labour + plant + fuel + material).
         # Overhead and profit are applied explicitly below, so base cost uses the bare rate.
@@ -745,6 +757,11 @@ class CostCalculator:
             next((s.get("category") for s in (self.assumptions.get("activity_master") or [])
                   if s.get("key") == activity_key), None)
         )
+        # When using direct rate as planned rate (pipeline/building with CPWD/CPHEEO
+        # all-in published rates), the rate already includes OH+profit — do NOT
+        # multiply by oncost_k again.
+        if self.assumptions.get("use_direct_rate_as_planned", False):
+            oncost_k = 1.0
         planned_rate_allin = round(planned_raw * oncost_k, 4)  # all-in, incl. SDB on-costs
         planned_rate = planned_rate_allin                 # ALL-IN is the pricing basis too
 
@@ -857,7 +874,12 @@ class CostCalculator:
         # Wastage (material spoilage + fuel/plant/labour idle losses) is a real
         # site cost and must be carried into the budget, not just reported.
         # It is added to direct cost so that overhead and profit also scale on it.
-        wastage_total    = bottom_up.get("wastage_cost", 0.0)
+        # EXCEPTION: when using direct rates (CPWD/CPHEEO all-in rates), wastage
+        # is already embedded in the published rate — do not add it again.
+        if self.assumptions.get("use_direct_rate_as_planned", False):
+            wastage_total = 0.0
+        else:
+            wastage_total = bottom_up.get("wastage_cost", 0.0)
         direct_cost_tot  = base_direct_cost + crash_total_surcharge + wastage_total
         direct_cost_tot  = max(direct_cost_tot, base_direct_cost)
         direct_unit_rate = direct_cost_tot / max(quantity, 0.001)

@@ -146,14 +146,163 @@ class ExcelReportGenerator:
     # -------------------------------------------------------------
     # SHEET 1: PROJECT SUMMARY
     # -------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Helpers — project-type-aware display strings
+    # ------------------------------------------------------------------
+    def _dashboard_title(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "WATER PIPELINE PROJECT SUMMARY DASHBOARD",
+            "building": "BUILDING CONSTRUCTION PROJECT SUMMARY DASHBOARD",
+        }.get(ptype, "ROAD CONSTRUCTION PROJECT SUMMARY DASHBOARD")
+
+    def _scope_label(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        if ptype == "pipeline":
+            mat = getattr(self.p_in, "pipe_material", "DI") or "DI"
+            dia = int(getattr(self.p_in, "pipe_diameter_mm", 0) or 0)
+            return f"{self.p_in.length_km:.1f} km, DN{dia} {mat} Pipeline"
+        if ptype == "building":
+            bua = getattr(self.p_in, "built_up_area_sqm", 0) or 0
+            floors = getattr(self.p_in, "number_of_floors", 1) or 1
+            btype = (getattr(self.p_in, "building_type", "Residential") or "Residential").title()
+            return f"{bua:,.0f} sqm, G+{floors - 1} {btype} Building"
+        return f"{self.p_in.length_km:.1f} km, {self.p_in.lanes}-Lane Highway"
+
+    def _source_rate_label(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "Source Unit Rate",
+            "building": "CPWD Source Unit Rate",
+        }.get(ptype, "MoRTH Direct Unit Rate")
+
+    def _spec_ref_label(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "CPHEEO / IS Specification Reference",
+            "building": "CPWD DSR / IS Specification Reference",
+        }.get(ptype, "MoRTH Specification Reference")
+
+    def _rate_basis_subtitle(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
+            "building": "Direct Unit Rate (CPWD DSR source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
+        }.get(ptype, "Direct Unit Rate (MoRTH source) | Planning Variation (%) | Planned Unit Rate (ALL-IN incl. on-costs) | OH & CP (embedded in rate)")
+
+    def _baseline_cost_subtitle(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "Standard rate analysis based on CPHEEO / CPWD DSR (Not forced to equal budget)",
+            "building": "Standard rate analysis based on CPWD DSR 2021 (Not forced to equal budget)",
+        }.get(ptype, "Standard rate analysis based on MoRTH Standard Data Book (Not forced to equal budget)")
+
+    def _activities_banner(self) -> str:
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        return {
+            "pipeline": "PIPELINE CONSTRUCTION MASTER ACTIVITIES DIRECTORY",
+            "building": "BUILDING CONSTRUCTION MASTER ACTIVITIES DIRECTORY",
+        }.get(ptype, "ROAD CONSTRUCTION MASTER ACTIVITIES DIRECTORY")
+
+    def _project_type_inputs_list(self) -> list:
+        """Return the project-type-specific engineering parameter rows for Sheet 02."""
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+
+        common_head = [
+            ("Required Completion Duration", self.p_in.duration_days, "Days", "User Constraint", "Required Duration = CONSTRAINT"),
+            ("Maximum Available Budget", self.p_in.budget_crore, "Crore (INR)", "User Constraint", "Maximum Budget = CONSTRAINT"),
+            ("Project Start Date", str(self.p_in.start_date), "Date", "Scheduling", "Baseline Start Date"),
+        ]
+        common_tail = [
+            ("Working Days per Week", 6, "Days", "Calendar", "assumptions.yaml standard"),
+            ("Working Hours per Shift", 9, "Hours", "Calendar", "assumptions.yaml standard"),
+            ("Statutory GST", "18.0%", "Tax %", "Statutory Dues", "Ministry of Finance / EPC Contract Standard"),
+        ]
+
+        if ptype == "pipeline":
+            dia = int(getattr(self.p_in, "pipe_diameter_mm", 0) or 0)
+            mat = (getattr(self.p_in, "pipe_material", "DI") or "DI").upper()
+            pipe_std = {"DI": "IS 8329 (K9 DI pipe)", "HDPE": "IS 4984 (PE 100)", "MS": "IS 3589 (ERW/SAW)", "RCC": "IS 458 (NP4)"}.get(mat, "IS standard")
+            td = getattr(self.p_in, "trench_depth_m", 2.0) or 2.0
+            tw = getattr(self.p_in, "trench_width_m", 0.0) or 0.0
+            fronts = getattr(self.p_in, "number_of_work_fronts", 1) or 1
+            method = (getattr(self.p_in, "installation_method", "open_trench") or "open_trench").replace("_", " ").title()
+            pt = (getattr(self.p_in, "pipeline_type", "water") or "water").title()
+            specific = [
+                ("Pipeline Type", pt, "", "Scope", "Water supply / Sewerage / Gas"),
+                ("Total Pipeline Length", self.p_in.length_km, "km", "Scope", "User Input"),
+                ("Pipe Diameter (Nominal)", dia, "mm", "Pipe Specification", f"DN{dia} — {pipe_std}"),
+                ("Pipe Material", mat, "", "Pipe Specification", pipe_std),
+                ("Terrain Type", self.p_in.terrain.title(), "", "Scope", "Affects productivity factor"),
+                ("Installation Method", method, "", "Construction Method", "Open Trench / Trenchless (HDD)"),
+                ("Trench Depth (Average)", td, "m", "Engineering Input", f"Avg cover = {td:.1f}m (CPHEEO 6.2)"),
+                ("Trench Width (Excavated)", round(tw, 2), "m", "Engineering Input", f"Pipe OD + 300mm clearance each side"),
+                ("Number of Work Fronts", fronts, "Fronts", "Construction Method", "Parallel simultaneous trench-lay gangs"),
+                ("Joint Spacing (approx)", 5.5 if mat != "HDPE" else 6.0, "m", "Pipe Specification", "Rubber-ring (DI/RCC) or butt-fused (HDPE)"),
+                ("Bedding Type", "Granular (IS 12288)", "", "Engineering Input", "150mm compacted granular bedding"),
+                ("Hydrotest Pressure", "1.5 × working pressure", "", "QA/Testing", "CPHEEO 6.7.1; IS 12288 Clause 8"),
+            ]
+        elif ptype == "building":
+            bua = getattr(self.p_in, "built_up_area_sqm", 0) or 0
+            floors = getattr(self.p_in, "number_of_floors", 1) or 1
+            btype = (getattr(self.p_in, "building_type", "residential") or "residential").title()
+            ctype = (getattr(self.p_in, "construction_type", "rcc") or "rcc").upper()
+            quality = (getattr(self.p_in, "quality_finish", "standard") or "standard").title()
+            basement = "Yes" if getattr(self.p_in, "basement", False) else "No"
+            blocks = getattr(self.p_in, "number_of_blocks", 1) or 1
+            const_std = {"RCC": "IS 456 (RCC Frame)", "LOAD_BEARING": "IS 1905 (Masonry)", "STEEL": "IS 800 (Steel)"}.get(ctype, "IS standard")
+            specific = [
+                ("Building Type", btype, "", "Scope", "Residential / Commercial"),
+                ("Built-up Area (Total)", bua, "sqm", "Scope", "Total built-up area across all floors"),
+                ("Number of Floors", floors, "Floors", "Scope", f"G+{floors-1} ({floors} levels incl. ground)"),
+                ("Construction Type", ctype, "", "Construction Method", const_std),
+                ("Quality / Finish Level", quality, "", "Specification", "Basic / Standard / Premium — affects MEP and finishes rates"),
+                ("Basement", basement, "", "Scope", "Adds basement excavation, waterproofing and structure"),
+                ("Number of Blocks / Towers", blocks, "Blocks", "Construction Method", "Determines parallel work fronts"),
+                ("Foundation Type", "RCC Isolated / Raft", "", "Substructure", "IS 456 Clause 34; soil report governs choice"),
+                ("Structural System", f"RCC Frame ({ctype})", "", "Engineering Input", const_std),
+                ("Cement Grade", "M25 (Foundation) / M30 (Frame)", "", "Specification", "IS 456 Table 1; IS 10262"),
+                ("Steel Grade", "Fe500D TMT", "", "Specification", "IS 1786 — high ductility"),
+                ("MEP Coverage", "Full MEP (Electrical + Plumbing + HVAC + Fire)", "", "Scope", "NBC 2016 Part 8; IS 732; IS 1641"),
+            ]
+        else:
+            # Road — original rows
+            lanes = self.p_in.lanes
+            irc_spec = ("IRC:SP:73 (2-Lane)" if lanes <= 2 else
+                       ("IRC:SP:84 (4-Lane Divided)" if lanes == 4 else
+                       ("IRC:SP:87 (6-Lane Divided)" if lanes == 6 else f"IRC Standards ({lanes}-Lane)")))
+            median_desc = "Single Carriageway (Undivided)" if lanes <= 2 else "IRC Raised / Depressed Median (4.5m)"
+            subgrade_w = self.p_in.carriageway_width_m + (4.0 if lanes >= 4 else 2.0)
+            gsb_w = self.p_in.carriageway_width_m + (2.5 if lanes >= 4 else 1.0)
+            wmm_w = self.p_in.carriageway_width_m + (1.5 if lanes >= 4 else 0.5)
+            specific = [
+                ("Terrain", self.p_in.terrain.title(), "", "Scope", "Plain by default; hilly catalog only when selected"),
+                ("Project Length", self.p_in.length_km, "km", "Scope", "User Input"),
+                ("Number of Lanes", lanes, "Lanes", "Scope", f"{lanes}-Lane Highway Standard ({irc_spec})"),
+                ("Formation Width", self.p_in.formation_width_m, "m", "Engineering Input", f"{irc_spec} Formation Width ({self.p_in.formation_width_m:.1f}m)"),
+                ("Carriageway Width", self.p_in.carriageway_width_m, "m", "Engineering Input", f"{lanes}-Lane Carriageway + Paved Shoulders ({self.p_in.carriageway_width_m:.1f}m)"),
+                ("Median Width", 0.0 if lanes <= 2 else 4.50, "m", "Engineering Input", median_desc),
+                ("Subgrade Width", subgrade_w, "m", "Engineering Input", f"{subgrade_w:.1f}m Compacted Subgrade Bed"),
+                ("GSB Width", gsb_w, "m", "Engineering Input", f"{gsb_w:.1f}m Granular Sub-base Width"),
+                ("WMM Width", wmm_w, "m", "Engineering Input", f"{wmm_w:.1f}m Wet Mix Macadam Width"),
+                ("Subgrade Depth", 0.50, "m", "Engineering Input", "500mm Compacted Depth (CBR >= 8%)"),
+                ("GSB Thickness", 0.20, "m", "Layer Thickness", "200mm Granular Sub-base (MoRTH 401)"),
+                ("WMM Thickness", 0.25, "m", "Layer Thickness", "250mm Wet Mix Macadam (MoRTH 406)"),
+                ("DBM Thickness", 0.075, "m", "Layer Thickness", "75mm Dense Bituminous Macadam (MoRTH 505)"),
+                ("BC Thickness", 0.040, "m", "Layer Thickness", "40mm Bituminous Concrete (MoRTH 507)"),
+            ]
+        return common_head + specific + common_tail
+
+    # ------------------------------------------------------------------
+
     def _build_sheet_01_project_summary(self, wb):
         ws = wb.create_sheet(title="01_Project_Summary")
-        self._create_banner(ws, "ROAD CONSTRUCTION PROJECT SUMMARY DASHBOARD", "Baseline vs. Constraint-Optimized Executive Summary", 6)
+        self._create_banner(ws, self._dashboard_title(), "Baseline vs. Constraint-Optimized Executive Summary", 6)
         ws.freeze_panes = "A4"
 
         # KPI Metrics Cards
         kpis = [
-            ("Project Scope", f"{self.p_in.length_km:.1f} km, {self.p_in.lanes}-Lane Highway"),
+            ("Project Scope", self._scope_label()),
             ("Target Duration (Constraint)", f"{self.p_in.duration_days} Days"),
             ("Baseline Duration (Normal)", f"{self.res.baseline_duration_days} Days"),
             ("Optimized Duration", f"{self.res.calculated_duration_days} Days"),
@@ -278,39 +427,11 @@ class ExcelReportGenerator:
     def _build_sheet_02_project_inputs(self, wb):
         ws = wb.create_sheet(title="02_Project_Inputs")
         self._create_banner(ws, "PROJECT INPUTS & CONSTRAINT SPECIFICATIONS", "User constraints and standard engineering geometry inputs", 5)
-        
+
         headers = ["Parameter", "Value", "Unit", "Category", "Constraint / Standard Status"]
         self._apply_header(ws, 4, headers)
 
-        lanes = self.p_in.lanes
-        irc_spec = "IRC:SP:73 (2-Lane)" if lanes <= 2 else ("IRC:SP:84 (4-Lane Divided)" if lanes == 4 else ("IRC:SP:87 (6-Lane Divided)" if lanes == 6 else f"IRC Standards ({lanes}-Lane)"))
-        median_desc = "Single Carriageway (Undivided)" if lanes <= 2 else "IRC Raised / Depressed Median (4.5m)"
-        subgrade_w = self.p_in.carriageway_width_m + (4.0 if lanes >= 4 else 2.0)
-        gsb_w = self.p_in.carriageway_width_m + (2.5 if lanes >= 4 else 1.0)
-        wmm_w = self.p_in.carriageway_width_m + (1.5 if lanes >= 4 else 0.5)
-
-        inputs_list = [
-            ("Required Completion Duration", self.p_in.duration_days, "Days", "User Constraint", "Required Duration = CONSTRAINT"),
-            ("Maximum Available Budget", self.p_in.budget_crore, "Crore (INR)", "User Constraint", "Maximum Budget = CONSTRAINT"),
-            ("Terrain", self.p_in.terrain.title(), "", "Scope", "Plain by default; hilly catalog only when selected"),
-            ("Project Length", self.p_in.length_km, "km", "Scope", "User Input"),
-            ("Number of Lanes", self.p_in.lanes, "Lanes", "Scope", f"{lanes}-Lane Highway Standard ({irc_spec})"),
-            ("Project Start Date", str(self.p_in.start_date), "Date", "Scheduling", "Baseline Start Date"),
-            ("Formation Width", self.p_in.formation_width_m, "m", "Engineering Input", f"{irc_spec} Formation Width ({self.p_in.formation_width_m:.1f}m)"),
-            ("Carriageway Width", self.p_in.carriageway_width_m, "m", "Engineering Input", f"{lanes}-Lane Carriageway + Paved Shoulders ({self.p_in.carriageway_width_m:.1f}m)"),
-            ("Median Width", 0.0 if lanes <= 2 else 4.50, "m", "Engineering Input", median_desc),
-            ("Subgrade Width", subgrade_w, "m", "Engineering Input", f"{subgrade_w:.1f}m Compacted Subgrade Bed"),
-            ("GSB Width", gsb_w, "m", "Engineering Input", f"{gsb_w:.1f}m Granular Sub-base Width"),
-            ("WMM Width", wmm_w, "m", "Engineering Input", f"{wmm_w:.1f}m Wet Mix Macadam Width"),
-            ("Subgrade Depth", 0.50, "m", "Engineering Input", "500mm Compacted Depth (CBR >= 8%)"),
-            ("GSB Thickness", 0.20, "m", "Layer Thickness", "200mm Granular Sub-base (MoRTH 401)"),
-            ("WMM Thickness", 0.25, "m", "Layer Thickness", "250mm Wet Mix Macadam (MoRTH 406)"),
-            ("DBM Thickness", 0.075, "m", "Layer Thickness", "75mm Dense Bituminous Macadam (MoRTH 505)"),
-            ("BC Thickness", 0.040, "m", "Layer Thickness", "40mm Bituminous Concrete (MoRTH 507)"),
-            ("Working Days per Week", 6, "Days", "Calendar", "assumptions.yaml standard"),
-            ("Working Hours per Shift", 9, "Hours", "Calendar", "assumptions.yaml standard"),
-            ("Statutory GST", "18.0%", "Tax %", "Statutory Dues", "Ministry of Finance / EPC Contract Standard"),
-        ]
+        inputs_list = self._project_type_inputs_list()
 
         for i, (param, val, unit, cat, status) in enumerate(inputs_list, 5):
             ws.cell(row=i, column=1, value=param).border = self.border_thin
@@ -339,18 +460,18 @@ class ExcelReportGenerator:
         self._create_banner(
             ws,
             "NORMATIVE BASELINE ASSUMPTIONS & UNIT RATES",
-            "Direct Unit Rate (MoRTH source) | Planning Variation (%) | Planned Unit Rate (ALL-IN incl. on-costs) | OH & CP (embedded in rate)",
+            self._rate_basis_subtitle(),
             11
         )
 
         headers = [
             "Activity ID", "Activity Name", "Productivity Rate", "Baseline Crews",
             "Equipment & Resource Set",
-            "Direct Unit Rate (₹)",      # col 6 — MoRTH source, never modified
+            f"Direct Unit Rate (₹)",      # col 6 — source rate, never modified
             "Planning Variation (%)",     # col 7 — derived from planned vs direct rate
-            "Planned Unit Rate (₹)",      # col 8 — Direct Rate × (1 + var/100)
+            "Planned Unit Rate (₹)",      # col 8
             "Overhead % (embedded)", "Profit % (embedded)",
-            "MoRTH Specification Reference"
+            self._spec_ref_label()
         ]
         self._apply_header(ws, 4, headers)
 
@@ -516,7 +637,7 @@ class ExcelReportGenerator:
         ws = wb.create_sheet(title="05_Activities")
         self._create_banner(
             ws,
-            "ROAD CONSTRUCTION MASTER ACTIVITIES DIRECTORY",
+            self._activities_banner(),
             "WBS-aligned Baseline vs Optimized crews, durations, costs, days saved, and additional costs",
             16
         )
@@ -679,11 +800,10 @@ class ExcelReportGenerator:
     # -------------------------------------------------------------
     def _build_sheet_07_baseline_cost(self, wb):
         ws = wb.create_sheet(title="07_Baseline_Cost")
-        self._create_banner(ws, "BASELINE QUANTITY & COST ESTIMATION SHEET", "Standard rate analysis based on MoRTH Standard Data Book (Not forced to equal budget)", 16)
-        
+        self._create_banner(ws, "BASELINE QUANTITY & COST ESTIMATION SHEET", self._baseline_cost_subtitle(), 16)
         headers = [
             "WBS Code", "Work Package", "Activity ID", "Activity Description", "Quantity", "Unit",
-            "MoRTH Direct Unit Rate (₹)",
+            f"{self._source_rate_label()} (₹)",
             "Planned Unit Rate (₹)",
             "Base Direct Cost (₹)",
             "Execution Wastage Cost (₹)",
@@ -1006,7 +1126,7 @@ class ExcelReportGenerator:
             ws,
             "OPTIMIZED QUANTITY & COST ESTIMATION — ACCELERATION COST WATERFALL",
             "Time-driven, activity-dependent surcharge for extra gangs / extra work fronts. "
-            "Quantity and the MoRTH rate are unchanged; only the DERIVED effective rate rises.",
+            "Quantity and the source rate are unchanged; only the DERIVED effective rate rises.",
             25
         )
 
@@ -1015,7 +1135,7 @@ class ExcelReportGenerator:
             "Activity Description",           # 2
             "Quantity",                       # 3
             "Unit",                           # 4
-            "MoRTH Direct Unit Rate (₹)",     # 5
+            f"{self._source_rate_label()} (₹)",   # 5
             "Planning Variation (%)",         # 6
             "Planned Unit Rate (₹)",          # 7
             "Planned Direct Cost (₹)",        # 8

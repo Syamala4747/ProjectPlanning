@@ -28,6 +28,7 @@ move between moves.
 """
 import copy
 import math
+import os
 from typing import List, Dict, Tuple, Optional, Any
 from datetime import date, timedelta
 
@@ -96,6 +97,22 @@ class ConstraintScheduler:
             for item in (self.assumptions.get("staggered_handover_chains", []) or [])
         ]
 
+        # Labels for ActivityReference — read from config document block
+        doc = (self.guidelines.get("data") or {}).get("document") or self.guidelines.get("document") or {}
+        self._guidelines_filename = (
+            os.path.basename(data_loader.guidelines_path)
+            if hasattr(data_loader, "guidelines_path") else "guidelines.json"
+        )
+        self._assumptions_filename = (
+            os.path.basename(data_loader.assumptions_path)
+            if hasattr(data_loader, "assumptions_path") else "assumptions.yaml"
+        )
+        self._guideline_ref_label = doc.get("title", "Project Guidelines")
+        self.stagger_chains = [
+            (item["predecessor_id"], item["successor_id"])
+            for item in (self.assumptions.get("staggered_handover_chains", []) or [])
+        ]
+
         self.max_fronts = 1
         self.corridor_fronts = 1
         self.baseline_fronts = 1
@@ -122,16 +139,7 @@ class ConstraintScheduler:
           `crew_multiplier_cap`, but never below `baseline_fronts`: the cap
           limits escalation, it cannot force a corridor back to one gang.
         """
-        length = float(self.input.length_km or 0.0)
-        if length <= 0:
-            raise ValueError("project length must be greater than 0 km.")
-
-        span = float(self.assumptions.get("work_front_span_km", 12) or 0)
-        if span <= 0:
-            raise ValueError(
-                "assumptions.yaml: work_front_span_km must be greater than 0 "
-                "(got %s). Fix it in assumptions.yaml." % span)
-
+        ptype = str(getattr(self.input, "project_type", "road") or "road").lower()
         cap = float(self.assumptions.get("crew_multiplier_cap", 6) or 6)
         if cap < 1:
             raise ValueError(
@@ -139,8 +147,46 @@ class ConstraintScheduler:
                 f"(got {cap}). Fix it in assumptions.yaml."
             )
 
-        corridor_fronts = max(2, min(8, int(math.ceil(length / 3.5))))
-        baseline_fronts = max(1, min(corridor_fronts, int(math.ceil(length / span))))
+        if ptype == "pipeline":
+            # Pipeline: user supplies number_of_work_fronts directly (from CLI --fronts).
+            # Physical ceiling = min(fronts, 4) to avoid unrealistic over-splitting.
+            # Baseline uses 1 front (single crew set, correct cost); optimizer can
+            # scale up to the user-supplied fronts to shorten the schedule.
+            supplied = max(1, int(getattr(self.input, "number_of_work_fronts", 1) or 1))
+            corridor_fronts = min(supplied, 4)
+            baseline_fronts = 1  # Single front at baseline — cost priced at 1 crew set
+            # length check
+            length = float(self.input.length_km or 0.0)
+            if length <= 0:
+                raise ValueError("pipeline length must be greater than 0 km.")
+
+        elif ptype == "building":
+            # Building: parallelism = number of blocks/towers.
+            # Each block is an independent work front, but the BASELINE cost is
+            # priced at 1 front (one crew set covers the whole building).
+            # Duration at baseline = total work / 1 front; adding blocks cuts
+            # duration but doesn't multiply cost — the same crew just moves
+            # block-to-block. The optimizer can then add fronts up to the
+            # number of blocks to shorten the schedule.
+            length = float(getattr(self.input, "built_up_area_sqm", 1000) or 1000)
+            supplied_blocks = max(1, int(getattr(self.input, "number_of_blocks", 1) or 1))
+            corridor_fronts = min(supplied_blocks, 6)
+            baseline_fronts = 1  # Single front at baseline — cost doesn't multiply by blocks
+
+        else:
+            # Road: original corridor-length formula
+            length = float(self.input.length_km or 0.0)
+            if length <= 0:
+                raise ValueError("project length must be greater than 0 km.")
+
+            span = float(self.assumptions.get("work_front_span_km", 12) or 0)
+            if span <= 0:
+                raise ValueError(
+                    "assumptions.yaml: work_front_span_km must be greater than 0 "
+                    "(got %s). Fix it in assumptions.yaml." % span)
+
+            corridor_fronts = max(2, min(8, int(math.ceil(length / 3.5))))
+            baseline_fronts = max(1, min(corridor_fronts, int(math.ceil(length / span))))
 
         self.max_fronts = corridor_fronts
         self.corridor_fronts = corridor_fronts
@@ -277,12 +323,12 @@ class ConstraintScheduler:
                 activity_key=key, quantity=qty, crews=crews, shifts=shifts)
 
             ref = ActivityReference(
-                morth_spec=spec.get("morth_spec", ""),
-                data_book_item=spec.get("morth_item", ""),
+                morth_spec=spec.get("morth_spec", spec.get("spec_ref", "")),
+                data_book_item=spec.get("morth_item", spec.get("data_book_item", "")),
                 page_number=spec.get("page", 0),
-                source_file="road_guidelines.json",
-                guideline_ref=f"MoRTH SDB 2019 Item {spec.get('morth_item', '')}",
-                assumption_ref=f"road_assumptions.yaml ({key})"
+                source_file=self._guidelines_filename,
+                guideline_ref=self._guideline_ref_label,
+                assumption_ref=self._assumptions_filename,
             )
 
             if crews > base_crews or shifts > 1.0 or work_fronts > 1:

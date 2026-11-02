@@ -1,11 +1,15 @@
 """
-Data models and type definitions for the Road Construction Project Scheduler.
+Data models and type definitions for the Construction Project Scheduler.
+Supports road, pipeline, and building project types.
 """
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from datetime import date
 
 import re
+
+# Valid project types
+PROJECT_TYPES = {"road", "pipeline", "building"}
 
 def parse_lanes_from_title(title: str, default_lanes: int = 4) -> int:
     """
@@ -87,8 +91,40 @@ class ProjectInput:
     carriageway_width_m: float = 0.0
     formation_width_m: float = 0.0
     gst_pct: float = 18.0
+    # Project type: "road", "pipeline", or "building"
+    project_type: str = "road"
+
+    # --- Pipeline-specific fields ---
+    pipe_diameter_mm: float = 0.0       # e.g. 600 for DN600
+    pipe_material: str = "DI"           # DI / HDPE / MS / RCC
+    trench_depth_m: float = 2.0
+    trench_width_m: float = 0.0         # 0 = auto-derive from diameter
+    installation_method: str = "open_trench"  # open_trench / trenchless
+    number_of_work_fronts: int = 1      # user-supplied parallelism
+    pipeline_type: str = "water"        # water / sewerage / gas
+
+    # --- Building-specific fields ---
+    built_up_area_sqm: float = 0.0      # total built-up area across all floors (sqft input converted before passing)
+    number_of_floors: int = 0           # G+N => total floors = N+1; e.g. G+3 => 4
+    building_type: str = "residential"  # residential / commercial
+    construction_type: str = "rcc"      # rcc / load_bearing / steel
+    quality_finish: str = "standard"    # basic / standard / premium
+    basement: bool = False
+    number_of_blocks: int = 1           # parallel execution units
 
     def __post_init__(self):
+        self.project_type = str(self.project_type or "road").strip().lower()
+        if self.project_type not in PROJECT_TYPES:
+            raise ValueError(f"project_type must be one of {PROJECT_TYPES}.")
+
+        if self.project_type == "road":
+            self._init_road()
+        elif self.project_type == "pipeline":
+            self._init_pipeline()
+        elif self.project_type == "building":
+            self._init_building()
+
+    def _init_road(self):
         raw_terrain = self.terrain or parse_terrain_from_title(self.title)
         self.terrain = str(raw_terrain or "plain").strip().lower()
         if self.terrain in {"flat", "plains", "plain terrain"}:
@@ -98,15 +134,46 @@ class ProjectInput:
         if self.terrain not in {"plain", "hilly"}:
             raise ValueError("terrain must be either 'plain' or 'hilly'.")
 
-        # Automatically detect lanes and length from project title if present
         if self.title:
             extracted_lanes = parse_lanes_from_title(self.title, default_lanes=self.lanes)
             self.lanes = extracted_lanes
-            
             if self.length_km <= 0:
                 extracted_len = parse_length_from_title(self.title, default_length=self.length_km)
                 if extracted_len > 0:
                     self.length_km = extracted_len
+
+    def _init_pipeline(self):
+        raw_terrain = self.terrain or parse_terrain_from_title(self.title)
+        self.terrain = str(raw_terrain or "plain").strip().lower()
+        if self.terrain in {"flat", "plains"}:
+            self.terrain = "plain"
+        elif self.terrain in {"hill", "mountain", "mountainous"}:
+            self.terrain = "hilly"
+        if self.terrain not in {"plain", "hilly"}:
+            self.terrain = "plain"
+        # Auto-derive trench width from pipe diameter if not supplied
+        if self.trench_width_m <= 0 and self.pipe_diameter_mm > 0:
+            od_m = self.pipe_diameter_mm / 1000.0
+            self.trench_width_m = round(od_m + 0.6, 2)  # pipe OD + 300mm each side clearance
+        if self.number_of_work_fronts < 1:
+            self.number_of_work_fronts = 1
+        # Extract length from title if not given
+        if self.length_km <= 0 and self.title:
+            extracted_len = parse_length_from_title(self.title, default_length=0.0)
+            if extracted_len > 0:
+                self.length_km = extracted_len
+
+    def _init_building(self):
+        self.terrain = "plain"  # buildings always on flat/prepared ground
+        if self.built_up_area_sqm <= 0 and self.length_km > 0:
+            # Allow length_km to carry sqm value for internal routing
+            self.built_up_area_sqm = self.length_km
+        # number_of_floors: accept "G+3" style as 4
+        if self.number_of_floors < 1:
+            self.number_of_floors = 1
+        # Derive number_of_blocks from area: 1 block per 3000 sqm (typical residential staircase block)
+        if self.number_of_blocks < 1:
+            self.number_of_blocks = max(1, round(self.built_up_area_sqm / 3000.0))
 
 
 
@@ -115,9 +182,9 @@ class ActivityReference:
     morth_spec: str
     data_book_item: str
     page_number: Optional[int] = None
-    source_file: str = "road_guidelines.json"
-    guideline_ref: str = "MoRTH SDB (2019)"
-    assumption_ref: str = "road_assumptions.yaml"
+    source_file: str = "guidelines.json"
+    guideline_ref: str = "Project Guidelines"
+    assumption_ref: str = "assumptions.yaml"
 
 @dataclass
 class ActivityCostBreakdown:

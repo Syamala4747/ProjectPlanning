@@ -1,13 +1,13 @@
 """
-Main Entry Point for Road Construction Project Planning & Constraint-Based Scheduling.
-Enforces hard duration and budget constraints through iterative resource optimization.
+Main Entry Point for Construction Project Planning & Constraint-Based Scheduling.
+Supports road, pipeline, and building project types.
 """
 import os
 import sys
 import re
 import json
 import argparse
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -26,30 +26,53 @@ from src.workbook_reader import WorkbookReader
 from src.update_planner import UpdatePlanner
 from src.update_excel_report import UpdateExcelReportGenerator
 
+# Default config paths per project type
+_CONFIG = {
+    "road": {
+        "guidelines": "project_config/road/road_guidelines.json",
+        "assumptions": "project_config/road/road_assumptions.yaml",
+        "output": "road_project_schedule.xlsx",
+        "update_output": "road_project_schedule_updated.xlsx",
+    },
+    "pipeline": {
+        "guidelines": "project_config/pipeline/pipeline_guidelines.json",
+        "assumptions": "project_config/pipeline/pipeline_assumptions.yaml",
+        "output": "pipeline_project_schedule.xlsx",
+        "update_output": "pipeline_project_schedule_updated.xlsx",
+    },
+    "building": {
+        "guidelines": "project_config/building/building_guidelines.json",
+        "assumptions": "project_config/building/building_assumptions.yaml",
+        "output": "building_project_schedule.xlsx",
+        "update_output": "building_project_schedule_updated.xlsx",
+    },
+}
+
+
 def parse_duration_input(raw_input: str) -> int:
     """Parses duration string like '365', '365 days', '12 months' into days."""
     s = str(raw_input).strip().lower()
     match_months = re.search(r"(\d+(\.\d+)?)\s*(months?|m)", s)
     if match_months:
         months_val = float(match_months.group(1))
-        return int(round(months_val * 30))  # 30 days per month planning convention
-    
+        return int(round(months_val * 30))
     match_days = re.search(r"(\d+(\.\d+)?)", s)
     if match_days:
         return int(round(float(match_days.group(1))))
-    
     raise ValueError(f"Unable to parse duration from: '{raw_input}'")
 
+
 def parse_budget_input(raw_input: str) -> float:
-    """Parses budget string like '300', '300 crore', '300 cr' into float in Crore."""
+    """Parses budget string into float Crore."""
     s = str(raw_input).strip().lower()
     match = re.search(r"(\d+(\.\d+)?)", s)
     if match:
         return float(match.group(1))
     raise ValueError(f"Unable to parse budget from: '{raw_input}'")
 
+
 def parse_start_date(raw_input: str) -> date:
-    """Parses date string in YYYY-MM-DD format, or defaults to today."""
+    """Parses YYYY-MM-DD or defaults to today."""
     s = str(raw_input).strip()
     if not s:
         return date.today()
@@ -58,25 +81,28 @@ def parse_start_date(raw_input: str) -> date:
     except ValueError:
         return date.today()
 
+
+def _project_type_banner(project_type: str) -> str:
+    return {
+        "road": "🛣️  ROAD CONSTRUCTION CONSTRAINT-BASED SCHEDULING PIPELINE",
+        "pipeline": "🚰 WATER PIPELINE CONSTRAINT-BASED SCHEDULING PIPELINE",
+        "building": "🏗️  BUILDING CONSTRUCTION CONSTRAINT-BASED SCHEDULING PIPELINE",
+    }.get(project_type, "⚙️  CONSTRUCTION PROJECT SCHEDULING PIPELINE")
+
+
 def run_project_planning(
     project_input: ProjectInput,
-    guidelines_path: str = "road_guidelines.json",
-    assumptions_path: str = "road_assumptions.yaml",
-    output_path: str = "road_project_schedule.xlsx",
+    guidelines_path: str,
+    assumptions_path: str,
+    output_path: str,
     enable_acceleration_cost: bool = True
 ) -> ProjectScheduleResult:
     """
-    Executes the constraint-based planning pipeline:
-    1. Loads MoRTH guidelines and assumptions.
-    2. Runs ConstraintScheduler to compute baseline and iteratively optimize to meet duration and budget.
-    3. Generates the executive-grade 14-sheet Excel report.
-
-    `enable_acceleration_cost=False` forces every NEW time-driven acceleration
-    term to zero (CLI: --no-accel-cost), reproducing the legacy cost behaviour
-    on identical input so the two cost models can be compared directly.
+    Executes the constraint-based planning pipeline for any project type.
     """
-    # 1. Load reference files
-    print("⏳ [1/5] Loading MoRTH guidelines and assumptions...")
+    ptype = project_input.project_type
+
+    print(f"⏳ [1/5] Loading guidelines and assumptions for {ptype.upper()} project...")
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=project_input.terrain)
     print("    ✔ Guidelines & assumptions loaded successfully.")
@@ -86,11 +112,9 @@ def run_project_planning(
             print(f"      • {w}")
 
     if not enable_acceleration_cost:
-        print("    ⚠ --no-accel-cost: time-driven acceleration surcharges are DISABLED "
-              "(legacy cost behaviour).")
+        print("    ⚠ --no-accel-cost: time-driven acceleration surcharges are DISABLED.")
 
-    # 2. Run Constraint-Based Optimizer
-    print("⏳ [2/5] Running Constraint-Based Optimizer & CPM Calculation...")
+    print(f"⏳ [2/5] Running Constraint-Based Optimizer & CPM Calculation...")
     scheduler = ConstraintScheduler(
         project_input=project_input,
         data_loader=loader,
@@ -98,23 +122,35 @@ def run_project_planning(
     )
     result = scheduler.solve()
 
-    print("================================================================================")
-    print(" 🛣️  ROAD CONSTRUCTION CONSTRAINT-BASED SCHEDULING PIPELINE")
-    print("================================================================================")
+    print("=" * 80)
+    print(f" {_project_type_banner(ptype)}")
+    print("=" * 80)
     print(f"Project Title:              {project_input.title}")
-    print(f"Terrain:                    {project_input.terrain.title()}")
-    print(f"Highway Configuration:      {project_input.lanes}-Lane Highway ({project_input.carriageway_width_m:.1f}m Carriageway, {project_input.formation_width_m:.1f}m Formation)")
-    print(f"Project Length:             {project_input.length_km:.2f} km")
-    print(f"Required Target Duration:   {project_input.duration_days} days (Hard Maximum Constraint)")
-    print(f"Approved Maximum Budget:    ₹ {project_input.budget_crore:,.2f} Crore (Hard Ceiling Constraint)")
+    if ptype == "road":
+        print(f"Terrain:                    {project_input.terrain.title()}")
+        print(f"Highway Configuration:      {project_input.lanes}-Lane Highway ({project_input.carriageway_width_m:.1f}m Carriageway)")
+        print(f"Project Length:             {project_input.length_km:.2f} km")
+    elif ptype == "pipeline":
+        print(f"Pipeline Type:              {getattr(project_input, 'pipeline_type', 'water').title()}")
+        print(f"Pipe Specification:         DN{int(project_input.pipe_diameter_mm)} {project_input.pipe_material}")
+        print(f"Total Length:               {project_input.length_km:.2f} km")
+        print(f"Trench:                     {project_input.trench_depth_m:.1f}m deep × {project_input.trench_width_m:.2f}m wide")
+        print(f"Work Fronts:                {project_input.number_of_work_fronts}")
+    elif ptype == "building":
+        print(f"Building Type:              {getattr(project_input, 'building_type', 'residential').title()}")
+        print(f"Built-up Area:              {getattr(project_input, 'built_up_area_sqm', 0):,.0f} sqm  ({getattr(project_input, 'number_of_floors', 1)} floor(s))")
+        print(f"Construction Type:          {getattr(project_input, 'construction_type', 'RCC').upper()}")
+        print(f"Quality Finish:             {getattr(project_input, 'quality_finish', 'standard').title()}")
+        print(f"Basement:                   {'Yes' if getattr(project_input, 'basement', False) else 'No'}")
+    print(f"Required Target Duration:   {project_input.duration_days} days (Hard Maximum)")
+    print(f"Approved Maximum Budget:    ₹ {project_input.budget_crore:,.2f} Crore (Hard Ceiling)")
     print(f"Project Start Date:         {project_input.start_date}")
-    print(" Calendar rules in force (road_assumptions.yaml -> calendar):")
+    print(f"Calendar rules in force:")
     for _line in scheduler.calendar.describe():
         print(f"   • {_line}")
-    print("--------------------------------------------------------------------------------")
+    print("-" * 80)
 
-    # 3. Validate network dependencies
-    print("⏳ [3/5] Validating optimized activity precedence network...")
+    print(f"⏳ [3/5] Validating optimized activity precedence network...")
     errors = DependencyManager.validate_network(result.activities)
     if errors:
         for err in errors:
@@ -122,18 +158,16 @@ def run_project_planning(
         raise ValueError("Network dependency validation failed.")
     print("    ✔ Dependency network is cycle-free and fully connected.")
 
-    # 4. Display baseline vs optimized audit summary
-    print("\n--------------------------------------------------------------------------------")
-    print(" 📊 CONSTRAINT-BASED SCHEDULING RESULTS & AUDIT TRAIL")
-    print("--------------------------------------------------------------------------------")
-    print(f" Highway Type:                   {project_input.lanes}-Lane Highway Standard")
+    print("\n" + "-" * 80)
+    print(" 📊 CONSTRAINT-BASED SCHEDULING RESULTS")
+    print("-" * 80)
     print(f" Baseline Duration (Normal):     {result.baseline_duration_days} Days")
     print(f" Baseline Cost:                  ₹ {result.baseline_cost_crore:,.2f} Crore")
     print(f" Optimized Duration:             {result.calculated_duration_days} Days (Target: <= {project_input.duration_days} Days)")
     print(f" Optimized Total Cost:           ₹ {result.total_calculated_cost_crore:,.2f} Crore (Budget: <= ₹ {project_input.budget_crore:,.2f} Crore)")
     print(f" Duration Saved:                 {result.duration_saved_days} Days")
     print(f" Additional Optimization Cost:   ₹ {result.additional_cost_crore:,.2f} Crore")
-    print(f" Parallel Work Fronts Deployed:  {result.work_fronts} Simultaneous Fronts")
+    print(f" Parallel Work Fronts Deployed:  {result.work_fronts}")
     print(f" Optimized Critical Path:        {' -> '.join(result.critical_path)}")
 
     if result.is_feasible:
@@ -141,27 +175,22 @@ def run_project_planning(
         print(f"    {result.feasibility_message}")
     else:
         print("\n ❌ STATUS: No feasible schedule found within the given budget and duration.")
-        print("    Constraint Violations:")
         for w in result.warnings:
             print(f"    • {w}")
 
-    # Reality checks (benchmark / Bromilow / monsoon exposure) are reported even
-    # for a feasible plan - a schedule that meets both constraints can still be
-    # wildly out of line with what this kind of road actually costs and takes.
     if result.validation_warnings:
         print("\n ⚠ VALIDATION WARNINGS:")
         for w in result.validation_warnings:
             print(f"    • {w}")
 
-    # 5. Generate Excel Report
-    print(f"\n⏳ [4/5] Generating 14-sheet Excel report: {output_path}...")
+    print(f"\n⏳ [4/5] Generating Excel report: {output_path}...")
     reporter = ExcelReportGenerator(result=result, output_path=output_path)
     final_file = reporter.generate()
     print(f"    ✔ Excel report generated successfully at: {os.path.abspath(final_file)}")
-    print("================================================================================")
+    print("=" * 80)
     print(" ✅ CONSTRAINT-BASED PLANNING COMPLETED SUCCESSFULLY")
     print(f" Output File: {os.path.abspath(final_file)}")
-    print("================================================================================")
+    print("=" * 80)
 
     return result
 
@@ -208,8 +237,11 @@ def run_update_plan(args) -> None:
     print(f"      Start:   {proj_input.start_date}")
 
     # 2. Load guidelines and assumptions
-    print("  [2/6] Loading MoRTH guidelines and assumptions...")
-    loader = DataLoader(guidelines_path=args.guidelines, assumptions_path=args.assumptions)
+    print("  [2/6] Loading guidelines and assumptions...")
+    ptype = str(getattr(proj_input, "project_type", "road") or "road").lower()
+    guidelines_path, assumptions_path = _auto_config(
+        ptype, getattr(args, "guidelines", "") or "", getattr(args, "assumptions", "") or "")
+    loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=proj_input.terrain)
     if loader.warnings:
         for w in loader.warnings:
@@ -254,10 +286,10 @@ def run_update_plan(args) -> None:
         actual_progress_pct=float(args.actual_progress),
         target_date=target_date,
         target_progress_pct=float(args.target_progress) if args.target_progress else None,
-        output_path=args.output,
+        output_path=args.output or _CONFIG.get(ptype, _CONFIG["road"])["update_output"],
         activity_progress=activity_progress,
-        guidelines_path=args.guidelines,
-        assumptions_path=args.assumptions,
+        guidelines_path=guidelines_path,
+        assumptions_path=assumptions_path,
         enable_acceleration_cost=not args.no_accel_cost,
     )
 
@@ -271,7 +303,7 @@ def run_update_plan(args) -> None:
 
     # Print update summary
     print("================================================================================")
-    print("  ROAD CONSTRUCTION PROJECT PLAN UPDATE")
+    print(f"  {ptype.upper()} PROJECT PLAN UPDATE")
     print("================================================================================")
     print(f"  Project:                    {proj_input.title}")
     print(f"  Status Date:                {status_date}")
@@ -334,135 +366,140 @@ def _build_update_plan_parser() -> argparse.ArgumentParser:
     p.add_argument("--input", type=str, required=True,
                    help="Path to the existing Excel project plan workbook")
     p.add_argument("--start-date", type=str, default="",
-                   help="Original project start date (YYYY-MM-DD). "
-                        "If omitted, the date from the workbook is used.")
+                   help="Original project start date (YYYY-MM-DD).")
     p.add_argument("--status-date", type=str, required=True,
                    help="Date on which actual progress is reported (YYYY-MM-DD)")
     p.add_argument("--actual-progress", type=float, required=True,
                    help="Actual cumulative project progress as a percentage (0-100)")
     p.add_argument("--target-date", type=str, default="",
-                   help="Future date by which the target should be achieved (YYYY-MM-DD). "
-                        "Optional: if omitted, the optimized final date from the previous Excel workbook is used.")
-    p.add_argument("--target-progress", type=float, default=None,
-                   help="Optional cumulative progress target at the target date. "
-                        "If omitted, the baseline target for that date is used.")
-    p.add_argument("--output", type=str, default="road_project_schedule_updated.xlsx",
-                   help="Filename for the updated Excel workbook")
-    p.add_argument("--activity-progress", type=str, default=None,
-                   help="Optional JSON file with activity-level progress: "
-                        '{"ACT-01": 100.0, "ACT-02": 50.0, ...}')
-    p.add_argument("--guidelines", type=str, default="road_guidelines.json",
-                   help="Path to road_guidelines.json")
-    p.add_argument("--assumptions", type=str, default="road_assumptions.yaml",
-                   help="Path to road_assumptions.yaml")
-    p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true",
-                   help="Disable time-driven acceleration cost terms")
+                   help="Future date by which the target should be achieved (YYYY-MM-DD).")
+    p.add_argument("--target-progress", type=float, default=None)
+    p.add_argument("--output", type=str, default="project_schedule_updated.xlsx")
+    p.add_argument("--activity-progress", type=str, default=None)
+    p.add_argument("--guidelines", type=str, default="",
+                   help="Path to guidelines JSON (auto-detected from workbook project_type if omitted)")
+    p.add_argument("--assumptions", type=str, default="",
+                   help="Path to assumptions YAML (auto-detected from workbook project_type if omitted)")
+    p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true")
     return p
 
 
-def main():
-    # Dispatch to update-plan subcommand if the first argument is "update-plan"
-    if len(sys.argv) > 1 and sys.argv[1] == "update-plan":
-        parser = _build_update_plan_parser()
-        args = parser.parse_args(sys.argv[2:])
-        run_update_plan(args)
-        return
+def _auto_config(project_type: str, guidelines: str, assumptions: str):
+    """Return (guidelines, assumptions) falling back to defaults for the project type."""
+    cfg = _CONFIG.get(str(project_type or "road").lower(), _CONFIG["road"])
+    g = guidelines if guidelines else cfg["guidelines"]
+    a = assumptions if assumptions else cfg["assumptions"]
+    return g, a
 
-    parser = argparse.ArgumentParser(description="Road Construction Project Planner & Constraint-Based Scheduler")
-    parser.add_argument("--title", type=str, default="", help="Project Title (e.g. '10 KM 2-Lane Highway Project')")
-    parser.add_argument("--length", type=float, default=0.0, help="Project Length in km")
-    parser.add_argument("--duration", type=str, default="", help="Required Project Duration (e.g. 365 days or 12 months)")
-    parser.add_argument("--budget", type=str, default="", help="Maximum Project Budget in Crore (e.g. 300)")
-    parser.add_argument("--start-date", type=str, default="", help="Project Start Date (YYYY-MM-DD)")
-    parser.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="",
-                        help="Terrain model; defaults to plain unless the title says hilly, hill, or mountain")
-    parser.add_argument("--guidelines", type=str, default="road_guidelines.json", help="Path to road_guidelines.json")
-    parser.add_argument("--assumptions", type=str, default="road_assumptions.yaml", help="Path to road_assumptions.yaml")
-    parser.add_argument("--output", type=str, default="road_project_schedule.xlsx", help="Output Excel filename")
-    parser.add_argument("--lanes", type=int, default=0, help="Number of Highway Lanes (auto-detected from title if omitted)")
-    parser.add_argument(
-        "--no-accel-cost",
-        dest="no_accel_cost",
-        action="store_true",
-        help="Disable all NEW time-driven acceleration cost terms (extra-front site establishment, "
-             "resident staff, plant hire minimum uplift, gang interference). Reproduces the legacy "
-             "cost behaviour so both cost models can be compared on identical input."
+
+def _build_road_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="python main.py road",
+        description="Plan a road construction project.",
     )
-    args = parser.parse_args()
+    p.add_argument("--title", type=str, default="")
+    p.add_argument("--length", type=float, default=0.0)
+    p.add_argument("--duration", type=str, default="")
+    p.add_argument("--budget", type=str, default="")
+    p.add_argument("--start-date", type=str, default="")
+    p.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="")
+    p.add_argument("--lanes", type=int, default=0)
+    p.add_argument("--guidelines", type=str, default="")
+    p.add_argument("--assumptions", type=str, default="")
+    p.add_argument("--output", type=str, default="")
+    p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true")
+    return p
 
-    # Interactive input if CLI arguments are not fully provided
+
+def _build_pipeline_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="python main.py pipeline",
+        description="Plan a water pipeline construction project.",
+    )
+    p.add_argument("--title", type=str, default="")
+    p.add_argument("--length", type=float, default=0.0,
+                   help="Total pipeline length in km")
+    p.add_argument("--diameter", type=float, default=300.0,
+                   help="Nominal pipe diameter in mm (e.g. 300, 400, 600)")
+    p.add_argument("--material", type=str, default="DI",
+                   choices=("DI", "HDPE", "MS", "RCC"),
+                   help="Pipe material: DI / HDPE / MS / RCC")
+    p.add_argument("--trench-depth", type=float, default=2.0,
+                   help="Average trench depth in metres")
+    p.add_argument("--fronts", type=int, default=1,
+                   help="Number of simultaneous work fronts")
+    p.add_argument("--pipeline-type", type=str, default="water",
+                   choices=("water", "sewerage", "gas"))
+    p.add_argument("--duration", type=str, default="")
+    p.add_argument("--budget", type=str, default="")
+    p.add_argument("--start-date", type=str, default="")
+    p.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="plain")
+    p.add_argument("--guidelines", type=str, default="")
+    p.add_argument("--assumptions", type=str, default="")
+    p.add_argument("--output", type=str, default="")
+    p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true")
+    return p
+
+
+def _build_building_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="python main.py building",
+        description="Plan a residential/commercial building construction project.",
+    )
+    p.add_argument("--title", type=str, default="")
+    p.add_argument("--area", type=float, default=0.0,
+                   help="Total built-up area in sqm (or sqft with --sqft flag)")
+    p.add_argument("--sqft", action="store_true",
+                   help="Interpret --area as square feet instead of sqm")
+    p.add_argument("--floors", type=int, default=4,
+                   help="Number of floors including ground (e.g. G+3 = 4)")
+    p.add_argument("--type", dest="building_type", type=str, default="residential",
+                   choices=("residential", "commercial"))
+    p.add_argument("--construction", dest="construction_type", type=str, default="rcc",
+                   choices=("rcc", "load_bearing", "steel"))
+    p.add_argument("--quality", type=str, default="standard",
+                   choices=("basic", "standard", "premium"))
+    p.add_argument("--basement", action="store_true",
+                   help="Include basement in scope")
+    p.add_argument("--blocks", type=int, default=0,
+                   help="Number of blocks/towers (0 = auto-derive from area)")
+    p.add_argument("--duration", type=str, default="")
+    p.add_argument("--budget", type=str, default="")
+    p.add_argument("--start-date", type=str, default="")
+    p.add_argument("--guidelines", type=str, default="")
+    p.add_argument("--assumptions", type=str, default="")
+    p.add_argument("--output", type=str, default="")
+    p.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true")
+    return p
+
+
+def run_road(args) -> None:
     title = args.title.strip()
     if not title:
         try:
-            title = input("Project Title (e.g. 25 KM 4-Lane Highway Project or 10 KM 2-Lane Road): ").strip()
+            title = input("Project Title (e.g. 25 KM 4-Lane Highway): ").strip()
         except EOFError:
             title = "25 KM 4-Lane Highway Project"
         if not title:
             title = "25 KM 4-Lane Highway Project"
 
     terrain = args.terrain.strip().lower() if args.terrain else parse_terrain_from_title(title)
-    print(f"    ✔ Selected terrain model: {terrain}")
-
-    # Automatically extract lane count from project title
     title_lanes = parse_lanes_from_title(title, default_lanes=0)
-    if title_lanes > 0:
-        lanes = title_lanes
-        print(f"    ✔ Detected {lanes}-Lane Highway configuration from project title: '{title}'")
-    elif args.lanes > 0:
-        lanes = args.lanes
-    else:
-        lanes = 4
-
-    # Automatically extract length from title if available and not specified on CLI
+    lanes = title_lanes if title_lanes > 0 else (args.lanes if args.lanes > 0 else 4)
     title_length = parse_length_from_title(title, default_length=0.0)
-    length_km = args.length
+    length_km = args.length if args.length > 0 else (title_length if title_length > 0 else 0.0)
     if length_km <= 0:
-        if title_length > 0:
-            length_km = title_length
-            print(f"    ✔ Detected {length_km:.1f} km corridor length from project title: '{title}'")
-        else:
-            try:
-                raw_len = input("Project Length in km (e.g. 25): ").strip()
-                length_km = float(raw_len) if raw_len else 25.0
-            except (EOFError, ValueError):
-                length_km = 25.0
-
-    duration_str = args.duration.strip()
-    if not duration_str:
         try:
-            duration_str = input("Required Project Duration (e.g. 365 days or 12 months): ").strip()
-        except EOFError:
-            duration_str = "365 days"
-        if not duration_str:
-            duration_str = "365 days"
+            raw_len = input("Project Length in km: ").strip()
+            length_km = float(raw_len) if raw_len else 25.0
+        except (EOFError, ValueError):
+            length_km = 25.0
+
+    duration_str = args.duration.strip() or _prompt("Required Duration (e.g. 365 days or 12 months): ", "365 days")
+    budget_str = args.budget.strip() or _prompt("Maximum Budget in Crore: ", "1000")
     duration_days = parse_duration_input(duration_str)
-
-    budget_str = args.budget.strip()
-    if not budget_str:
-        try:
-            budget_str = input("Maximum Project Budget in Crore (e.g. 1000 or 880): ").strip()
-        except EOFError:
-            budget_str = "1000"
-        if not budget_str:
-            budget_str = "1000"
     budget_crore = parse_budget_input(budget_str)
-
-    start_date_str = args.start_date.strip()
-    if not start_date_str:
-        start_date = date.today()
-    else:
-        start_date = parse_start_date(start_date_str)
-
-    # Validation
-    if length_km <= 0:
-        print("Error: Project length must be greater than 0.")
-        sys.exit(1)
-    if duration_days <= 0:
-        print("Error: Project duration must be greater than 0.")
-        sys.exit(1)
-    if budget_crore <= 0:
-        print("Error: Project budget must be greater than 0.")
-        sys.exit(1)
+    start_date = parse_start_date(args.start_date.strip()) if args.start_date.strip() else date.today()
 
     proj_input = ProjectInput(
         title=title,
@@ -471,16 +508,170 @@ def main():
         budget_crore=budget_crore,
         start_date=start_date,
         lanes=lanes,
-        terrain=terrain
+        terrain=terrain,
+        project_type="road",
     )
+    guidelines, assumptions = _auto_config("road", args.guidelines, args.assumptions)
+    output = args.output or _CONFIG["road"]["output"]
+    run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
 
-    run_project_planning(
-        project_input=proj_input,
-        guidelines_path=args.guidelines,
-        assumptions_path=args.assumptions,
-        output_path=args.output,
-        enable_acceleration_cost=not args.no_accel_cost
+
+def run_pipeline(args) -> None:
+    title = args.title.strip()
+    if not title:
+        try:
+            title = input("Pipeline Project Title (e.g. Hyderabad Water Pipeline 10 km): ").strip()
+        except EOFError:
+            title = "Water Pipeline Project"
+        if not title:
+            title = "Water Pipeline Project"
+
+    length_km = args.length if args.length > 0 else 0.0
+    if length_km <= 0:
+        tl = parse_length_from_title(title, 0.0)
+        if tl > 0:
+            length_km = tl
+        else:
+            try:
+                raw = input("Pipeline length in km: ").strip()
+                length_km = float(raw) if raw else 10.0
+            except (EOFError, ValueError):
+                length_km = 10.0
+
+    duration_str = args.duration.strip() or _prompt("Required Duration (e.g. 8 months): ", "8 months")
+    budget_str = args.budget.strip() or _prompt("Maximum Budget in Crore: ", "5")
+    duration_days = parse_duration_input(duration_str)
+    budget_crore = parse_budget_input(budget_str)
+    start_date = parse_start_date(args.start_date.strip()) if args.start_date.strip() else date.today()
+
+    proj_input = ProjectInput(
+        title=title,
+        length_km=length_km,
+        duration_days=duration_days,
+        budget_crore=budget_crore,
+        start_date=start_date,
+        project_type="pipeline",
+        pipe_diameter_mm=args.diameter,
+        pipe_material=args.material.upper(),
+        trench_depth_m=args.trench_depth,
+        number_of_work_fronts=args.fronts,
+        pipeline_type=args.pipeline_type,
+        terrain=args.terrain or "plain",
     )
+    guidelines, assumptions = _auto_config("pipeline", args.guidelines, args.assumptions)
+    output = args.output or _CONFIG["pipeline"]["output"]
+    run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
+
+
+def run_building(args) -> None:
+    title = args.title.strip()
+    if not title:
+        try:
+            title = input("Building Project Title (e.g. ABC Residential Building): ").strip()
+        except EOFError:
+            title = "Residential Building Project"
+        if not title:
+            title = "Residential Building Project"
+
+    area_sqm = args.area
+    if args.sqft and area_sqm > 0:
+        area_sqm = round(area_sqm / 10.764, 1)
+    if area_sqm <= 0:
+        try:
+            raw = input("Built-up area in sqm (or sqft if --sqft): ").strip()
+            area_sqm = float(raw) if raw else 1000.0
+            if args.sqft:
+                area_sqm = round(area_sqm / 10.764, 1)
+        except (EOFError, ValueError):
+            area_sqm = 1000.0
+
+    floors = args.floors if args.floors > 0 else 4
+    blocks = args.blocks if args.blocks > 0 else 0  # 0 → auto-derive
+
+    duration_str = args.duration.strip() or _prompt("Required Duration (e.g. 12 months): ", "12 months")
+    budget_str = args.budget.strip() or _prompt("Maximum Budget in Crore: ", "2")
+    duration_days = parse_duration_input(duration_str)
+    budget_crore = parse_budget_input(budget_str)
+    start_date = parse_start_date(args.start_date.strip()) if args.start_date.strip() else date.today()
+
+    proj_input = ProjectInput(
+        title=title,
+        length_km=area_sqm,  # length_km carries area for routing; ProjectInput normalizes
+        duration_days=duration_days,
+        budget_crore=budget_crore,
+        start_date=start_date,
+        project_type="building",
+        built_up_area_sqm=area_sqm,
+        number_of_floors=floors,
+        building_type=args.building_type,
+        construction_type=args.construction_type,
+        quality_finish=args.quality,
+        basement=args.basement,
+        number_of_blocks=blocks,
+    )
+    guidelines, assumptions = _auto_config("building", args.guidelines, args.assumptions)
+    output = args.output or _CONFIG["building"]["output"]
+    run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
+
+
+def _prompt(prompt_text: str, default: str) -> str:
+    try:
+        val = input(prompt_text).strip()
+        return val if val else default
+    except EOFError:
+        return default
+
+
+def main():
+    # ---- subcommand dispatch ----
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
+
+        if cmd == "pipeline":
+            parser = _build_pipeline_parser()
+            args = parser.parse_args(sys.argv[2:])
+            run_pipeline(args)
+            return
+
+        if cmd == "building":
+            parser = _build_building_parser()
+            args = parser.parse_args(sys.argv[2:])
+            run_building(args)
+            return
+
+        if cmd == "update-plan":
+            parser = _build_update_plan_parser()
+            args = parser.parse_args(sys.argv[2:])
+            run_update_plan(args)
+            return
+
+        if cmd == "road":
+            parser = _build_road_parser()
+            args = parser.parse_args(sys.argv[2:])
+            run_road(args)
+            return
+
+    # ---- legacy / default: road planning (backward compat) ----
+    parser = argparse.ArgumentParser(description="Construction Project Planner — Road / Pipeline / Building")
+    parser.add_argument("--title", type=str, default="")
+    parser.add_argument("--length", type=float, default=0.0)
+    parser.add_argument("--duration", type=str, default="")
+    parser.add_argument("--budget", type=str, default="")
+    parser.add_argument("--start-date", type=str, default="")
+    parser.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="")
+    parser.add_argument("--guidelines", type=str, default="",
+                        help="Path to guidelines JSON (defaults to project_config/road/road_guidelines.json)")
+    parser.add_argument("--assumptions", type=str, default="",
+                        help="Path to assumptions YAML (defaults to project_config/road/road_assumptions.yaml)")
+    parser.add_argument("--output", type=str, default="")
+    parser.add_argument("--lanes", type=int, default=0)
+    parser.add_argument("--no-accel-cost", dest="no_accel_cost", action="store_true")
+    args = parser.parse_args()
+
+    # Wrap into a Namespace the road runner expects
+    args.terrain = args.terrain or ""
+    run_road(args)
+
 
 if __name__ == "__main__":
     main()

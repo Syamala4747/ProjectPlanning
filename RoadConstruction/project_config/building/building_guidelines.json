@@ -1,0 +1,416 @@
+{
+  "data": {
+    "document": {
+      "title": "Residential Building Construction Activity Guidelines",
+      "project_type": "building",
+      "template_version": "2.0",
+      "currency": "INR",
+      "source_basis": "CPWD DSR 2021, IS 456, IS 800, IS 1641, NBC 2016, Telangana Building Rules 2012"
+    },
+    "activity_master": [
+      {
+        "id": "BLD-001",
+        "key": "bld_001",
+        "wbs_code": "BLD-001",
+        "parent_wbs": "1.1",
+        "wbs_level": 3,
+        "work_package": "Preliminaries",
+        "name": "Survey, soil investigation and setting out",
+        "description": "Topographic survey, soil bearing capacity tests (BH+SPT), layout and offset pegs",
+        "category": "Preliminaries",
+        "unit": "LS",
+        "base_crews": 1,
+        "productivity_rate": 0.04,
+        "productivity_unit": "LS/day",
+        "predecessors": [],
+        "spec_ref": "CPWD DSR 2021 Item 1.1; IS 1892",
+        "productivity_note": "LS: ~25 days for survey+SBI"
+      },
+      {
+        "id": "BLD-002",
+        "key": "bld_002",
+        "wbs_code": "BLD-002",
+        "parent_wbs": "1.1",
+        "wbs_level": 3,
+        "work_package": "Preliminaries",
+        "name": "Mobilization and site establishment",
+        "description": "Contractor mobilization, site offices, stores, safety, welfare, temporary utilities",
+        "category": "Preliminaries",
+        "unit": "LS",
+        "base_crews": 1,
+        "productivity_rate": 0.07,
+        "productivity_unit": "LS/day",
+        "predecessors": [
+          "BLD-001"
+        ],
+        "spec_ref": "Contract General Conditions",
+        "productivity_note": "LS: ~14 days mobilization"
+      },
+      {
+        "id": "BLD-003",
+        "key": "bld_003",
+        "wbs_code": "BLD-003",
+        "parent_wbs": "1.2",
+        "wbs_level": 3,
+        "work_package": "Site Preparation",
+        "name": "Site clearance and temporary works",
+        "description": "Demolition of old structures, site levelling, compound fencing, access roads",
+        "category": "Site Preparation",
+        "unit": "sqm",
+        "base_crews": 1,
+        "productivity_rate": 688.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-002"
+        ],
+        "spec_ref": "CPWD DSR 2021 Part-I Item 1",
+        "productivity_note": "sqm/day: 1 gang clears 688 sqm/day OK"
+      },
+      {
+        "id": "BLD-004",
+        "key": "bld_004",
+        "wbs_code": "BLD-004",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Substructure",
+        "name": "Bulk excavation and earthwork",
+        "description": "Machine excavation for foundation and basement; dewatering, disposal of spoil",
+        "category": "Substructure",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 300.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "BLD-003"
+        ],
+        "spec_ref": "CPWD DSR 2021 Part-I Item 2.1",
+        "productivity_note": "cum/day: 1 excavation gang"
+      },
+      {
+        "id": "BLD-005",
+        "key": "bld_005",
+        "wbs_code": "BLD-005",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Substructure",
+        "name": "Foundation: PCC, footings and raft",
+        "description": "M10 PCC bed; RCC isolated / combined footings or raft as per structural drawings",
+        "category": "Substructure",
+        "unit": "cum",
+        "base_crews": 2,
+        "productivity_rate": 15.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "BLD-004"
+        ],
+        "spec_ref": "IS 456 Clause 34; CPWD DSR Item 5.1",
+        "productivity_note": "cum/day per crew x2 = 30 cum/day foundation RCC"
+      },
+      {
+        "id": "BLD-006",
+        "key": "bld_006",
+        "wbs_code": "BLD-006",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Superstructure",
+        "name": "RCC frame: columns, beams and slabs",
+        "description": "M25/M30 RCC columns, beams, slab with TMT Fe500D reinforcement; centreing and shuttering",
+        "category": "Superstructure",
+        "unit": "cum",
+        "base_crews": 3,
+        "productivity_rate": 20.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "BLD-005"
+        ],
+        "spec_ref": "IS 456; CPWD DSR Item 5.9; IS 10262",
+        "productivity_note": "cum/day per crew x3 = 60 cum/day frame RCC"
+      },
+      {
+        "id": "BLD-007",
+        "key": "bld_007",
+        "wbs_code": "BLD-007",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Superstructure",
+        "name": "Brick/block masonry walls",
+        "description": "230mm thick fly ash brick masonry in CM 1:5; 115mm partition walls; window sills",
+        "category": "Superstructure",
+        "unit": "cum",
+        "base_crews": 4,
+        "productivity_rate": 4.8,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "BLD-006"
+        ],
+        "spec_ref": "IS 1905; CPWD DSR Item 6.1",
+        "productivity_note": "cum/day per crew x4 = 19.2 cum/day brickwork"
+      },
+      {
+        "id": "BLD-008",
+        "key": "bld_008",
+        "wbs_code": "BLD-008",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "Plastering and pointing",
+        "description": "12mm cement plaster in CM 1:4 on brick; 6mm sponge finish on RCC; pointing",
+        "category": "Finishes",
+        "unit": "sqm",
+        "base_crews": 6,
+        "productivity_rate": 30.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-007"
+        ],
+        "spec_ref": "CPWD DSR Item 9.1; IS 1661",
+        "productivity_note": "sqm/day per crew x6 = 180 sqm/day plaster"
+      },
+      {
+        "id": "BLD-009",
+        "key": "bld_009",
+        "wbs_code": "BLD-009",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "Waterproofing works",
+        "description": "IIR/APP modified bitumen waterproofing membrane on terrace; screed; wet area treatment",
+        "category": "Finishes",
+        "unit": "sqm",
+        "base_crews": 2,
+        "productivity_rate": 30.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-006"
+        ],
+        "spec_ref": "CPWD DSR Item 13.1; IS 3067",
+        "productivity_note": "sqm/day per crew x2 = 60 sqm/day waterproofing"
+      },
+      {
+        "id": "BLD-010",
+        "key": "bld_010",
+        "wbs_code": "BLD-010",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "Flooring and tiling",
+        "description": "600×600 vitrified tiles on floors; 300×300 ceramic wall tiles in kitchen/toilets",
+        "category": "Finishes",
+        "unit": "sqm",
+        "base_crews": 6,
+        "productivity_rate": 15.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-008"
+        ],
+        "spec_ref": "CPWD DSR Item 10.1; IS 13630",
+        "productivity_note": "sqm/day per crew x6 = 90 sqm/day tiling"
+      },
+      {
+        "id": "BLD-011",
+        "key": "bld_011",
+        "wbs_code": "BLD-011",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "Doors, windows and glazing",
+        "description": "Teak-wood/UPVC door frames and shutters; aluminium glazed windows; grills",
+        "category": "Finishes",
+        "unit": "no",
+        "base_crews": 3,
+        "productivity_rate": 4.0,
+        "productivity_unit": "no/day",
+        "predecessors": [
+          "BLD-008"
+        ],
+        "spec_ref": "CPWD DSR Item 11.1; IS 4020",
+        "productivity_note": "no/day per crew x3 = 12 no/day doors+windows"
+      },
+      {
+        "id": "BLD-012",
+        "key": "bld_012",
+        "wbs_code": "BLD-012",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "External finishes and facade",
+        "description": "External wall texture/paint; cement plaster finish; stone cladding (premium)",
+        "category": "Finishes",
+        "unit": "sqm",
+        "base_crews": 3,
+        "productivity_rate": 25.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-008"
+        ],
+        "spec_ref": "CPWD DSR Item 9; IS 2395",
+        "productivity_note": "sqm/day per crew x3 = 75 sqm/day external finish"
+      },
+      {
+        "id": "BLD-013",
+        "key": "bld_013",
+        "wbs_code": "BLD-013",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Finishes",
+        "name": "Internal painting",
+        "description": "Two coats putty + primer + two coats emulsion paint on walls/ceilings",
+        "category": "Finishes",
+        "unit": "sqm",
+        "base_crews": 6,
+        "productivity_rate": 40.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-010"
+        ],
+        "spec_ref": "CPWD DSR Item 12.1; IS 2395",
+        "productivity_note": "sqm/day per crew x6 = 240 sqm/day painting"
+      },
+      {
+        "id": "BLD-014",
+        "key": "bld_014",
+        "wbs_code": "BLD-014",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "MEP",
+        "name": "Electrical works",
+        "description": "Concealed conduit wiring, MCBs, DB boards, light points, fan points, power points, earthing",
+        "category": "MEP",
+        "unit": "sqm",
+        "base_crews": 4,
+        "productivity_rate": 8.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-007"
+        ],
+        "spec_ref": "IS 732; NBC 2016 Part-8; CPWD Item 20.1",
+        "productivity_note": "sqm/day per crew x4 = 32 sqm/day electrical"
+      },
+      {
+        "id": "BLD-015",
+        "key": "bld_015",
+        "wbs_code": "BLD-015",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "MEP",
+        "name": "Plumbing and sanitary",
+        "description": "CPVC hot/cold water supply; PVC soil/waste drainage; sanitary fixtures; overhead tank",
+        "category": "MEP",
+        "unit": "sqm",
+        "base_crews": 4,
+        "productivity_rate": 8.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-007"
+        ],
+        "spec_ref": "IS 1172; IS 2065; CPWD Item 21.1",
+        "productivity_note": "sqm/day per crew x4 = 32 sqm/day plumbing"
+      },
+      {
+        "id": "BLD-016",
+        "key": "bld_016",
+        "wbs_code": "BLD-016",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "MEP",
+        "name": "HVAC works",
+        "description": "Split AC provision (residential); central ducted AC (commercial); ventilation fans",
+        "category": "MEP",
+        "unit": "sqm",
+        "base_crews": 3,
+        "productivity_rate": 6.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-007"
+        ],
+        "spec_ref": "IS 659; NBC 2016 Part-8 Section 3",
+        "productivity_note": "sqm/day per crew x3 = 18 sqm/day HVAC"
+      },
+      {
+        "id": "BLD-017",
+        "key": "bld_017",
+        "wbs_code": "BLD-017",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "MEP",
+        "name": "Fire fighting and detection",
+        "description": "Wet riser, yard hydrants, portable extinguishers, smoke detectors, manual call points",
+        "category": "MEP",
+        "unit": "sqm",
+        "base_crews": 3,
+        "productivity_rate": 10.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-007"
+        ],
+        "spec_ref": "IS 1641; IS 15105; NBC 2016 Part-4",
+        "productivity_note": "sqm/day per crew x3 = 30 sqm/day fire-fighting"
+      },
+      {
+        "id": "BLD-018",
+        "key": "bld_018",
+        "wbs_code": "BLD-018",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "MEP",
+        "name": "Lifts and escalators",
+        "description": "Passenger lift installation (machine-room-less); shaft pit, guide rails, car, controls",
+        "category": "MEP",
+        "unit": "no",
+        "base_crews": 1,
+        "productivity_rate": 0.05,
+        "productivity_unit": "lift/day",
+        "predecessors": [
+          "BLD-006"
+        ],
+        "spec_ref": "IS 14665; NBC 2016 Part-8 Section 5",
+        "productivity_note": "lifts/day: each lift ~20 days install"
+      },
+      {
+        "id": "BLD-019",
+        "key": "bld_019",
+        "wbs_code": "BLD-019",
+        "parent_wbs": "1.7",
+        "wbs_level": 3,
+        "work_package": "External Works",
+        "name": "External development and services",
+        "description": "Compound wall, landscaping, paving, storm water drains, external lighting, gate",
+        "category": "External Works",
+        "unit": "sqm",
+        "base_crews": 1,
+        "productivity_rate": 50.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "BLD-004"
+        ],
+        "spec_ref": "CPWD DSR 2021 Part-I; Telangana Building Rules 2012",
+        "productivity_note": "sqm/day: 1 gang external works"
+      },
+      {
+        "id": "BLD-020",
+        "key": "bld_020",
+        "wbs_code": "BLD-020",
+        "parent_wbs": "1.8",
+        "wbs_level": 3,
+        "work_package": "Closeout",
+        "name": "Inspection, testing, completion and handover",
+        "description": "Statutory inspections, occupancy certificate, as-built drawings, defect liability",
+        "category": "Closeout",
+        "unit": "LS",
+        "base_crews": 1,
+        "productivity_rate": 0.1,
+        "productivity_unit": "LS/day",
+        "predecessors": [
+          "BLD-013",
+          "BLD-014",
+          "BLD-015",
+          "BLD-016",
+          "BLD-017",
+          "BLD-019"
+        ],
+        "spec_ref": "Telangana Building Rules 2012 Clause 24",
+        "productivity_note": "LS: ~10 days commissioning"
+      }
+    ]
+  }
+}

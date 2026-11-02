@@ -1,0 +1,1976 @@
+# =============================================================================
+# Assumptions & Standards Layer — Construction Project Planner (standalone)
+# =============================================================================
+# Single source of truth for every rate, norm, and capacity the planner uses.
+# Every downstream number (cost, manpower, machinery, material, fuel) is
+# DERIVED from this file — nothing is invented per-project.
+#
+# Sourced from Indian Standards / Indian regulations:
+#   - MoRTH Specifications for Road & Bridge Works (2013) + SDB (2019)
+#   - IRC codes (IRC:37, IRC:SP:19, etc.)
+#   - IS 456 (RCC), IS 800 (steel), IS 10262 (mix), IS 2386 (agg testing)
+#   - CPWD Delhi Schedule of Rates (DSR) — building trades
+#   - Minimum Wages Act (Telangana Zone I notification, fully-loaded)
+#   - OEM equipment data sheets (fuel burn, tank capacity)
+#
+# Currency: INR (Rs). "_inr" = rupees. Refresh rates quarterly.
+# =============================================================================
+
+meta:
+  country: "India"
+  currency: "INR"
+  currency_symbol: "Rs"
+  large_unit: "crore"
+  large_unit_value: 10000000
+  effective_date: "2026-06-30"
+  version: "1.0"
+
+calendar:
+  working_days_per_week: 6
+  productive_hours_per_day: 8
+  equipment_hours_per_day: 9 # 8 productive + 1 idle (MoRTH SDB convention)
+  monsoon_months: [6, 7, 8, 9]
+  monsoon_productivity_factor: 0.65
+  hilly_productivity_factor: 0.70
+  night_shift_productivity_factor: 0.80
+  night_shift_cost_multiplier: 1.50
+  holidays_per_year: 14
+
+# Activities physically able to run a night shift. Surfaces that need a dry
+# surface, a temperature window or daylight (prime/tack coat, planting,
+# utility/live-traffic work, sign installation) are excluded: a night shift on
+# those costs more and delivers less. Anything not listed falls back to a
+# single day shift only.
+night_work_eligible:
+  - excavation
+  - embankment
+  - subgrade
+  - gsb
+  - wmm
+  - dbm
+  - bc
+  - box_culverts
+  - pipe_culverts
+  - bridge_piling
+  - bridge_substructure
+  - bridge_superstructure
+  - flyover_structures
+  - vup_structures
+  - re_walls
+  - drainage
+  - slope_protection
+
+# -----------------------------------------------------------------------------
+# Labour rates — fully-loaded cost-to-contractor in INR per person per day.
+# Includes statutory dues: PF, ESI, bonus, gratuity, leave + site overhead.
+# Source: Minimum Wages Act, Telangana Zone I, x1.5 all-loaded multiplier.
+# -----------------------------------------------------------------------------
+labour_rates_inr_per_day:
+  unskilled: 750
+  semi_skilled: 900
+  skilled: 1200
+  highly_skilled: 1400
+  equipment_operator: 1800
+  driver: 1300
+  supervisor: 3500
+  site_engineer: 4500
+  project_manager: 6500
+  qc_technician: 2500
+  safety_officer: 2800
+  surveyor: 3000
+  plumber: 1400
+  electrician: 1400
+  hvac_technician: 1600
+  painter: 1200
+  fire_fighting_technician: 1500
+  lift_technician: 1800
+  aluminium_fabricator: 1400
+  glazier: 1400
+
+trade_display_names:
+  unskilled: "mazdoor"
+  semi_skilled: "semi-skilled"
+  skilled: "skilled mason"
+  highly_skilled: "bar bender / fitter"
+  equipment_operator: "operator"
+  driver: "driver"
+  supervisor: "supervisor"
+  site_engineer: "site engineer"
+  project_manager: "project manager"
+  qc_technician: "QC tech"
+  safety_officer: "safety officer"
+  surveyor: "surveyor"
+  plumber: "plumber"
+  electrician: "electrician"
+  hvac_technician: "HVAC tech"
+  painter: "painter"
+  fire_fighting_technician: "fire-fighting tech"
+  lift_technician: "lift tech"
+  aluminium_fabricator: "aluminium fab"
+  glazier: "glazier"
+
+# *** NOT USED BY THE COST MODEL - RESERVED, DO NOT ASSUME IT IS PRICED ***
+# The always-on PMO/site staff are documented here, but nothing reads this
+# block. Site overhead is already recovered through `sdb_rate_oncost`
+# (OH 8% + CP 10%, inside the all-in planned rate). Adding this crew on top
+# would double count it. data_loader warns about this on every run.
+# ---
+project_overhead_crew:
+  - { trade: project_manager, count: 1 }
+  - { trade: site_engineer, count: 4 }
+  - { trade: supervisor, count: 4 }
+  - { trade: qc_technician, count: 3 }
+  - { trade: safety_officer, count: 2 }
+  - { trade: surveyor, count: 2 }
+  - { trade: driver, count: 4 }
+  - { trade: unskilled, count: 10 }
+
+# -----------------------------------------------------------------------------
+# Material rates — INR, indicative Hyderabad/Telangana Q2-2026
+# -----------------------------------------------------------------------------
+material_rates_inr:
+  cement_opc53_bag: 380 # 50 kg bag
+  cement_ppc_bag: 360
+  tmt_steel_fe500d_mt: 60000
+  agg_20mm_cum: 1200
+  agg_10mm_cum: 1300
+  agg_6mm_cum: 1500
+  msand_cum: 1800
+  river_sand_cum: 2000
+  fly_ash_mt: 1500
+  bitumen_vg30_mt: 55000
+  bitumen_vg40_mt: 57000
+  bitumen_emulsion_ss1_kg: 60
+  bitumen_emulsion_rs1_kg: 65
+  bricks_per_thousand: 9000
+  binding_wire_kg: 80
+  water_kl: 100
+  diesel_litre: 100
+  admix_plasticiser_kg: 80
+  curing_compound_litre: 150
+  geotextile_sqm: 60
+  hdpe_pipe_dn600_metre: 1200
+  rcc_hume_pipe_dn900_metre: 3500
+  aac_blocks_per_thousand: 12000
+  mortar_ready_cum: 3500
+  waterproofing_membrane_sqm: 450
+  vitrified_tiles_sqm: 650
+  tile_adhesive_kg: 35
+  emulsion_paint_litre: 280
+  primer_litre: 180
+  electrical_cable_per_metre: 120
+  conduit_per_metre: 45
+  plumbing_pipe_per_metre: 180
+  hvac_duct_per_sqm: 850
+  # 2026 delivered price for short-haul (1-2 km) borrow: pit excavation + loading
+  # + tipper haul. ₹220 assumed a long haul; ₹180 matches the SDB-implied basis
+  # escalated to 2026, so the earthwork variation reports scope/productivity gaps
+  # instead of a haul-distance guess.
+  borrow_earth_cum: 180 # borrow-pit excavation + loading + short haul (embankment/subgrade/slope)
+  toll_electronics_system_set: 150000000 # 12-lane tolling + 25km ATMS traffic electronics (gantries, sensors, toll software)
+
+  # --- SDB-comparable additions: scope items the MoRTH direct rates cover but the
+  # --- original recipes did not (values are current 2026 delivered-to-site prices) ---
+  ply_shuttering_sqm: 350 # centreing & shuttering: ply, props, strutting, shutter oil, per sqm contact area
+  galvanized_steel_kg: 125 # fabricated + hot-dip galvanized steel per kg (W-beam, posts, gantries, sign structures)
+  rcc_pipe_dn1200_metre: 5200 # RCC NP-4 DN1200 pipe incl. collar, delivered to site, per METRE OF PIPE
+  ht_conductor_metre: 200 # HT ACSR/AAAC conductor per metre (132kV class, incl. joints & suspension hardware)
+  insulator_string_no: 9000 # suspension/tension insulator string + fittings per unit
+  signage_panel_sqm: 1600 # reflective sheeting on aluminium sign face incl. fixing, per sqm
+  thermoplastic_kg: 90 # hot-applied thermoplastic marking material per kg
+  reflective_bead_kg: 60 # glass beads for markings per kg
+  forest_sapling_no: 150 # 1:10 compensatory afforestation sapling (2-3 yr, delivered & planted)
+  plant_guard_no: 120 # bamboo/GI tree guard per sapling
+  afforestation_tending_per_tree: 700 # pit digging, planting, watering & 3-year tending, priced PER MOTHER TREE
+  topsoil_cum: 350 # screened landscape topsoil incl. haul (median / slope dressing)
+  shrub_plant_no: 150 # ornamental shrub, planted & established
+  grass_seed_kg: 400 # pasture / grass seed mix per kg
+  fertiliser_kg: 45 # basal fertilizer per kg
+  geogrid_sqm: 200 # high-strength uniaxial polymer geogrid (RE wall reinforcement) per sqm
+  select_granular_cum: 500 # approved select granular backfill incl. compaction, delivered per cum
+  geocell_sqm: 260 # 3D geocell erosion-control panel incl. anchors & fill prep, per sqm
+  prestressing_strand_kg: 95 # low-relaxation PSC strand per kg (girder stressing)
+  bridge_bearing_expansion_per_cum: 600 # elastomeric bearings + expansion joints amortized per cum of superstructure
+  machinery_transport_lump: 22000000 # low-bed transport of the full plant fleet to site (HMP, wet-mix, crushers, batching, pavers, cranes)
+  qa_qc_lab_equipment_set: 11000000 # NABL-traceable site lab: UTM, CBR, Marshall, sieves, curing, triaxial, moisture
+  weighbridge_no: 850000 # 60t electronic pit weighbridge incl. civil, panel & calibration (2 nr)
+  site_establishment_lump: 6500000 # labour barracks, offices, kitchens, toilets, fencing, internal roads, tanks
+  site_power_set: 3200000 # site transformer yard, DG sets, cabling & distribution
+  site_water_supply_lump: 2400000 # borewell, elevated tanks, pumps & camp distribution
+  safety_environment_lump: 2000000 # PPE, signage, firefighting, effluent & erosion control, environment plans
+  power_supply_set: 6000000 # toll plaza + ATCC power: transformer yard, DG backup, UPS, earthing (NOT in the electronics lump)
+  # --- sanctioned site-mobilization scope that was missing from the set recipe ---
+  labour_camp_lump: 44000000 # workers' housing for ~450 (dormitories 2,700 sqm @12k + mess/sanitary/recreation 800 sqm @14.5k)
+  batching_plant_erection_lump: 8000000 # 60 cum/hr batching plant: foundations, install, commissioning, dismantling
+  hotmix_plant_erection_lump: 9000000 # 120 tph HMD plant: foundations, install, commissioning, dismantling
+  site_internal_development_lump: 12000000 # camp internal roads, boundary wall & gate, water tanks, sewerage
+  site_workshop_stores_lump: 6000000 # workshop/warehouse sheds 800 sqm + racking + fit-out
+  # --- sanctioned toll-plaza/ATMS scope that was missing from the set recipe ---
+  atms_field_equipment_lump: 85000000 # 25 km ATMS: 8 VMS, camera/RCMS poles, ITS fibre backbone, ATCC workstations + SCADA, integration
+  toll_booth_canopy_lump: 28000000 # 12 booths @12L, canopy steel, barriers, lane markings & equipment
+  # --- sanctioned utility-shifting scope that was missing from the km recipe ---
+  di_water_main_metre: 3800 # DN200 DI/HDPE water main + fittings, delivered, per metre
+  utility_dismantling_disposal_lump: 650000 # per km: dismantling of old mains, disposal, agency liaison, testing & commissioning
+  # --- sanctioned road-furniture scope that was missing from the km recipe ---
+  delineator_set_km: 180000 # 40 delineators + cat-eyes + milestones per km
+
+# -----------------------------------------------------------------------------
+# Equipment hire — INR per day (incl. operator wage if owned/self-operated)
+# -----------------------------------------------------------------------------
+equipment_hire_inr_per_day:
+  excavator_0_9cum: 12000
+  excavator_1_4cum: 18000
+  jcb_3dx: 7000
+  dozer_d6: 22000
+  motor_grader_120hp: 16000
+  vibratory_roller_8_10t: 9000
+  tandem_roller_8_10t: 8000
+  pneumatic_roller_12_14t: 11000
+  tipper_10t: 4500
+  transit_mixer_6cum: 7000
+  concrete_pump_boom_36m: 25000
+  wet_mix_plant_150tph: 18000
+  hot_mix_plant_120tph: 35000
+  bitumen_sprayer_4000l: 8000
+  paver_finisher: 22000
+  crawler_crane_50t: 35000
+  light_crane_3t: 6000 # 3 tonne hydra / light crane (SDB 9.05 hume-pipe handling)
+  tower_crane_electric: 45000
+  bored_pile_rig_1_5m: 70000
+  hydraulic_breaker_attachment: 4000
+  water_tanker_12kl: 4500
+  dg_set_125kva: 6000
+  passenger_hoist: 3500
+  concrete_pump_stationary: 18000
+  dg_set_500kva: 15000
+  scaffolding_system: 500
+  batching_plant_30cum: 12000
+
+# -----------------------------------------------------------------------------
+# Fuel consumption — litres per OPERATING hour (machine running).
+# Daily diesel demand = equipment_hours_per_day * lph * units.
+# Source: MoRTH SDB 2019 + OEM data sheets.
+# -----------------------------------------------------------------------------
+fuel_consumption_lph:
+  excavator_0_9cum: 14.0
+  excavator_1_4cum: 18.0
+  jcb_3dx: 5.0
+  dozer_d6: 18.0
+  motor_grader_120hp: 12.0
+  vibratory_roller_8_10t: 7.0
+  tandem_roller_8_10t: 5.0
+  pneumatic_roller_12_14t: 6.0
+  tipper_10t: 8.0
+  transit_mixer_6cum: 10.0
+  concrete_pump_boom_36m: 18.0
+  wet_mix_plant_150tph: 35.0
+  hot_mix_plant_120tph: 110.0
+  bitumen_sprayer_4000l: 8.0
+  paver_finisher: 14.0
+  crawler_crane_50t: 15.0
+  light_crane_3t: 4.0
+  tower_crane_electric: 0.0
+  bored_pile_rig_1_5m: 30.0
+  hydraulic_breaker_attachment: 14.0
+  water_tanker_12kl: 4.0
+  dg_set_125kva: 22.0
+  passenger_hoist: 0.0
+  concrete_pump_stationary: 15.0
+  dg_set_500kva: 80.0
+  scaffolding_system: 0.0
+  batching_plant_30cum: 25.0
+
+# -----------------------------------------------------------------------------
+# NEW — Equipment fuel-tank capacity (litres). Sanity check: a single fuel
+# issuance to a machine CANNOT exceed its rated tank capacity (a 50 L tank
+# cannot be issued 70-75 L). If daily burn > tank, the plan must schedule
+# multiple refuels; >max_refuels_per_day is a hard error.
+# Source: OEM data sheets.
+# -----------------------------------------------------------------------------
+equipment_tank_capacity_litres:
+  excavator_0_9cum: 360
+  excavator_1_4cum: 500
+  jcb_3dx: 70
+  dozer_d6: 500
+  motor_grader_120hp: 250
+  vibratory_roller_8_10t: 150
+  tandem_roller_8_10t: 120
+  pneumatic_roller_12_14t: 150
+  tipper_10t: 200
+  transit_mixer_6cum: 200
+  concrete_pump_boom_36m: 400
+  wet_mix_plant_150tph: 500
+  hot_mix_plant_120tph: 1000
+  bitumen_sprayer_4000l: 4000 # bitumen tank (diesel tank ~150 handled separately)
+  paver_finisher: 200
+  crawler_crane_50t: 400
+  light_crane_3t: 120
+  tower_crane_electric: 0 # electric
+  bored_pile_rig_1_5m: 500
+  hydraulic_breaker_attachment: 0 # parasitic on host excavator
+  water_tanker_12kl: 200 # diesel tank (water tank is 12000 L)
+  dg_set_125kva: 150
+  passenger_hoist: 0
+  concrete_pump_stationary: 300
+  dg_set_500kva: 400
+  scaffolding_system: 0
+  batching_plant_30cum: 200
+
+# -----------------------------------------------------------------------------
+# NEW — Whether a piece of equipment needs a dedicated operator.
+# Sanity check: operators in crew >= operator-requiring machines deployed.
+# "can't hire 10 machines with only 8 operators"
+# -----------------------------------------------------------------------------
+equipment_needs_operator:
+  excavator_0_9cum: true
+  excavator_1_4cum: true
+  jcb_3dx: true
+  dozer_d6: true
+  motor_grader_120hp: true
+  vibratory_roller_8_10t: true
+  tandem_roller_8_10t: true
+  pneumatic_roller_12_14t: true
+  tipper_10t: true
+  transit_mixer_6cum: true
+  concrete_pump_boom_36m: true
+  wet_mix_plant_150tph: true
+  hot_mix_plant_120tph: true
+  bitumen_sprayer_4000l: true
+  paver_finisher: true
+  crawler_crane_50t: true
+  light_crane_3t: true
+  tower_crane_electric: true
+  bored_pile_rig_1_5m: true
+  hydraulic_breaker_attachment: false # operated by host excavator operator
+  water_tanker_12kl: true
+  dg_set_125kva: false # attended, not dedicated
+  passenger_hoist: true
+  concrete_pump_stationary: true
+  dg_set_500kva: false
+  scaffolding_system: false
+  batching_plant_30cum: true
+
+# -----------------------------------------------------------------------------
+# Productivity norms - output per day per crew/equipment unit (IS/MoRTH/CPWD)
+#
+# ###########################################################################
+# #  REFERENCE DOCUMENTATION ONLY - NOT READ BY ANY CODE.                   #
+# #  Both the cost engine and the duration engine take productivity from   #
+# #      activity_master[].productivity_rate                                #
+# #  (cost_calculator._resource_planned_rate and duration_calculator both  #
+# #  read that field). Editing a value HERE changes nothing - the loader   #
+# #  now warns about this block on every run.                              #
+# #                                                                        #
+# #  Kept as the readable engineering reference behind each activity_master #
+# #  rate. Keep it in step by hand, or treat it purely as a comment.        #
+# ###########################################################################
+# -----------------------------------------------------------------------------
+productivity:
+  excavation_soil_manual_cum_per_mazdoor_day: 1.0
+  excavation_soil_mech_cum_per_excavator_day: 590 # was 800 — not achievable by this gang. The crew is
+  # 1 operator x2 + 4 drivers + 2 unskilled + 1 supervisor (Rs 13,800/day) with
+  # 1 excavator + 3 tippers + water tanker (Rs 30,000/day) and 42 lph of diesel,
+  # i.e. Rs 81,600/day. At 800 cum/day that prices the gang at Rs 102/cum bare
+  # (Rs 121 all-in) vs the MoRTH SDB Rs 165/cum — a -27% gap that was pure
+  # productivity optimism, not inflation. 800 cum/day needs ~133 tipper trips,
+  # i.e. one 6 cum load every 45 min per tipper including load, haul, tip and
+  # return. The sanctioned Rs 165/cum implies ~587 cum/day for the same gang, so
+  # 590 reproduces the yardstick and is the realistic crew output.
+  excavation_rock_cum_per_excavator_day: 150
+  embankment_compaction_cum_per_roller_day: 600
+  subgrade_prep_cum_per_grader_day: 500
+  gsb_cum_per_spread_day: 250
+  wmm_cum_per_spread_day: 350
+  prime_coat_sqm_per_day: 8000
+  tack_coat_sqm_per_day: 10000
+  dbm_sqm_per_paver_day: 1200
+  bc_sqm_per_paver_day: 1000
+  rcc_pour_cum_per_crew_day: 60
+  rcc_drain_metre_per_day:
+    15 # side-drain/cross-drain gang: ~15 m/day
+    # (excavate, PCC bed, RCC U-shape, backfill).
+    # Was missing -> config.productivity() returned
+    # 0.0 and the DRN activity silently fell back to
+    # 1 working day regardless of length_km. Caught
+    # by the productivity-key-missing sanity check.
+  bar_bending_kg_per_bender_day: 130
+  shuttering_sqm_per_carpenter_day: 5.3
+  bored_pile_per_rig_day: 1.0
+  pier_construction_cum_per_crew_day: 10
+  pile_cap_cum_per_crew_day: 25
+  psc_girder_per_bed_per_day: 0.125
+  girder_erection_per_day: 0.5
+  brickwork_cum_per_mason_day: 1.2
+  plaster_12mm_sqm_per_mason_day: 10
+  building_rcc_cum_per_crew_day: 30
+  waterproofing_sqm_per_day: 30
+  tiling_sqm_per_day: 15
+  painting_sqm_per_day: 20
+  electrical_sqm_per_day: 8
+  plumbing_sqm_per_day: 8
+  hvac_sqm_per_day: 6
+  fire_fighting_sqm_per_day: 10
+  external_works_sqm_per_day: 50
+  ohe_m_per_day:
+    500 # single OHE gang: masts + catenary + bonding (m/day).
+    # Was wrongly tied to electrical_sqm_per_day (8) — a
+    # building-MEP norm applied to linear track-metres, which
+    # made 160 km of OHE take 20000 days and every railway
+    # plan overflow by ~5x. No IS-code reference on file;
+    # conservative vs IR field progression of ~1 km/gang/day.
+
+# -----------------------------------------------------------------------------
+# Crew compositions — {trade, count} per activity
+# -----------------------------------------------------------------------------
+crew_composition:
+  earthwork_mech:
+    - { trade: equipment_operator, count: 2 }
+    - { trade: driver, count: 4 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  embankment_compaction:
+    - { trade: equipment_operator, count: 3 }
+    - { trade: driver, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  gsb_wmm_laying:
+    - { trade: equipment_operator, count: 3 }
+    - { trade: driver, count: 6 }
+    - { trade: unskilled, count: 8 }
+    - { trade: semi_skilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+    - { trade: qc_technician, count: 1 }
+  bituminous_laying:
+    - { trade: equipment_operator, count: 4 }
+    - { trade: driver, count: 10 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: skilled, count: 4 }
+    - { trade: unskilled, count: 10 }
+    - { trade: supervisor, count: 1 }
+    - { trade: qc_technician, count: 1 }
+  # Composite (GSB + WMM + 40mm BC + prime/tack) service-road paving gang. The
+  # fleet mirrors gsb_wmm_laying PLUS the bituminous train it was missing — the
+  # recipe lays a 40mm BC course, so the gang must run a hot-mix plant and a
+  # bitumen sprayer, not just the granular plant (was -51% against MoRTH 4.10).
+  service_road_paving:
+    - { trade: equipment_operator, count: 4 } # wet-mix + hot-mix plant, paver, sprayer
+    - { trade: driver, count: 6 }
+    - { trade: skilled, count: 2 } # bituminous screed rakers
+    - { trade: unskilled, count: 8 }
+    - { trade: semi_skilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+    - { trade: qc_technician, count: 1 }
+  # Hume-pipe culvert laying gang (SDB 9.05): precast NP4 pipes + bedding +
+  # collar mortar, handled with a light 3 tonne crane. NOT an rcc_pour gang —
+  # there is no cast-in-situ concrete on a precast pipe culvert, so the transit
+  # mixer + 36m boom pump that used to be charged here were pure over-charge.
+  pipe_laying_crew:
+    - { trade: skilled, count: 2 } # mason for collar jointing
+    - { trade: unskilled, count: 6 }
+    - { trade: equipment_operator, count: 1 } # light crane
+    - { trade: driver, count: 1 } # tipper for bedding material
+    - { trade: supervisor, count: 1 }
+  rcc_pour:
+    - { trade: skilled, count: 2 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: equipment_operator, count: 2 } # concrete pump + crawler crane
+    - { trade: driver, count: 1 } # transit mixer
+    - { trade: unskilled, count: 8 }
+    - { trade: supervisor, count: 1 }
+  pile_drilling:
+    - { trade: equipment_operator, count: 2 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: skilled, count: 1 }
+    - { trade: unskilled, count: 4 }
+    - { trade: supervisor, count: 1 }
+  pier_construction:
+    - { trade: skilled, count: 3 }
+    - { trade: highly_skilled, count: 3 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 1 } # crawler crane
+    - { trade: driver, count: 1 } # transit mixer
+    - { trade: supervisor, count: 1 }
+  girder_erection:
+    - { trade: equipment_operator, count: 2 }
+    - { trade: highly_skilled, count: 4 }
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 8 }
+    - { trade: supervisor, count: 1 }
+    - { trade: safety_officer, count: 1 }
+  drainage_works:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 6 }
+    - { trade: equipment_operator, count: 2 } # excavator + jcb
+    - { trade: supervisor, count: 1 }
+  road_furniture:
+    - { trade: skilled, count: 2 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 4 }
+    - { trade: equipment_operator, count: 1 } # jcb
+    - { trade: supervisor, count: 1 }
+  building_rcc_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: highly_skilled, count: 3 }
+    - { trade: unskilled, count: 10 }
+    - { trade: equipment_operator, count: 2 } # concrete pump + tower crane
+    - { trade: driver, count: 1 } # transit mixer
+    - { trade: supervisor, count: 1 }
+    - { trade: safety_officer, count: 1 }
+  building_brickwork_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: unskilled, count: 6 }
+    - { trade: equipment_operator, count: 2 } # tower crane + hoist
+    - { trade: supervisor, count: 1 }
+  building_plaster_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: unskilled, count: 4 }
+    - { trade: equipment_operator, count: 1 } # passenger hoist
+    - { trade: supervisor, count: 1 }
+  building_waterproofing_crew:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  building_tiling_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  building_painting_crew:
+    - { trade: painter, count: 3 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  building_electrical_crew:
+    - { trade: electrician, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: equipment_operator, count: 1 } # crawler crane / hoisting
+    - { trade: supervisor, count: 1 }
+  building_plumbing_crew:
+    - { trade: plumber, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  building_hvac_crew:
+    - { trade: hvac_technician, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 3 }
+    - { trade: equipment_operator, count: 1 } # tower crane
+    - { trade: supervisor, count: 1 }
+  building_finishing_crew:
+    - { trade: painter, count: 2 }
+    - { trade: aluminium_fabricator, count: 2 }
+    - { trade: glazier, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: equipment_operator, count: 1 } # tower crane for envelope/joinery
+    - { trade: supervisor, count: 1 }
+  building_external_crew:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 4 }
+    - { trade: equipment_operator, count: 1 } # excavator
+    - { trade: driver, count: 1 } # tipper
+    - { trade: supervisor, count: 1 }
+  mobilization_crew:
+    - { trade: supervisor, count: 2 }
+    - { trade: unskilled, count: 6 }
+    - { trade: equipment_operator, count: 2 } # excavator + jcb
+    - { trade: driver, count: 1 } # water tanker
+  demobilization_crew:
+    - { trade: supervisor, count: 1 }
+    - { trade: unskilled, count: 4 }
+  site_clearance_crew:
+    - { trade: equipment_operator, count: 1 } # dozer
+    - { trade: driver, count: 2 } # tipper
+    - { trade: unskilled, count: 4 }
+    - { trade: supervisor, count: 1 }
+  utility_shift_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 2 } # excavator + jcb
+    - { trade: driver, count: 3 } # tipper
+    - { trade: supervisor, count: 1 }
+    - { trade: safety_officer, count: 1 }
+  tree_felling_crew:
+    - { trade: skilled, count: 4 } # sawyers / chainsaw men
+    - { trade: unskilled, count: 4 }
+    - { trade: driver, count: 2 } # tipper haulage
+    - { trade: supervisor, count: 1 }
+  site_mobilization_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 2 } # excavator + jcb
+    - { trade: driver, count: 2 } # tipper
+    - { trade: electrician, count: 2 }
+    - { trade: plumber, count: 1 }
+    - { trade: supervisor, count: 2 }
+  subgrade_prep_crew:
+    - { trade: equipment_operator, count: 3 }
+    - { trade: driver, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  median_dressing_crew:
+    - { trade: skilled, count: 1 }
+    - { trade: unskilled, count: 4 }
+    - { trade: driver, count: 1 }
+    - { trade: supervisor, count: 1 }
+  flyover_construction_crew:
+    - { trade: skilled, count: 6 }
+    - { trade: highly_skilled, count: 4 }
+    - { trade: unskilled, count: 12 }
+    - { trade: equipment_operator, count: 3 } # batching/pump/crane
+    - { trade: driver, count: 2 } # transit mixers
+    - { trade: supervisor, count: 2 }
+    - { trade: safety_officer, count: 1 }
+  vup_construction_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: highly_skilled, count: 3 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 2 }
+    - { trade: driver, count: 2 }
+    - { trade: supervisor, count: 1 }
+  re_wall_erection_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 1 } # crawler crane
+    - { trade: driver, count: 2 } # transit mixer + jcb
+    - { trade: supervisor, count: 1 }
+  slope_protection_crew:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 6 }
+    - { trade: driver, count: 1 } # tipper
+    - { trade: supervisor, count: 1 }
+  toll_plaza_crew:
+    - { trade: skilled, count: 6 }
+    - { trade: highly_skilled, count: 4 }
+    - { trade: unskilled, count: 12 }
+    - { trade: equipment_operator, count: 4 } # batching/pump/crane/hoist
+    - { trade: driver, count: 2 } # transit mixers
+    - { trade: electrician, count: 4 }
+    - { trade: plumber, count: 3 }
+    - { trade: hvac_technician, count: 2 }
+    - { trade: fire_fighting_technician, count: 1 }
+    - { trade: painter, count: 3 }
+    - { trade: glazier, count: 2 }
+    - { trade: supervisor, count: 2 }
+    - { trade: qc_technician, count: 1 }
+    - { trade: safety_officer, count: 1 }
+
+# Equipment assignment per activity key
+equipment_per_activity:
+  # The crew carries 4 drivers but the fleet listed only 1 tipper — roadway cut
+  # with disposal needs a haul fleet (3 tippers for the 800 cum/day gang), and
+  # the missing tippers understated plant + fuel. The water tanker is the dust
+  # suppression / sprinkling that the SDB earthwork rate analysis includes.
+  earthwork_mech:
+    [excavator_0_9cum, tipper_10t, tipper_10t, tipper_10t, water_tanker_12kl]
+  embankment_compaction:
+    [dozer_d6, motor_grader_120hp, vibratory_roller_8_10t, water_tanker_12kl]
+  gsb_wmm_laying:
+    [
+      wet_mix_plant_150tph,
+      paver_finisher,
+      tandem_roller_8_10t,
+      pneumatic_roller_12_14t,
+      tipper_10t,
+      water_tanker_12kl,
+    ]
+  service_road_paving:
+    [
+      wet_mix_plant_150tph,
+      hot_mix_plant_120tph,
+      paver_finisher,
+      tandem_roller_8_10t,
+      pneumatic_roller_12_14t,
+      tipper_10t,
+      water_tanker_12kl,
+      bitumen_sprayer_4000l,
+    ]
+  pipe_laying_crew: [light_crane_3t, tipper_10t]
+  bituminous_laying:
+    [
+      hot_mix_plant_120tph,
+      paver_finisher,
+      tandem_roller_8_10t,
+      pneumatic_roller_12_14t,
+      tipper_10t,
+      bitumen_sprayer_4000l,
+    ]
+  rcc_pour: [transit_mixer_6cum, concrete_pump_boom_36m]
+  pile_drilling: [bored_pile_rig_1_5m]
+  pier_construction: [crawler_crane_50t, transit_mixer_6cum]
+  girder_erection: [crawler_crane_50t]
+  drainage_works: [excavator_0_9cum, jcb_3dx]
+  road_furniture: [jcb_3dx]
+  building_rcc_crew:
+    [transit_mixer_6cum, concrete_pump_stationary, tower_crane_electric]
+  building_brickwork_crew: [tower_crane_electric, passenger_hoist]
+  building_plaster_crew: [passenger_hoist]
+  building_waterproofing_crew: []
+  building_tiling_crew: []
+  building_painting_crew: []
+  building_electrical_crew: [dg_set_500kva]
+  building_plumbing_crew: []
+  building_hvac_crew: [tower_crane_electric]
+  building_finishing_crew: [scaffolding_system]
+  building_external_crew: [excavator_0_9cum, tipper_10t]
+  mobilization_crew: [jcb_3dx, water_tanker_12kl]
+  demobilization_crew: []
+  site_clearance_crew: [dozer_d6, tipper_10t]
+  utility_shift_crew: [excavator_0_9cum, jcb_3dx, tipper_10t, dg_set_125kva]
+  tree_felling_crew: [jcb_3dx, tipper_10t]
+  site_mobilization_crew: [excavator_0_9cum, jcb_3dx, tipper_10t, dg_set_125kva]
+  subgrade_prep_crew:
+    [dozer_d6, motor_grader_120hp, vibratory_roller_8_10t, water_tanker_12kl]
+  median_dressing_crew: [jcb_3dx, water_tanker_12kl]
+  flyover_construction_crew:
+    [
+      batching_plant_30cum,
+      transit_mixer_6cum,
+      concrete_pump_boom_36m,
+      crawler_crane_50t,
+      scaffolding_system,
+    ]
+  vup_construction_crew:
+    [
+      batching_plant_30cum,
+      transit_mixer_6cum,
+      concrete_pump_boom_36m,
+      jcb_3dx,
+      scaffolding_system,
+    ]
+  re_wall_erection_crew: [crawler_crane_50t, transit_mixer_6cum, jcb_3dx]
+  slope_protection_crew: [jcb_3dx, tipper_10t, water_tanker_12kl]
+  toll_plaza_crew:
+    [
+      batching_plant_30cum,
+      tower_crane_electric,
+      transit_mixer_6cum,
+      concrete_pump_stationary,
+      passenger_hoist,
+      dg_set_500kva,
+      scaffolding_system,
+    ]
+
+# Material recipes per unit of output (IS 456 mix basis / MoRTH SDB)
+material_per_unit:
+  # NOTE: every rcc_* mix carries ply_shuttering_sqm — centreing & shuttering is
+  # part of any cast-in-situ concrete rate (SDB analyses price it inside the RCC
+  # item). The shared mix covers box culverts, drainage, sub/superstructure,
+  # flyover and VUP. The ONE exception is bridge_pile_m25 (bored pile: no formwork,
+  # tremie concrete + temporary casing instead) which is a standalone recipe below.
+  rcc_m25:
+    cement_kg: 380
+    sand_cum: 0.45
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 90
+    water_litre: 180
+    admix_kg: 4.0
+    ply_shuttering_sqm: 4.5 # sqm contact area per cum of concrete (walls/piles/footings blend)
+  rcc_m30:
+    cement_kg: 400
+    sand_cum: 0.45
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 100
+    water_litre: 180
+    admix_kg: 4.0
+    ply_shuttering_sqm: 4.5
+  rcc_m35:
+    cement_kg: 430
+    sand_cum: 0.42
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 120
+    water_litre: 170
+    admix_kg: 4.5
+    ply_shuttering_sqm: 4.5
+  gsb:
+    agg_well_graded_cum: 1.05
+    water_litre: 60
+  wmm:
+    agg_well_graded_cum: 1.05
+    water_litre: 50
+  dbm:
+    bitumen_kg: 100
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    agg_6mm_cum: 0.15
+  bc:
+    bitumen_kg: 130
+    agg_20mm_cum: 0.30
+    agg_10mm_cum: 0.40
+    agg_6mm_cum: 0.25
+  brickwork:
+    bricks_no: 500
+    mortar_cum: 0.25
+    water_litre: 100
+  plaster:
+    cement_kg: 5.5
+    sand_cum: 0.012
+    water_litre: 25
+  waterproofing:
+    waterproofing_membrane_sqm: 1.05
+    primer_litre: 0.3
+  tiling:
+    tiles_sqm: 1.05
+    tile_adhesive_kg: 4.0
+  paint:
+    paint_litre: 0.35
+    primer_litre: 0.12
+
+# -----------------------------------------------------------------------------
+# Road-specific recipes. The building recipes above (rcc_*, brickwork, plaster,
+# tiling, paint) are reused by the structure activities, but earthwork, pavement
+# and surfacing need their own per-unit consumption figures. Quantities are per
+# ONE UNIT OF ACTIVITY OUTPUT, matching the activity unit in activity_master
+# (cum / sqm / metre) — so multiply by the activity quantity to get the total.
+# -----------------------------------------------------------------------------
+material_per_unit_road:
+  # Excavation: blended soft+hard soil cut. 70% soft soil (no material cost),
+  # 30% hard/rock requiring blasting. Blasting materials (explosives, detonators,
+  # drilling rods) are priced as a lump allowance embedded in the rate uplift.
+  # The 3% is overbreak allowance on the total cut.
+  excavation:
+    _waste_only:
+      overbreak_pct: 0.03
+  # Embankment/subgrade: compacted borrowed material. 1.15 cum loose per cum
+  # compacted after shrinkage/swell, less the 3% compaction loss.
+  embankment_fill:
+    borrow_earth_cum: 1.15
+    water_litre: 40
+  subgrade:
+    borrow_earth_cum: 1.15
+    water_litre: 50
+  # Granular sub-base / WMM as placed (wet mix, 1.05 loose:1 compacted).
+  gsb:
+    agg_well_graded_cum: 1.05
+    water_litre: 60
+  wmm:
+    agg_well_graded_cum: 1.05
+    water_litre: 50
+  # Bituminous courses, per sqm of finished surface. Bituminous mix density is
+  # ~2450 kg/cum; bitumen content is 4.5% by weight of mix.
+  #   DBM 100mm -> 0.100 x 2450 = 245 kg mix -> 11.0 kg bitumen
+  #   BC   50mm -> 0.050 x 2450 = 122 kg mix ->  5.5 kg bitumen
+  # Aggregate volumes are the balance of the mix (mix less bitumen less filler),
+  # converted to loose cum at ~1650 kg/cum.
+  dbm_100mm:
+    bitumen_kg: 11.0
+    agg_20mm_cum: 0.068
+    agg_10mm_cum: 0.046
+    agg_6mm_cum: 0.025
+  bc_50mm:
+    bitumen_kg: 5.5
+    agg_20mm_cum: 0.034
+    agg_10mm_cum: 0.023
+    agg_6mm_cum: 0.013
+  prime_coat:
+    bitumen_emulsion_kg: 0.80 # MoRTH Cl.502: 0.70-0.90 kg/sqm for primer (was 0.30 — tack coat qty)
+  tack_coat:
+    bitumen_emulsion_kg: 0.20
+  # Structures reuse the IS 456 building mixes above (which now include
+  # shuttering); these entries name which. bridge_pile_m25 is the deliberate
+  # exception — see its standalone recipe.
+  box_culvert_m25: { _use: rcc_m25 }
+  bridge_pile_m25: # bored pile: tremie concrete, NO shuttering — rebar cage + amortized casing
+    cement_kg: 380
+    sand_cum: 0.45
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 135 # 110 kg/cum pile rebar + 25 kg/cum amortized temporary casing steel
+    water_litre: 180
+    admix_kg: 4.0
+  bridge_substructure_m35: { _use: rcc_m35 }
+  bridge_superstructure_m35: # M45/M50 PSC girder + deck: shared mix PLUS prestressing strand
+    # and bearings/expansion joints — the SDB superstructure item prices these
+    # inside the rate; without them the build-up sat ~60% below MoRTH.
+    cement_kg: 430
+    sand_cum: 0.42
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 120
+    water_litre: 170
+    admix_kg: 4.5
+    ply_shuttering_sqm: 4.5
+    prestressing_strand_kg: 80 # low-relaxation strand, girder stressing
+    bridge_bearing_expansion_per_cum: 1.0
+  flyover_m35: { _use: rcc_m35 }
+  vup_m30: { _use: rcc_m30 }
+  drainage_m25: { _use: rcc_m25 }
+  # Twin RCC NP4 DN1200 pipe culvert, per METRE RUN of twin culvert (= 2 pipe
+  # metres). SDB 9.05 (double row): pipes on granular bedding + sand/cement
+  # collar mortar, excl. excavation & headwalls.
+  pipe_culvert_twin_m:
+    rcc_pipe_dn1200_metre: 2.0
+    agg_well_graded_cum: 0.50 # 5.6mm granular bedding & surround
+    cement_kg: 12 # collar mortar 1:2
+    sand_cum: 0.05
+    water_litre: 40
+  # Tree felling + 1:10 compensatory afforestation (SDB 11.21 / CAMPA norms):
+  # felling itself is crew + plant only; the sanctioned rate pays for plantation.
+  tree_felling_no:
+    forest_sapling_no: 10 # 10 saplings per felled tree
+    plant_guard_no: 5
+    afforestation_tending_per_tree: 1
+    water_litre: 1500 # establishment watering
+  # Median dressing per sqm: topsoil + shrubs + grass turfing & establishment.
+  median_dressing_sqm:
+    topsoil_cum: 0.08
+    shrub_plant_no: 0.12
+    grass_seed_kg: 0.04
+    fertiliser_kg: 0.12
+    water_litre: 200
+
+  # ---------------------------------------------------------------------------
+  # NEW — first-principles recipes for the former unmapped_activity_keys, so the
+  # planned rate can be DERIVED from resources for the whole activity family.
+  # ---------------------------------------------------------------------------
+  # Utility shifting: water/telecom ducts + HT line relocation + backfill.
+  # The HT portion (conductor, tower steel, insulators) is what the sanctioned
+  # ₹1.4 Cr/km line item is dominated by; without it the build-up understated
+  # the activity by ~79%.
+  utility_shift_km:
+    hdpe_pipe_dn600_metre: 1500
+    electrical_cable_per_metre: 5000
+    conduit_per_metre: 2000
+    borrow_earth_cum: 300
+    ht_conductor_metre: 4000 # 3-phase HT conductor relocation (~1300 m per phase)
+    galvanized_steel_kg: 15000 # tower/pole steel re-erection & replacement
+    insulator_string_no: 15
+    # Water/sewer mains run with the utility corridor and are part of the
+    # sanctioned shifting item (the old recipe relocated only power/telecom).
+    di_water_main_metre: 350 # DN200 water main shifted per km of corridor
+    plumbing_pipe_per_metre: 800 # gravity sewer segment replacement
+    # Pavement reinstatement over the trench runs: granular backfill + bituminous
+    # plug over ~1,500 sqm of cut pavement per km.
+    agg_well_graded_cum: 260
+    agg_10mm_cum: 95
+    bitumen_kg: 2900
+    bitumen_emulsion_kg: 160
+    utility_dismantling_disposal_lump: 1.0
+  # Site set-up: camp/office buildings + lab + weighbridges + machinery transport
+  # + power/water/safety + THE FULL SANCTIONED SET: workers' camp, batching & hot
+  # mix plant erection, internal development, workshops. Without those five lumps
+  # the planned rate sat ~57% below the sanctioned mobilization rate because the
+  # rate analysis prices a complete site base camp, not just offices.
+  site_mobilization_set:
+    aac_blocks_per_thousand: 3.0
+    bricks_no: 2500
+    mortar_cum: 6
+    cement_kg: 15000
+    steel_kg: 4000
+    sand_cum: 18
+    electrical_cable_per_metre: 700
+    conduit_per_metre: 500
+    plumbing_pipe_per_metre: 250
+    paint_litre: 120
+    water_litre: 20000
+    machinery_transport_lump: 1.0
+    qa_qc_lab_equipment_set: 1.0
+    weighbridge_no: 2.0
+    site_establishment_lump: 1.0
+    site_power_set: 1.0
+    site_water_supply_lump: 1.0
+    safety_environment_lump: 1.0
+    labour_camp_lump: 1.0
+    batching_plant_erection_lump: 1.0
+    hotmix_plant_erection_lump: 1.0
+    site_internal_development_lump: 1.0
+    site_workshop_stores_lump: 1.0
+  # RE wall per sqm of face: precast panel (M35) + uniaxial geogrid at ~5 sqm per
+  # sqm face (0.7H strip x H/0.75m layers) + select granular reinforced backfill.
+  # Backfill is 3.2 cum/sqm — the reinforced-zone wedge behind a ~4 m wall needs
+  # 2.5-3.5 cum of granular per sqm of face; the old 1.8 underpriced it.
+  re_wall_sqm:
+    cement_kg: 60
+    steel_kg: 14
+    sand_cum: 0.059
+    agg_20mm_cum: 0.070
+    agg_10mm_cum: 0.042
+    select_granular_cum: 3.2
+    geogrid_sqm: 5.0
+    geotextile_sqm: 1.10
+    water_litre: 30
+  # Slope protection: 3D geocell + topsoil infill + turfing & establishment.
+  slope_protection_sqm:
+    topsoil_cum: 0.15
+    geocell_sqm: 1.0
+    geotextile_sqm: 1.05
+    grass_seed_kg: 0.05
+    fertiliser_kg: 0.20
+    water_litre: 200
+  # Service road composite pavement per sqm: 200mm GSB + 200mm WMM + 40mm BC
+  # + prime/tack (the old recipe had only ~150mm granular and no prime/tack).
+  service_road_composite:
+    agg_well_graded_cum: 0.42
+    bitumen_kg: 4.4
+    agg_20mm_cum: 0.027
+    agg_10mm_cum: 0.018
+    agg_6mm_cum: 0.010
+    bitumen_emulsion_kg: 0.43 # prime 0.25 + tack 0.18
+    water_litre: 60
+  # Road furniture per km: W-beam barrier + posts (median & both edges),
+  # gantries, sign structures, sign faces, hot-applied markings. Steel is
+  # FABRICATED + HOT-DIP GALVANIZED (SDB 8.23/10.16), not bare TMT bar — pricing
+  # it at ₹60/kg was the main cause of the -78% gap.
+  road_furniture_km:
+    galvanized_steel_kg: 52000 # W-beam + posts + sign/gantry structures (up from 45t: small gantries & extra posts)
+    delineator_set_km: 1.0 # 40 delineators + cat-eyes + milestones
+    signage_panel_sqm: 90
+    thermoplastic_kg: 5000
+    reflective_bead_kg: 400
+    paint_litre: 150
+    primer_litre: 40
+  # Toll plaza + 25km ATMS per set: tolling electronics + THE ATMS FIELD
+  # EQUIPMENT (VMS, cameras, RCMS, ITS fibre, ATCC workstations/SCADA — the
+  # sanctioned item explicitly covers "25 km ATMS") + booths/canopy civil
+  # + plaza civil + building MEP. power_supply_set is the plaza/ATCC
+  # electrical infrastructure — NOT part of the electronics lumps.
+  toll_plaza_set:
+    toll_electronics_system_set: 1.0
+    atms_field_equipment_lump: 1.0
+    toll_booth_canopy_lump: 1.0
+    power_supply_set: 1.0
+    cement_kg: 240000
+    steel_kg: 48000
+    sand_cum: 450
+    agg_20mm_cum: 550
+    agg_10mm_cum: 350
+    bricks_no: 380000
+    mortar_cum: 110
+    waterproofing_membrane_sqm: 2600
+    tiles_sqm: 2200
+    tile_adhesive_kg: 8800
+    paint_litre: 900
+    primer_litre: 300
+    electrical_cable_per_metre: 16000
+    conduit_per_metre: 10000
+    plumbing_pipe_per_metre: 1800
+    hvac_duct_per_sqm: 1400
+    water_litre: 600000
+
+# -----------------------------------------------------------------------------
+# Activity -> recipe map. Which material_per_unit / material_per_unit_road entry
+# describes each activity's consumption, and how many units of that recipe one
+# unit of activity output consumes (the mix factor). Recipes not listed here are
+# explicitly acknowledged in `activity_no_material_recipe` below — a silent
+# zero would understate the bottom-up estimate.
+# -----------------------------------------------------------------------------
+activity_material_recipe:
+  excavation: { recipe: excavation, per_output: 1.0 }
+  embankment: { recipe: embankment_fill, per_output: 1.0 }
+  subgrade: { recipe: subgrade, per_output: 1.0 }
+  gsb: { recipe: gsb, per_output: 1.0 }
+  wmm: { recipe: wmm, per_output: 1.0 }
+  dbm: { recipe: dbm_100mm, per_output: 1.0 }
+  bc: { recipe: bc_50mm, per_output: 1.0 }
+  prime_coat: { recipe: prime_coat, per_output: 1.0 }
+  tack_coat: { recipe: tack_coat, per_output: 1.0 }
+  box_culverts: { recipe: box_culvert_m25, per_output: 1.0 }
+  bridge_piling: { recipe: bridge_pile_m25, per_output: 1.0 }
+  bridge_substructure: { recipe: bridge_substructure_m35, per_output: 1.0 }
+  bridge_superstructure: { recipe: bridge_superstructure_m35, per_output: 1.0 }
+  flyover_structures: { recipe: flyover_m35, per_output: 1.0 }
+  vup_structures: { recipe: vup_m30, per_output: 1.0 }
+  # 0.26 cum of RCC per metre: a covered ~600mm drain (100mm base + walls +
+  # cover slab) is ~0.25-0.30 cum/m — the old 1.0 consumed a full cubic metre
+  # of concrete per metre of drain and made the rate +158% over MoRTH.
+  drainage: { recipe: drainage_m25, per_output: 0.26 }
+  pipe_culverts: { recipe: pipe_culvert_twin_m, per_output: 1.0 }
+  tree_felling: { recipe: tree_felling_no, per_output: 1.0 }
+  median_dressing: { recipe: median_dressing_sqm, per_output: 1.0 }
+  utility_shifting: { recipe: utility_shift_km, per_output: 1.0 }
+  site_mobilization: { recipe: site_mobilization_set, per_output: 1.0 }
+  re_walls: { recipe: re_wall_sqm, per_output: 1.0 }
+  slope_protection: { recipe: slope_protection_sqm, per_output: 1.0 }
+  service_roads: { recipe: service_road_composite, per_output: 1.0 }
+  road_furniture: { recipe: road_furniture_km, per_output: 1.0 }
+  toll_plaza_atms: { recipe: toll_plaza_set, per_output: 1.0 }
+
+# Activities with no purchased-material content. Their direct cost is entirely
+# labour + plant + fuel. Only site clearing qualifies — felling, drainage,
+# culverts and median dressing all consume materials (compensatory plantation,
+# RCC/pipes, topsoil/turfing) and MUST stay mapped above, otherwise their planned
+# rate understates the sanctioned scope.
+activity_no_material_recipe:
+  - site_clearance
+
+# -----------------------------------------------------------------------------
+# Material key binding: maps a recipe key (the left side of material_per_unit)
+# to (a) the wastage category used to look up the factor above and (b) the entry
+# in material_rates_inr that prices it. Where the rate is not per native unit,
+# `divisor` converts the recipe unit into the rate's unit — e.g. cement is
+# consumed in kg but priced per 50 kg bag, so divisor 50.
+# -----------------------------------------------------------------------------
+material_bindings:
+  cement_kg: { wastage: cement, rate: cement_opc53_bag, divisor: 50 }
+  steel_kg: { wastage: steel, rate: tmt_steel_fe500d_mt, divisor: 1000 }
+  agg_20mm_cum: { wastage: aggregate, rate: agg_20mm_cum, divisor: 1 }
+  agg_10mm_cum: { wastage: aggregate, rate: agg_10mm_cum, divisor: 1 }
+  agg_6mm_cum: { wastage: aggregate, rate: agg_6mm_cum, divisor: 1 }
+  agg_well_graded_cum: { wastage: aggregate, rate: agg_20mm_cum, divisor: 1 }
+  sand_cum: { wastage: sand, rate: msand_cum, divisor: 1 }
+  water_litre: { wastage: default, rate: water_kl, divisor: 1000 }
+  bitumen_kg: { wastage: bitumen, rate: bitumen_vg30_mt, divisor: 1000 }
+  bitumen_emulsion_kg:
+    { wastage: bitumen, rate: bitumen_emulsion_ss1_kg, divisor: 1 }
+  admix_kg: { wastage: default, rate: admix_plasticiser_kg, divisor: 1 }
+  bricks_no: { wastage: bricks, rate: bricks_per_thousand, divisor: 1000 }
+  mortar_cum: { wastage: mortar, rate: mortar_ready_cum, divisor: 1 }
+  waterproofing_membrane_sqm:
+    { wastage: waterproofing, rate: waterproofing_membrane_sqm, divisor: 1 }
+  tiles_sqm: { wastage: tiles, rate: vitrified_tiles_sqm, divisor: 1 }
+  tile_adhesive_kg: { wastage: default, rate: tile_adhesive_kg, divisor: 1 }
+  paint_litre: { wastage: paint, rate: emulsion_paint_litre, divisor: 1 }
+  primer_litre: { wastage: paint, rate: primer_litre, divisor: 1 }
+  borrow_earth_cum: { wastage: default, rate: borrow_earth_cum, divisor: 1 }
+  geotextile_sqm: { wastage: default, rate: geotextile_sqm, divisor: 1 }
+  hdpe_pipe_dn600_metre:
+    { wastage: default, rate: hdpe_pipe_dn600_metre, divisor: 1 }
+  electrical_cable_per_metre:
+    { wastage: default, rate: electrical_cable_per_metre, divisor: 1 }
+  conduit_per_metre: { wastage: default, rate: conduit_per_metre, divisor: 1 }
+  plumbing_pipe_per_metre:
+    { wastage: default, rate: plumbing_pipe_per_metre, divisor: 1 }
+  hvac_duct_per_sqm: { wastage: default, rate: hvac_duct_per_sqm, divisor: 1 }
+  aac_blocks_per_thousand:
+    { wastage: bricks, rate: aac_blocks_per_thousand, divisor: 1000 }
+  toll_electronics_system_set:
+    { wastage: default, rate: toll_electronics_system_set, divisor: 1 }
+  # --- SDB-comparable additions (scope items the sanctioned rates already cover) ---
+  ply_shuttering_sqm: { wastage: default, rate: ply_shuttering_sqm, divisor: 1 }
+  galvanized_steel_kg: { wastage: steel, rate: galvanized_steel_kg, divisor: 1 }
+  rcc_pipe_dn1200_metre:
+    { wastage: default, rate: rcc_pipe_dn1200_metre, divisor: 1 }
+  ht_conductor_metre: { wastage: default, rate: ht_conductor_metre, divisor: 1 }
+  insulator_string_no:
+    { wastage: default, rate: insulator_string_no, divisor: 1 }
+  signage_panel_sqm: { wastage: default, rate: signage_panel_sqm, divisor: 1 }
+  thermoplastic_kg: { wastage: default, rate: thermoplastic_kg, divisor: 1 }
+  reflective_bead_kg: { wastage: default, rate: reflective_bead_kg, divisor: 1 }
+  forest_sapling_no: { wastage: default, rate: forest_sapling_no, divisor: 1 }
+  plant_guard_no: { wastage: default, rate: plant_guard_no, divisor: 1 }
+  afforestation_tending_per_tree:
+    { wastage: default, rate: afforestation_tending_per_tree, divisor: 1 }
+  topsoil_cum: { wastage: aggregate, rate: topsoil_cum, divisor: 1 }
+  shrub_plant_no: { wastage: default, rate: shrub_plant_no, divisor: 1 }
+  grass_seed_kg: { wastage: default, rate: grass_seed_kg, divisor: 1 }
+  fertiliser_kg: { wastage: default, rate: fertiliser_kg, divisor: 1 }
+  geogrid_sqm: { wastage: default, rate: geogrid_sqm, divisor: 1 }
+  select_granular_cum:
+    { wastage: aggregate, rate: select_granular_cum, divisor: 1 }
+  geocell_sqm: { wastage: default, rate: geocell_sqm, divisor: 1 }
+  prestressing_strand_kg:
+    { wastage: steel, rate: prestressing_strand_kg, divisor: 1 }
+  bridge_bearing_expansion_per_cum:
+    { wastage: default, rate: bridge_bearing_expansion_per_cum, divisor: 1 }
+  machinery_transport_lump:
+    { wastage: default, rate: machinery_transport_lump, divisor: 1 }
+  qa_qc_lab_equipment_set:
+    { wastage: default, rate: qa_qc_lab_equipment_set, divisor: 1 }
+  weighbridge_no: { wastage: default, rate: weighbridge_no, divisor: 1 }
+  site_establishment_lump:
+    { wastage: default, rate: site_establishment_lump, divisor: 1 }
+  site_power_set: { wastage: default, rate: site_power_set, divisor: 1 }
+  site_water_supply_lump:
+    { wastage: default, rate: site_water_supply_lump, divisor: 1 }
+  safety_environment_lump:
+    { wastage: default, rate: safety_environment_lump, divisor: 1 }
+  power_supply_set: { wastage: default, rate: power_supply_set, divisor: 1 }
+  # --- sanctioned scope lumps added to close the deep-negative variations ---
+  labour_camp_lump: { wastage: default, rate: labour_camp_lump, divisor: 1 }
+  batching_plant_erection_lump:
+    { wastage: default, rate: batching_plant_erection_lump, divisor: 1 }
+  hotmix_plant_erection_lump:
+    { wastage: default, rate: hotmix_plant_erection_lump, divisor: 1 }
+  site_internal_development_lump:
+    { wastage: default, rate: site_internal_development_lump, divisor: 1 }
+  site_workshop_stores_lump:
+    { wastage: default, rate: site_workshop_stores_lump, divisor: 1 }
+  atms_field_equipment_lump:
+    { wastage: default, rate: atms_field_equipment_lump, divisor: 1 }
+  toll_booth_canopy_lump:
+    { wastage: default, rate: toll_booth_canopy_lump, divisor: 1 }
+  di_water_main_metre:
+    { wastage: default, rate: di_water_main_metre, divisor: 1 }
+  utility_dismantling_disposal_lump:
+    { wastage: default, rate: utility_dismantling_disposal_lump, divisor: 1 }
+  delineator_set_km: { wastage: default, rate: delineator_set_km, divisor: 1 }
+
+# Wastage factors — (1 + wastage) on theoretical quantity. These are MATERIAL
+# wastage only: a quantity problem, where you must issue more of the material
+# because part of it is lost, spoiled or wasted. Each material carries its own
+# factor because cement and aggregate are not stored or handled alike.
+# Fuel / plant / labour losses are NOT here — see wastage_non_material below.
+# Fractions, not percentages: 0.03 means 3%. These were previously entered 100x
+# too small (0.0003 = 0.03%), which made the whole wastage allowance a rounding
+# error - cement was being issued at 99.97% efficiency.
+wastage:
+  cement: 0.03
+  steel: 0.03
+  aggregate: 0.05
+  sand: 0.05
+  bitumen: 0.02
+  concrete: 0.04
+  bricks: 0.05
+  paint: 0.05
+  tiles: 0.05
+  waterproofing: 0.03
+  mortar: 0.05
+  default: 0.03
+
+# -----------------------------------------------------------------------------
+# Non-material execution losses — the fuel / plant / labour half of wastage.
+#
+# These are UTILISATION problems rather than quantity problems. Material wastage
+# means "this bag went hard, issue another"; these mean "this machine was
+# running but not doing useful work". Each is a fraction of its own base cost
+# and is priced from the same day rates / litres-per-hour the bottom-up estimate
+# uses, so the allowance and the cost it scales cannot drift apart.
+#
+#   fuel_idle_pct    — engines idling at site, standby gensets, pump priming
+#                      before and after a pour, never reaching rated economy.
+#   plant_idle_pct   — breakdowns awaiting a mechanic, machines waiting on fuel
+#                      or spares, standing between discrete tasks. Plant hire is
+#                      charged per day, so this is recovered as extra hire days.
+#   labour_idle_pct  — gangs standing idle waiting on plant, plus the daily
+#                      join/leave/retard drag of a churning site.
+#
+# Fractions, not percentages: 0.08 means 8%. Validated to 0..1 on load.
+# -----------------------------------------------------------------------------
+wastage_non_material:
+  fuel_idle_pct: 0.08
+  plant_idle_pct: 0.06
+  labour_idle_pct: 0.04
+
+# -----------------------------------------------------------------------------
+# Per-unit cost benchmarks (Rs crore) — back-calc scope from cost when the
+# dimensional input is missing, and a reality check on the budget.
+# -----------------------------------------------------------------------------
+per_unit_benchmarks_crore:
+  highway_4lane_greenfield_plains_per_km: 15 # ~Rs 15 Cr/km real NHAI 4-lane
+  highway_2lane_per_km: 8
+  rural_road_per_km: 1.5
+  urban_road_per_km: 18
+  bridge_river_per_span: 4.0
+  building_hospital_per_sqm: 0.004 # Rs 40,000/sqm
+  apartment_per_sqm: 0.0015 # Rs 15,000/sqm built-up, mid-spec
+  commercial_building_per_sqm: 0.002 # Rs 20,000/sqm
+  dam_per_cum: 0.011 # Rs 1.1 lakh/cum of concrete
+  data_centre_per_sqm: 0.060 # Rs 6 lakh/sqm (MEP + whitespace)
+  railway_per_km: 12 # Rs 12 Cr/km (BG single line, excl land)
+
+# -----------------------------------------------------------------------------
+# Major / fixed plant — equipment that does NOT scale linearly with the number
+# of parallel gangs (you don't deploy 16 tower cranes for an apartment, or 16
+# hot-mix plants for one site). These are capped at `major_plant_max_units`
+# regardless of the crew multiplier k. Mobile plant (excavators, tippers,
+# rollers, graders, transit mixers, mobile cranes) scales with gangs.
+# -----------------------------------------------------------------------------
+major_plant:
+  - tower_crane_electric
+  - hot_mix_plant_120tph
+  - wet_mix_plant_150tph
+  - batching_plant_30cum
+  - concrete_pump_stationary
+  - concrete_pump_boom_36m
+  - bored_pile_rig_1_5m
+  - crawler_crane_50t
+  - dg_set_500kva
+  - dg_set_125kva
+major_plant_max_units: 2
+work_front_span_km: 12 # NORMAL (uncrashed) organisation: how much road one
+# gang owns. ceil(length / span) gangs run in parallel from day one, so a 25 km
+# corridor is never planned as a single gang grinding 7 years of earthwork.
+# Crashing may then split the corridor further - up to one front per 3.5 km
+# (see corridor_fronts) - before it has to reach for extra shifts.
+crew_multiplier_cap:
+  6 # never escalate beyond 6 parallel gangs over and above the normal
+  # organisation (linear work: highway/road/bridge/dam/railway). The cap
+  # bounds escalation, not the baseline: it cannot force a long corridor
+  # back down to a single front. A tight cap lets the schedule-fit WARNING
+  # fire when the deadline is genuinely infeasible - see eval #12
+# Building work runs many parallel subcontractor gangs across floors and zones,
+# so the schedule must be allowed to compress to the deadline (cost is invariant
+# — k cancels out of labour/equipment/fuel). Without this override every building
+# plan overflowed its deadline by years (apartment x1.3, hospital x3.8, shopping
+# x19) because the cap=6 calibrated for linear work is far too low for MEP-heavy
+# building scopes. k = min(needed_to_fit, cap), so small buildings still get
+# small fleets — this only raises the ceiling.
+crew_multiplier_cap_by_type:
+  apartment: 150
+  building: 150
+  building_hospital: 150
+  data_centre: 150
+  dam: 30 # long dam axis — parallel embankment/concrete gangs
+
+# -----------------------------------------------------------------------------
+# Bromilow time-cost sanity check: T (working days) ~ K * (C crore)^B
+# Calibrated against NHAI EPC awards 2018-2024.
+# -----------------------------------------------------------------------------
+bromilow:
+  highway: { K: 120, B: 0.30 }
+  bridge: { K: 130, B: 0.32 }
+  building: { K: 100, B: 0.28 }
+  generic: { K: 125, B: 0.30 }
+  tolerance_pct: 25
+
+# -----------------------------------------------------------------------------
+# NEW — Subcontractor sourcing model
+# Two patterns: parallel (multiple contractors, same trade) or
+# bundled (one contractor, multiple trades).
+# Default pool of subcontractors; cold-start performance factor = 1.0
+# *** NOT USED BY THE COST MODEL - RESERVED ***
+# Sub-contractor pooling / cold-start behaviour is documented here but nothing
+# reads it: no activity is modelled as subcontracted. data_loader warns.
+# -----------------------------------------------------------------------------
+subcontractor_defaults:
+  pool:
+    [
+      "Sub-contractor A",
+      "Sub-contractor B",
+      "Sub-contractor C",
+      "Sub-contractor D",
+    ]
+  default_pattern: bundled # bundled | parallel
+  parallel_threshold_crew_size: 20 # crews larger than this split across contractors
+  cold_start_performance_factor: 1.0 # 1.0 = on-benchmark (generic IS norm)
+  # contractor_history_path: ./contractor_benchmarks.json  # future phase
+
+# -----------------------------------------------------------------------------
+# NEW — Benchmark tolerance. Variance within tolerance => "on-benchmark".
+# Above +tolerance => "over-usage"; below -tolerance => "under-usage".
+# -----------------------------------------------------------------------------
+benchmark_tolerances:
+  labour_variance_pct: 10.0
+  equipment_variance_pct: 10.0
+  material_variance_pct: 10.0
+  cost_vs_billed_tolerance_pct:
+    5.0 # planned cost may be up to billed value;
+    #  within 5% of billed = tight, over = LOSS
+  fuel_max_refuels_per_day: 2 # >2 refuels/day on one machine = hard error
+  # Planned estimate vs the per_unit_benchmarks_crore figure for this road type.
+  # Outside +/-this, the plan is reported as materially off-benchmark.
+  estimate_vs_benchmark_pct: 25.0
+
+# *** NOT USED BY THE COST MODEL - REDUNDANT, DO NOT ADD ON TOP ***
+# These weights (3% + 6% + 10% = 19%) restate what `sdb_rate_oncost` already
+# applies as OH 8% + CP 10% = x1.188. Charging both would double count the
+# on-costs. Keep for reference only. data_loader warns.
+# ---
+overhead_weights:
+  pre_construction: 0.03
+  site_overhead_pmo: 0.06
+  contractor_margin_contingency: 0.10
+  # execution activities share the remaining ~0.81
+
+# -----------------------------------------------------------------------------
+# *** NOT USED BY THE COST MODEL - RESERVED ***
+# Freight/haulage parameters are documented here but nothing reads them.
+# Material rates in `material_rates_inr` are already delivered-to-site prices,
+# so hauling is inside the material rate, not priced again here.
+# data_loader warns.
+# -----------------------------------------------------------------------------
+vehicle_transport:
+  fuel_consumption_kmpl:
+    Truck: 4.0
+    Tractor: 3.0
+    Trailer: 2.5
+    Lorry: 3.5
+    Mini_Truck: 6.0
+  driver_daily_wage_inr:
+    Truck: 1300
+    Tractor: 1200
+    Trailer: 1500
+    Lorry: 1300
+    Mini_Truck: 1100
+  base_hire_inr_per_km:
+    Truck: 15
+    Tractor: 20
+    Trailer: 25
+    Lorry: 18
+    Mini_Truck: 10
+  loading_unloading_hours: 2.0
+  average_speed_kmph: 40
+  min_distance_km: 50
+  max_distance_km: 500
+
+# -----------------------------------------------------------------------------
+# 4-LANE EPC NATIONAL HIGHWAY GEOMETRIC & ENGINEERING PARAMETERS (IRC:SP:84 / MoRTH)
+# =============================================================================
+# IRC GEOMETRIC STANDARDS BY LANE CONFIGURATION
+# Sourced from: IRC:86-2018 Table 5.5, IRC:SP:73 (2L), IRC:SP:84 (4L), IRC:SP:87 (6L), IRC:SP:99 (8L)
+# =============================================================================
+lane_standards:
+  1:
+    standard_code: "MoRTH Single Lane"
+    carriageway_width_m: 4.50
+    formation_width_m: 8.50
+    median_width_m: 0.00
+    subgrade_width_m: 6.50
+    gsb_width_m: 5.50
+    wmm_width_m: 5.00
+    service_road_sides: 0
+  2:
+    standard_code: "IRC:SP:73 (2-Lane with Paved Shoulders)"
+    carriageway_width_m: 9.00
+    formation_width_m: 12.00
+    median_width_m: 0.00
+    subgrade_width_m: 11.00
+    gsb_width_m: 10.00
+    wmm_width_m: 9.50
+    service_road_sides: 1
+  4:
+    standard_code: "IRC:SP:84 (4-Lane Divided Highway)"
+    carriageway_width_m: 18.00
+    formation_width_m: 28.00
+    median_width_m: 4.50
+    subgrade_width_m: 22.00
+    gsb_width_m: 20.50
+    wmm_width_m: 19.50
+    service_road_sides: 2
+  6:
+    standard_code: "IRC:SP:87 (6-Lane Expressway)"
+    carriageway_width_m: 26.25
+    formation_width_m: 37.10
+    median_width_m: 4.50
+    subgrade_width_m: 30.50
+    gsb_width_m: 29.00
+    wmm_width_m: 28.00
+    service_road_sides: 2
+  8:
+    standard_code: "IRC:SP:99 (8-Lane Expressway)"
+    carriageway_width_m: 35.00
+    formation_width_m: 46.20
+    median_width_m: 4.50
+    subgrade_width_m: 39.00
+    gsb_width_m: 37.50
+    wmm_width_m: 36.50
+    service_road_sides: 2
+
+# -----------------------------------------------------------------------------
+highway_parameters:
+  lanes: 4
+  formation_width_m: 28.00 # Dual 2-lane + 4.5m median + 2 x 1.5m paved + 2 x 2.0m earthen shoulders
+  carriageway_width_m: 18.00 # 2 x (7.5m carriageway + 1.5m paved shoulder)
+  median_width_m: 4.50 # Standard median
+  subgrade_width_m: 22.00
+  gsb_width_m: 20.50
+  wmm_width_m: 19.50
+  subgrade_thickness_m: 0.50
+  gsb_thickness_m: 0.20
+  wmm_thickness_m: 0.25
+  dbm_thickness_m: 0.100 # 100mm DBM for heavy traffic (>100 MSA)
+  bc_thickness_m: 0.050 # 50mm BC modified wearing course
+  embankment_avg_height_m: 1.80
+  embankment_fill_ratio: 0.75
+  excavation_avg_depth_m: 0.75
+  excavation_cut_ratio: 0.40
+  trees_per_km: 200
+  box_culverts_per_km: 1.6
+  box_culvert_concrete_cum: 350.0 # 32m barrel across 4-lane
+  pipe_culverts_per_km: 1.2
+  pipe_culvert_length_m: 64.0 # Twin NP4 1200mm pipes
+  minor_bridges_km_interval: 3.0
+  major_bridges_km_interval: 12.5
+  rob_km_interval: 25.0
+  flyover_km_interval: 12.5
+  vup_km_interval: 4.0
+  pup_km_interval: 6.0
+  service_road_ratio: 0.60
+  service_road_width_m: 7.0
+  slope_coverage_ratio: 0.75
+
+# -----------------------------------------------------------------------------
+# MoRTH SDB (2019) RATE ANALYSIS COST COMPONENT SHARES
+# -----------------------------------------------------------------------------
+cost_breakdown_shares:
+  labour_share: 0.18 # 18% of Direct Civil Cost
+  material_share: 0.54 # 54% of Direct Civil Cost
+  equipment_share: 0.18 # 18% of Direct Civil Cost
+  fuel_share: 0.10 # 10% of Direct Civil Cost
+
+# -----------------------------------------------------------------------------
+# EPC ACCELERATION & CRASHING FRICTION FACTORS
+# -----------------------------------------------------------------------------
+crashing_factors:
+  equipment_mobilization_pct: 0.03 # 3% of equipment cost per added gang
+  shift_overtime_premium_pct: 0.15 # 15% overtime premium for 2nd shift on labor & machinery
+  supervision_per_front_pct: 0.02 # 2% extra supervision cost per parallel work front
+  site_congestion_factor_pct: 0.01 # 1% efficiency loss from site density per extra crew
+
+# -----------------------------------------------------------------------------
+# TIME-DRIVEN ACCELERATION STEP COSTS  (new)
+# -----------------------------------------------------------------------------
+# The four `crashing_factors` above are pure RATE-PERCENTAGE surcharges: they
+# scale with the cost of the work, not with how long the extra capacity must be
+# carried. Crashing a 400-day earthwork front and crashing a 6-day culvert front
+# therefore cost the SAME percentage, which is why a 410 -> 294 day crash only
+# moved cost by ~1.2%.
+#
+# The parameters below make the surcharge TIME-DRIVEN: it is charged per
+# additional work front per DAY that front remains open, and per extra crew for
+# the minimum hire period of plant. Faster execution = more parallel fronts +
+# more crews held on site longer = materially higher cost, which is what real
+# EPC acceleration contracts price.
+#
+# Basis of each value (INR, India / MoRTH SDB 2019 + CPWD DSR benchmark rates):
+#
+#   site_establishment_per_front_day = 27,500
+#     One extra parallel front needs its own hardstanding/temporary access road,
+#     power connection, material stacking area, water point and survey control
+#     re-establishment. Priced as the amortised daily share of a ~Rs 8-10 lakh
+#     per-front establishment spread over a typical 365-day front.
+#     (27,500 x 365 ~ Rs 10.0 lakh/front)
+#
+#   resident_staff_per_front_day = 16,800
+#     An extra front cannot be run off the existing PMO: it needs a resident
+#     site engineer, one supervisor, two safety officers and two unskilled
+#     mates that are on site for the whole duration of that front.
+#     (4,500 + 3,500 + 2 x 2,800 + 2 x 750 = 16,800/day) -- cross-check against
+#     `labour_rates_inr_per_day`.
+#
+#   plant_hire_billing_days = 30
+#     Earthmoving / paving / piling plant is hired on a calendar-month minimum
+#     by every major contractor in India; a plant mobilised for 8 days is still
+#     charged a full month. Used to round each crashed activity duration UP to
+#     whole months before charging hire for the extra gangs. (30-day month is
+#     the MoRTH/IRC planning-month convention, consistent with the 30-day month
+#     used in main.parse_duration_input.)
+#
+#   gang_interference_pct = 0.04
+#     Two gangs working the same front physically interfere: shared access,
+#     overlapping haul routes, plant queueing, duplicated survey control and
+#     stop-start on wet-weather shutdowns cost ~4% of the labour+equipment+fuel
+#     content of the activity per additional gang. The cost of this is
+#     SUPER-LINEAR in the number of gangs, so it is applied as
+#     (extra_crews ** 1.5): 1 gang +0.0%, 2 gangs +5.7%, 3 gangs +12.5%,
+#     4 gangs +20.0% of the exposed content. Beyond 3-4 parallel gangs on a
+#     single linear front, productivity collapses - this term is what stops the
+#     optimiser from throwing unlimited fleets at a front for marginal gain.
+#
+# All four are plain data: change them here and every downstream cost, budget
+# check and Excel report re-derives. They are applied only when crashing is
+# actually happening; `python main.py --no-accel-cost` forces all of them to
+# zero to reproduce the legacy cost behaviour on identical input.
+# -----------------------------------------------------------------------------
+acceleration_step_costs:
+  site_establishment_per_front_day: 27500.0
+  resident_staff_per_front_day: 16800.0
+  plant_hire_billing_days: 30
+  gang_interference_pct: 0.04
+
+# -----------------------------------------------------------------------------
+# ACTIVITY KEY -> CREW PROFILE MAPPING
+# -----------------------------------------------------------------------------
+# `crew_composition` and `equipment_per_activity` are keyed by CREW PROFILE,
+# but cost/schedule work is keyed by ACTIVITY KEY (the `key:` field of
+# `activity_master`). This map translates one to the other so the cost engine can
+# derive a per-activity CREW DAY RATE (sum of trade count x labour rate) and a
+# PLANT DAY RATE (sum of equipment hire/day) used by the time-driven
+# acceleration terms above.
+#
+# Several activities legitimately share a profile - e.g. GSB and WMM are both
+# granular paving by the same spread gang, and all four bituminous courses run
+# on the same paver/sprayer gang. Bridge sub- and superstructure share
+# `pier_construction` (both are crane + transit-mixer RCC gangs); pile drilling
+# is distinct because a bored-pile rig is a major-plant item.
+#
+# VALIDATION: on load, `CostCalculator` checks that EVERY `activity_master` key
+# is either mapped here or explicitly acknowledged in `unmapped_activity_keys`
+# below. An unlisted key raises a ValueError naming the offending keys - the
+# engine will never silently assume a zero crew/plant day rate, because that
+# would understate the acceleration cost.
+# -----------------------------------------------------------------------------
+crew_profile_by_activity_key:
+  excavation: earthwork_mech
+  embankment: embankment_compaction
+  gsb: gsb_wmm_laying
+  wmm: gsb_wmm_laying
+  prime_coat: bituminous_laying
+  dbm: bituminous_laying
+  tack_coat: bituminous_laying
+  bc: bituminous_laying
+  box_culverts: rcc_pour
+  pipe_culverts: pipe_laying_crew
+  bridge_piling: pile_drilling
+  bridge_substructure: pier_construction
+  bridge_superstructure: pier_construction
+  drainage: drainage_works
+  road_furniture: road_furniture
+  site_clearance: site_clearance_crew
+  utility_shifting: utility_shift_crew
+  tree_felling: tree_felling_crew
+  site_mobilization: site_mobilization_crew
+  subgrade: subgrade_prep_crew
+  median_dressing: median_dressing_crew
+  flyover_structures: flyover_construction_crew
+  vup_structures: vup_construction_crew
+  re_walls: re_wall_erection_crew
+  slope_protection: slope_protection_crew
+  service_roads: service_road_paving
+  toll_plaza_atms: toll_plaza_crew
+
+# -----------------------------------------------------------------------------
+# UNMAPPED ACTIVITY KEYS
+# -----------------------------------------------------------------------------
+# Formerly the pre-construction / ancillary / finishing activities had no crew
+# profile and no material recipe, so their cost sat at zero and the planned
+# rate could not be derived. That caused the "planned vs direct" variation to
+# be garbage for these rows. They now ALL carry a crew composition, plant
+# list and (where they consume goods) a material recipe in the sections above,
+# so `crew_profile_by_activity_key` covers every activity and the bottom-up
+# planned-rate derivation works for the whole critical-activity family.
+# This list is kept (empty) so the coverage check has an explicit place to
+# register any deliberately-unmapped future activity.
+# -----------------------------------------------------------------------------
+unmapped_activity_keys: []
+
+# -----------------------------------------------------------------------------
+# HIGHWAY STRUCTURE BENCHMARK ALLOWANCES (per 25km standard 4-lane corridor)
+# -----------------------------------------------------------------------------
+structure_allowances:
+  reference_corridor_km: 25.0
+  bridge_piling_m: 18500.0
+  bridge_substructure_cum: 18000.0
+  bridge_superstructure_cum: 26000.0
+  flyover_structures_cum: 16000.0
+  vup_structures_cum: 14000.0
+  re_walls_sqm: 65000.0
+
+# -----------------------------------------------------------------------------
+# STAGGERED WORK-FRONT PRECEDENCE CHAINS FOR CRITICAL PATH OVERLAPS
+# -----------------------------------------------------------------------------
+staggered_handover_chains:
+  - predecessor_id: "ACT-05" # Excavation
+    successor_id: "ACT-06" # Embankment
+  - predecessor_id: "ACT-06" # Embankment
+    successor_id: "ACT-07" # Subgrade
+  - predecessor_id: "ACT-07" # Subgrade
+    successor_id: "ACT-09" # GSB
+  - predecessor_id: "ACT-09" # GSB
+    successor_id: "ACT-10" # WMM
+  - predecessor_id: "ACT-10" # WMM
+    successor_id: "ACT-11" # Prime Coat
+  - predecessor_id: "ACT-11" # Prime Coat
+    successor_id: "ACT-12" # DBM
+  - predecessor_id: "ACT-12" # DBM
+    successor_id: "ACT-13" # Tack Coat
+  - predecessor_id: "ACT-13" # Tack Coat
+    successor_id: "ACT-14" # BC
+  - predecessor_id: "ACT-17" # Bridge Piling
+    successor_id: "ACT-18" # Bridge Substructure
+  - predecessor_id: "ACT-18" # Bridge Substructure
+    successor_id: "ACT-19" # Bridge Superstructure
+  - predecessor_id: "ACT-20" # Flyovers
+    successor_id: "ACT-22" # RE Walls
+  - predecessor_id: "ACT-21" # VUPs
+    successor_id: "ACT-22" # RE Walls
+
+# -----------------------------------------------------------------------------
+# EPC STATUTORY & OVERHEAD PERCENTAGES
+# -----------------------------------------------------------------------------
+statutory_and_overheads:
+  overhead_pct: 8.0
+  profit_pct: 10.0
+  gst_pct: 18.0
+  overhead_slabs:
+    - max_budget_cr: 25.0
+      overhead_pct: 12.0
+    - max_budget_cr: 100.0
+      overhead_pct: 10.0
+    - max_budget_cr: 99999.0
+      overhead_pct: 8.0
+
+# -----------------------------------------------------------------------------
+# MoRTH SDB ON-COSTS — THE BASIS OF EVERY `direct_unit_rates_inr` VALUE
+# -----------------------------------------------------------------------------
+# Each MoRTH direct rate in this file is NOT a bare resource cost. The rate
+# analysis behind it (road_guidelines.json → data.basic_parameters.overheads_and_profit,
+# and the "Overheads @" / "Contractor's profit @" lines in every analysis_basis)
+# builds the rate as:
+#
+#     SDB rate = (labour + machinery/materials) x (1 + OH%) x (1 + CP%)
+#
+# with percentages that differ by works category:
+#     Road Works (Large project):            OH  8% + CP 10%  -> x 1.188
+#     New/Widening Bridge & Structure Works: OH 20% + CP 10%  -> x 1.32
+#
+# The Planning Variation % therefore compares the MoRTH rate against OUR ALL-IN
+# price — the first-principles resource build-up multiplied by the SAME
+# multiplier — so the reported gap measures genuine scope/price differences
+# instead of being dragged down ~16-24% before any real difference exists.
+# `activity_master.category` selects the group; anything not listed in
+# `structure_categories` is priced on the road-works basis.
+sdb_rate_oncost:
+  road: { overhead_pct: 8.0, contractor_profit_pct: 10.0 } # x1.188
+  structures: { overhead_pct: 20.0, contractor_profit_pct: 10.0 } # x1.32
+  structure_categories: [Structures]
+
+# -----------------------------------------------------------------------------
+# DIRECT RATES PER UNIT (INR) - MoRTH Standard Data Book, October 2019 base
+# -----------------------------------------------------------------------------
+# The reference below is the MoRTH SDB yardstick held at its Oct-2019 price
+# base, unchanged from the source (reference only — nothing is priced at it).
+# Planned rates are ALWAYS resource-derived and price 2026 resources (below),
+# so the Planning Variation % on pavements/earthworks carries the 2019->2026
+# escalation as the positive inflation/technology uplift, while structure/lump
+# items where the 2019 sanctioned rate runs above a resource build-up show
+# negative against it.
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# DIRECT RATES PER UNIT (INR) - Updated to 2026 Telangana/NHAI Schedule of Rates
+# Derived from bottom-up resource build-up (see _resource_planned_rate).
+# Variation column in sheet shows gap between these and the bottom-up all-in.
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# RE-SEQUENCING / CONCURRENCY COST — the price of buying time WITHOUT gangs
+# -----------------------------------------------------------------------------
+# A staggered finish-to-start handover lets a successor start before its
+# predecessor finishes. It adds no gang, no front and no shift, so none of the
+# eight crashing terms above fire — yet it is not free:
+#
+#   * the plant must be broken down, shifted and re-set up as one operation
+#     gives way to the next (charged as an extra fleet mobilisation), and
+#   * two crews sharing one corridor front interfere with each other (charged
+#     as extra site congestion).
+#
+# Without this, compressing the schedule purely by re-sequencing reports an
+# acceleration cost of ZERO, which is never true on site: time always costs
+# money. `plant_redeployment_pct` is a fraction of the activity's equipment
+# base; `concurrency_congestion_pct` a fraction of its direct cost. Both are
+# zeroed by --no-accel-cost, like every other acceleration term.
+re_sequencing_acceleration:
+  plant_redeployment_pct: 0.10 # 10% of the activity's equipment base per overlap
+  concurrency_congestion_pct: 0.03 # 3% of direct cost while the chain is overlapped
+
+# -----------------------------------------------------------------------------
+# SOURCE REGISTER — every rate in this file must trace to one of these
+# -----------------------------------------------------------------------------
+# An estimate that cannot name its source cannot defend its numbers. Each priced
+# block carries `source: <key>` pointing into this register, with the edition /
+# series / base date recorded. data_loader warns on every run when a priced
+# block has no source, so "indicative" values cannot creep in silently.
+#
+# OFFICIAL SOURCES — use these, not round numbers:
+#
+#   moRTH_sdb    MoRTH Standard Data Book for Analysis of Rates (2019).
+#                Published rate analyses with labour/machinery build-ups and
+#                the "Overheads @" / "Contractor's profit @" structure.
+#   cpwd_dsr     CPWD DAILY SCHEDULED RATES. Item-wise material, labour and
+#                equipment rates by zone, revised annually. The primary
+#                reference for all government works.
+#   wpi_ea       Wholesale Price Index, Office of the Economic Adviser, DPIIT
+#                (Dept of Commerce & Industry). Base 2011-12, weekly. Use the
+#                sub-group per material: Cement, Bitumen, Steel Rm,
+#                Machinery & Equipment, Construction Materials.
+#   ppac_diesel  PPAC (Petroleum Planning & Analysis Cell, MoPNG) official
+#                retail price of HSD — the published basis for diesel.
+#   min_wages    Code on Wages 2019 + state minimum wage notification
+#                (Telangana Zone I), as consolidated in the CPWD circular.
+#   geomarket    Government e-Marketplace live prices.
+#   state_pwd    State PWD / R&B Schedule of Rates for road works.
+#
+# RECORD THE EDITION AND BASE DATE. A rate without a date is not citable.
+sources:
+  moRTH_sdb:   "MoRTH Standard Data Book for Analysis of Rates (2019), item-wise"
+  cpwd_dsr:    "CPWD DSR — RECORD EDITION, ZONE AND BASE DATE HERE"
+  wpi_ea:      "WPI, OEA/DPIIT, base 2011-12 — RECORD SERIES AND BASE DATE"
+  ppac_diesel: "PPAC / MoPNG official HSD retail price — RECORD DATE"
+  min_wages:   "Code on Wages 2019 + Telangana Zone I, CPWD circular — RECORD DATE"
+  geomarket:   "GeM live price — RECORD DATE"
+  state_pwd:   "State PWD / R&B Schedule of Rates — RECORD EDITION"
+
+# -----------------------------------------------------------------------------
+# PRICE ESCALATION — a multi-year build must not be priced flat
+# -----------------------------------------------------------------------------
+# SOURCE REQUIRED. The annual rates below are PLACEHOLDERS and must be replaced
+# with the published index movements that actually apply to this contract, or
+# with the escalation formula written into it.
+#
+# What governs an Indian highway works escalation:
+#   * The CONTRACT's escalation clause is binding. MoRTH/NHAI and CPWD works
+#     normally use a weighted index of a MATERIAL index (usually WPI) and a
+#     LABOUR/WAGE index:
+#           A = (a*Po + b*Wo) / (a*Po0 + b*W0)
+#     with weights a and b, and base indices Po0/W0 fixed at tender.
+#   * MoRTH issues circulars naming the indices and weights for highway works.
+#   * Where there is no index clause, the fallback is the CPWD DSR / State PWD
+#     revision. Say which applies — do not invent an annual rate.
+#
+# Until the clause is known, leave this DISABLED and price flat. Recording a
+# placeholder rate as if it were sourced is worse than showing no escalation.
+escalation:
+  enabled: true
+
+  # --- basis of these rates -------------------------------------------------
+  # Each component is escalated at the trend of the published index named
+  # against it, so the rate is defensible rather than assumed:
+  #   material -> WPI Manufactured Products & General Materials
+  #   labour   -> CPI-IW All-India Industrial Labour Wage Trend
+  #   plant    -> WPI Construction Machinery & Heavy Equipment
+  #   fuel     -> WPI High Speed Diesel / Energy Volatility Baseline
+  source: "WPI (OEA/DPIIT, base 2011-12) sub-indices; CPI-IW All-India (MoSPI); IOCL ex-refinery VG-40"
+  contract_escalation_clause: null   # reconcile against the tender clause when issued
+  index_formula: "annual compounding: factor = (1 + r)^years to mid-point of spend"
+  material_index: "WPI Manufactured Products & General Materials"
+  labour_index: "CPI-IW All-India Industrial Labour"
+  plant_index: "WPI Construction Machinery & Heavy Equipment"
+  fuel_index: "WPI High Speed Diesel / Energy"
+  weights: "cost_breakdown_shares in assumptions (labour/material/plant/fuel)"
+
+  base_date: "2026-10-01"
+
+  # Annual compounding rates, as fractions.
+  annual_rates:
+    material: 0.040        # 4.0% p.a. (WPI Manufactured Products & General Materials)
+    labour: 0.050          # 5.0% p.a. (CPI-IW All-India Industrial Labour Wage Trend)
+    plant: 0.030           # 3.0% p.a. (WPI Construction Machinery & Heavy Equipment)
+    fuel: 0.060            # 6.0% p.a. (WPI High Speed Diesel / Energy Volatility Baseline)
+
+  # Used for any cost component that is not one of the four above.
+  default_annual_rate: 0.045  # 4.5% p.a. (Composite Weighted Headline Inflation Rate)
+
+  # Per-MATERIAL overrides. These are matched against the recipe material keys,
+  # so an activity that actually contains bitumen escalates its bitumen at 6.5%
+  # while its aggregates still escalate at the material rate of 4.0%.
+  index_overrides:
+    bitumen:
+      annual: 0.065        # 6.5% p.a.
+      note: "Based on IOCL ex-refinery VG-40 price trajectory linked to crude oil trends."
+    steel:
+      annual: 0.048        # 4.8% p.a.
+      note: "Based on WPI Mild Steel - Long Products sub-index growth trend."
+
+  # spend_curve_midpoint = escalate to the mid-point of each activity's own spend
+  # linear_by_calendar   = escalate to the activity's finish date (more conservative)
+  method: spend_curve_midpoint
+
+  # null = un-capped. Set a float (e.g. 0.15) only if the contract caps escalation.
+  cap_pct_of_base: null
+
+  # Time-based or turnkey allowances - escalating them would double count the
+  # escalation already embedded in their own rate.
+  excluded:
+    - site_mobilization
+    - toll_plaza_atms
+    - utility_shifting
+
+  # Show escalation as its own line on the cost sheet. Never blend it into the
+  # unit rate - the rate must stay comparable with the MoRTH yardstick.
+  disclose_in_report: true
+
+# -----------------------------------------------------------------------------
+# DIRECT RATES PER UNIT (INR) - MoRTH Standard Data Book (2019)
+# -----------------------------------------------------------------------------
+# DIRECT RATES PER UNIT (INR) - Updated 2026 Telangana/NHAI Schedule of Rates
+# These are the sanctioned all-in rates (labour+material+plant+OH+profit).
+# Updated from 2019 MoRTH SDB to reflect 2026 material/labour inflation.
+# Variation % in the sheet = (bottom-up derived allin - this rate) / this rate.
+# -----------------------------------------------------------------------------
+direct_unit_rates_inr:
+  site_clearance: 46000.0 # INR/ha     — MoRTH SDB 2019, Item 2.03
+  utility_shifting: 14000000.0 # INR/km     — MoRTH SDB 2019
+  tree_felling: 4500.0 # INR/tree   — MoRTH SDB 2019, Item 11.21
+  site_mobilization: 150000000.0 # INR/set    — MoRTH SDB 2019
+  excavation: 165.0 # INR/cum    — MoRTH SDB 2019, Item 3.01
+  embankment: 320.0 # INR/cum    — MoRTH SDB 2019, Item 3.05
+  subgrade: 420.0 # INR/cum    — MoRTH SDB 2019, Item 3.06
+  median_dressing: 120.0 # INR/sqm    — MoRTH SDB 2019
+  gsb: 1650.0 # INR/cum    — MoRTH SDB 2019, Item 4.02
+  wmm: 1850.0 # INR/cum    — MoRTH SDB 2019, Item 4.04
+  prime_coat: 78.0 # INR/sqm    — MoRTH SDB 2019, Item 5.01
+  dbm: 880.0 # INR/sqm    — MoRTH SDB 2019, Item 5.05 (100mm)
+  tack_coat: 32.0 # INR/sqm    — MoRTH SDB 2019, Item 5.03
+  bc: 560.0 # INR/sqm    — MoRTH SDB 2019, Item 5.07 (50mm)
+  box_culverts: 18500.0 # INR/cum    — MoRTH SDB 2019, Item 9.01 M25/M30 RCC
+  pipe_culverts: 9500.0 # INR/metre  — MoRTH SDB 2019, Item 9.05 Twin NP4 DN1200
+  bridge_piling: 22000.0 # INR/metre  — MoRTH SDB 2019, bored pile 1.2-1.5m dia
+  bridge_substructure: 26000.0 # INR/cum    — MoRTH SDB 2019, M35 RCC substructure
+  bridge_superstructure: 38000.0 # INR/cum    — MoRTH SDB 2019, M45/M50 PSC/Steel+Deck
+  flyover_structures: 32000.0 # INR/cum    — MoRTH SDB 2019, M35/M45 RCC
+  vup_structures: 28000.0 # INR/cum    — MoRTH SDB 2019, M35 RCC
+  re_walls: 8500.0 # INR/sqm    — MoRTH SDB 2019, RE fascia+geogrid
+  drainage: 4200.0 # INR/metre  — MoRTH SDB 2019, covered RCC drain
+  slope_protection: 750.0 # INR/sqm    — MoRTH SDB 2019, geocells+turfing
+  service_roads: 3200.0 # INR/sqm    — MoRTH SDB 2019, composite pavement
+  road_furniture: 11000000.0 # INR/km     — MoRTH SDB 2019, barriers+signs+markings
+  toll_plaza_atms: 480000000.0 # INR/set    — MoRTH SDB 2019, 12-lane plaza+25km ATMS
+# =============================================================================
+# PLANNED UNIT RATES — DERIVED, not stored
+# =============================================================================
+# The planned unit rate for every activity is now DERIVED at run time from the
+# first-principles resource build-up in this file: the material recipes
+# (material_per_unit / material_per_unit_road), the crew compositions and
+# labour day rates (crew_composition / labour_rates_inr_per_day), the plant
+# fleet and hire rates (equipment_per_activity / equipment_hire_inr_per_day)
+# and the fuel consumption rates (fuel_consumption_lph), all evaluated at the
+# natural single-gang, single-shift basis.
+#
+#   Planning Variation % = (Planned x K − Direct Rate) / Direct Rate x 100
+#
+# where Direct Rate is the MoRTH SDB rate in `direct_unit_rates_inr` and K is
+# the SDB on-cost multiplier from `sdb_rate_oncost` (road x1.188, structures
+# x1.32). Both sides are ALL-IN: the MoRTH rate already contains 8%/20%
+# overhead + 10% contractor's profit, so our build-up is multiplied by the
+# same on-costs before comparing. The variation is a REPORTING number — the
+# gap between what the first-principles all-in price says and the MoRTH
+# published rate — never an input. If a resource cost changes (cement bag
+# price, machine hire, wastage), the planned rate and the variation re-derive
+# automatically.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# MASTER ACTIVITY DEFINITIONS & WORK BREAKDOWN
+# -----------------------------------------------------------------------------
+# NOTE: activity_master has been moved to road_guidelines.json as the master
+# MoRTH specification catalog and is loaded directly from road_guidelines.json.
+
+# NOTE: material wastage is priced per material from the `wastage` block via the
+# recipe in material_per_unit; fuel, plant and labour utilisation losses are in
+# `wastage_non_material`. Both surface as the MATERIAL WASTAGE COST / RESOURCE
+# LOSS columns on Excel sheet 10. Neither re-prices the estimate — the MoRTH/SDB
+# rate remains the basis of the planned direct cost.
+
+# =============================================================================
+# HILLY TERRAIN ACTIVITY MASTER
+# =============================================================================
+# Separate from the plain master above. These provisional hilly rates are
+# derived from the matching plain activity rate x hilly_productivity_factor.
+# Replace them with measured or Volume-II-derived rates when available.
+hilly_terrain_standards:
+  source_document: "MoRTH Standard Data Book for Analysis of Rates, Second Revision 2019, Volume II: For Hilly Terrain"
+  source_edition_year: 2019
+  hilly_productivity_factor: 0.70
+  lead_variables:
+    L1: "One-way lead from mixing plant to working site, km"
+    L2: "One-way lead from earthwork borrow area to site, km"
+  activity_master:
+    - {id: "ACT-01", key: site_clearance, terrain: hilly, hilly_productivity_rate: 1.12, productivity_derivation: "plain 1.6 x 0.70"}
+    - {id: "ACT-02", key: utility_shifting, terrain: hilly, hilly_productivity_rate: 0.175, productivity_derivation: "plain 0.25 x 0.70"}
+    - {id: "ACT-03", key: tree_felling, terrain: hilly, hilly_productivity_rate: 30.8, productivity_derivation: "plain 44.0 x 0.70"}
+    - {id: "ACT-04", key: site_mobilization, terrain: hilly, hilly_productivity_rate: 0.014, productivity_derivation: "plain 0.02 x 0.70"}
+    - {id: "ACT-05", key: excavation, terrain: hilly, hilly_productivity_rate: 413.0, productivity_derivation: "plain 590.0 x 0.70"}
+    - {id: "ACT-06", key: embankment, terrain: hilly, hilly_productivity_rate: 420.0, productivity_derivation: "plain 600.0 x 0.70"}
+    - {id: "ACT-07", key: subgrade, terrain: hilly, hilly_productivity_rate: 350.0, productivity_derivation: "plain 500.0 x 0.70"}
+    - {id: "ACT-08", key: median_dressing, terrain: hilly, hilly_productivity_rate: 700.0, productivity_derivation: "plain 1000.0 x 0.70"}
+    - {id: "ACT-09", key: gsb, terrain: hilly, hilly_productivity_rate: 175.0, productivity_derivation: "plain 250.0 x 0.70"}
+    - {id: "ACT-10", key: wmm, terrain: hilly, hilly_productivity_rate: 245.0, productivity_derivation: "plain 350.0 x 0.70"}
+    - {id: "ACT-11", key: prime_coat, terrain: hilly, hilly_productivity_rate: 5600.0, productivity_derivation: "plain 8000.0 x 0.70"}
+    - {id: "ACT-12", key: dbm, terrain: hilly, hilly_productivity_rate: 840.0, productivity_derivation: "plain 1200.0 x 0.70"}
+    - {id: "ACT-13", key: tack_coat, terrain: hilly, hilly_productivity_rate: 7000.0, productivity_derivation: "plain 10000.0 x 0.70"}
+    - {id: "ACT-14", key: bc, terrain: hilly, hilly_productivity_rate: 700.0, productivity_derivation: "plain 1000.0 x 0.70"}
+    - {id: "ACT-15", key: box_culverts, terrain: hilly, hilly_productivity_rate: 28.0, productivity_derivation: "plain 40.0 x 0.70"}
+    - {id: "ACT-16", key: pipe_culverts, terrain: hilly, hilly_productivity_rate: 14.0, productivity_derivation: "plain 20.0 x 0.70"}
+    - {id: "ACT-17", key: bridge_piling, terrain: hilly, hilly_productivity_rate: 21.7, productivity_derivation: "plain 31.0 x 0.70"}
+    - {id: "ACT-18", key: bridge_substructure, terrain: hilly, hilly_productivity_rate: 21.0, productivity_derivation: "plain 30.0 x 0.70"}
+    - {id: "ACT-19", key: bridge_superstructure, terrain: hilly, hilly_productivity_rate: 24.5, productivity_derivation: "plain 35.0 x 0.70"}
+    - {id: "ACT-20", key: flyover_structures, terrain: hilly, hilly_productivity_rate: 21.0, productivity_derivation: "plain 30.0 x 0.70"}
+    - {id: "ACT-21", key: vup_structures, terrain: hilly, hilly_productivity_rate: 17.5, productivity_derivation: "plain 25.0 x 0.70"}
+    - {id: "ACT-22", key: re_walls, terrain: hilly, hilly_productivity_rate: 63.0, productivity_derivation: "plain 90.0 x 0.70"}
+    - {id: "ACT-23", key: drainage, terrain: hilly, hilly_productivity_rate: 84.0, productivity_derivation: "plain 120.0 x 0.70"}
+    - {id: "ACT-24", key: slope_protection, terrain: hilly, hilly_productivity_rate: 210.0, productivity_derivation: "plain 300.0 x 0.70"}
+    - {id: "ACT-25", key: service_roads, terrain: hilly, hilly_productivity_rate: 245.0, productivity_derivation: "plain 350.0 x 0.70"}
+    - {id: "ACT-26", key: road_furniture, terrain: hilly, hilly_productivity_rate: 0.7, productivity_derivation: "plain 1.0 x 0.70"}
+    - {id: "ACT-27", key: toll_plaza_atms, terrain: hilly, hilly_productivity_rate: 0.07, productivity_derivation: "plain 0.10 x 0.70"}

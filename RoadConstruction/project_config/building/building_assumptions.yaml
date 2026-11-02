@@ -1,0 +1,636 @@
+# =============================================================================
+# Building Construction Assumptions — Residential (CPWD DSR 2021 / Telangana)
+# =============================================================================
+# Source basis:
+#   - CPWD DSR 2021 (Delhi rates, Hyderabad region adjustment factor 0.95)
+#   - IS 456, IS 1905, IS 732, IS 1641, NBC 2016
+#   - Minimum Wages Act, Telangana Zone I (2026)
+# All rates are indicative 2026 Hyderabad/Telangana delivered-to-site.
+# =============================================================================
+
+meta:
+  project_type: building
+  building_type: residential
+  currency: INR
+  currency_symbol: Rs
+  large_unit: crore
+  large_unit_value: 10000000
+  effective_date: "2026-11-02"
+  version: "2.0"
+  source_basis: >
+    CPWD DSR 2021 + IS codes + NBC 2016. Rates are indicative 2026
+    Hyderabad/Telangana; verify against current state SoR before tendering.
+
+sources:
+  direct_unit_rates_inr: "CPWD DSR 2021 (Hyderabad region) × 0.95 factor; adjusted to Nov-2026"
+  labour_rates_inr_per_day: "Minimum Wages Act, Telangana Zone I, Jul-2026 notification × 1.5 loaded"
+  material_rates_inr: "CPWD DSR 2021 + local trade quotations, Nov-2026 Hyderabad"
+  equipment_hire_inr_per_day: "CPWD DSR 2021 equipment schedule, escalated to Nov-2026"
+
+calendar:
+  working_days_per_week: 6
+  productive_hours_per_day: 8
+  equipment_hours_per_day: 9
+  holidays_per_year: 14
+  monsoon_months: [6, 7, 8, 9]
+  monsoon_productivity_factor: 0.65
+  hilly_productivity_factor: 1.0   # buildings always on flat/prepared ground
+  night_shift_productivity_factor: 0.80
+  night_shift_cost_multiplier: 1.50
+
+# Activities eligible for night shift work on building projects
+night_work_eligible:
+  - bld_004   # excavation
+  - bld_005   # foundation RCC
+  - bld_006   # frame RCC (slab pours often extend overnight)
+
+# Building geometric parameters (all ratios are per sqm of built-up area)
+building_parameters:
+  foundation_rcc_per_sqm: 0.35      # cum RCC per sqm BUA (footings + raft + PCC)
+  frame_rcc_per_sqm: 0.40           # cum RCC per sqm BUA (columns + beams + slabs)
+  masonry_per_sqm: 0.18             # cum brickwork per sqm BUA
+  plaster_area_factor: 3.5          # sqm plaster per sqm BUA (walls both sides + ceiling)
+  waterproofing_area_factor: 0.30   # terrace + toilet wet areas
+  flooring_area_factor: 1.0         # 100% of BUA
+  painting_area_factor: 4.0         # sqm paint per sqm BUA (all surfaces)
+  external_works_factor: 0.50       # sqm external works per sqm site area
+  floor_area_ratio: 1.5             # for estimating site area from BUA
+  basement_excavation_depth_m: 3.5
+
+# When true, the CPWD DSR direct rate is used directly as the planned rate.
+# This bypasses the resource build-up (correct for published all-in rate books).
+use_direct_rate_as_planned: true
+
+# Parallelism control
+crew_multiplier_cap: 4
+
+# =============================================================================
+# Labour rates
+# =============================================================================
+labour_rates_inr_per_day:
+  unskilled: 750
+  semi_skilled: 900
+  skilled: 1200
+  highly_skilled: 1400
+  equipment_operator: 1800
+  driver: 1300
+  supervisor: 3500
+  site_engineer: 4500
+  project_manager: 6500
+  qc_technician: 2500
+  safety_officer: 2800
+  surveyor: 3000
+  plumber: 1400
+  electrician: 1400
+  hvac_technician: 1600
+  painter: 1200
+  fire_fighting_technician: 1500
+  lift_technician: 1800
+  aluminium_fabricator: 1400
+  glazier: 1400
+
+trade_display_names:
+  unskilled: "mazdoor"
+  semi_skilled: "semi-skilled"
+  skilled: "skilled mason"
+  highly_skilled: "bar bender / shuttering carpenter"
+  equipment_operator: "operator"
+  driver: "driver"
+  supervisor: "supervisor"
+  site_engineer: "site engineer"
+  project_manager: "project manager"
+  qc_technician: "QC technician"
+  safety_officer: "safety officer"
+  surveyor: "surveyor"
+  plumber: "plumber"
+  electrician: "electrician"
+  hvac_technician: "HVAC tech"
+  painter: "painter"
+  fire_fighting_technician: "fire-fighting tech"
+  lift_technician: "lift tech"
+  aluminium_fabricator: "aluminium fab"
+  glazier: "glazier"
+
+# =============================================================================
+# Material rates — 2026 Hyderabad delivered-to-site
+# =============================================================================
+material_rates_inr:
+  cement_opc53_bag: 380
+  cement_ppc_bag: 360
+  tmt_steel_fe500d_mt: 60000
+  agg_20mm_cum: 1200
+  agg_10mm_cum: 1300
+  msand_cum: 1800
+  river_sand_cum: 2000
+  fly_ash_mt: 1500
+  water_kl: 100
+  diesel_litre: 100
+  binding_wire_kg: 80
+  admix_plasticiser_kg: 80
+  ply_shuttering_sqm: 350
+  bricks_per_thousand: 9000
+  aac_blocks_per_thousand: 12000
+  mortar_ready_cum: 3500
+  waterproofing_membrane_sqm: 450
+  primer_litre: 180
+  vitrified_tiles_sqm: 650
+  tile_adhesive_kg: 35
+  emulsion_paint_litre: 280
+  putty_kg: 18
+  electrical_cable_per_metre: 120
+  conduit_per_metre: 45
+  plumbing_pipe_per_metre: 180
+  hvac_duct_per_sqm: 850
+
+# =============================================================================
+# Equipment hire
+# =============================================================================
+equipment_hire_inr_per_day:
+  excavator_0_9cum: 12000
+  jcb_3dx: 7000
+  tipper_10t: 4500
+  transit_mixer_6cum: 7000
+  concrete_pump_boom_36m: 25000
+  light_crane_3t: 6000
+  tower_crane_electric: 45000
+  passenger_hoist: 3500
+  concrete_pump_stationary: 18000
+  dg_set_500kva: 15000
+  dg_set_125kva: 6000
+  scaffolding_system: 500
+  water_tanker_12kl: 4500
+  batching_plant_30cum: 12000
+  vibratory_roller_8_10t: 9000
+
+fuel_consumption_lph:
+  excavator_0_9cum: 14.0
+  jcb_3dx: 5.0
+  tipper_10t: 8.0
+  transit_mixer_6cum: 10.0
+  concrete_pump_boom_36m: 18.0
+  light_crane_3t: 4.0
+  tower_crane_electric: 0.0
+  passenger_hoist: 0.0
+  concrete_pump_stationary: 15.0
+  dg_set_500kva: 80.0
+  dg_set_125kva: 22.0
+  scaffolding_system: 0.0
+  water_tanker_12kl: 4.0
+  batching_plant_30cum: 25.0
+  vibratory_roller_8_10t: 7.0
+
+equipment_tank_capacity_litres:
+  excavator_0_9cum: 360
+  jcb_3dx: 70
+  tipper_10t: 200
+  transit_mixer_6cum: 200
+  concrete_pump_boom_36m: 400
+  light_crane_3t: 120
+  tower_crane_electric: 0
+  passenger_hoist: 0
+  concrete_pump_stationary: 300
+  dg_set_500kva: 400
+  dg_set_125kva: 150
+  scaffolding_system: 0
+  water_tanker_12kl: 200
+  batching_plant_30cum: 200
+  vibratory_roller_8_10t: 150
+
+equipment_needs_operator:
+  excavator_0_9cum: true
+  jcb_3dx: true
+  tipper_10t: true
+  transit_mixer_6cum: true
+  concrete_pump_boom_36m: true
+  light_crane_3t: true
+  tower_crane_electric: true
+  passenger_hoist: true
+  concrete_pump_stationary: true
+  dg_set_500kva: false
+  dg_set_125kva: false
+  scaffolding_system: false
+  water_tanker_12kl: true
+  batching_plant_30cum: true
+  vibratory_roller_8_10t: true
+
+# =============================================================================
+# Crew compositions
+# =============================================================================
+crew_composition:
+  building_survey:
+    - { trade: surveyor, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  mobilization_crew:
+    - { trade: supervisor, count: 2 }
+    - { trade: unskilled, count: 6 }
+    - { trade: electrician, count: 1 }
+    - { trade: plumber, count: 1 }
+    - { trade: equipment_operator, count: 1 }
+  site_clearance_crew:
+    - { trade: equipment_operator, count: 1 }
+    - { trade: driver, count: 2 }
+    - { trade: unskilled, count: 4 }
+    - { trade: supervisor, count: 1 }
+  excavation_crew:
+    - { trade: equipment_operator, count: 2 }
+    - { trade: driver, count: 3 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  foundation_rcc_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: unskilled, count: 8 }
+    - { trade: equipment_operator, count: 2 }
+    - { trade: driver, count: 1 }
+    - { trade: supervisor, count: 1 }
+  building_rcc_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: highly_skilled, count: 3 }
+    - { trade: unskilled, count: 10 }
+    - { trade: equipment_operator, count: 2 }
+    - { trade: driver, count: 1 }
+    - { trade: supervisor, count: 1 }
+    - { trade: safety_officer, count: 1 }
+  building_brickwork_crew:
+    - { trade: skilled, count: 4 }
+    - { trade: unskilled, count: 6 }
+    - { trade: equipment_operator, count: 2 }
+    - { trade: supervisor, count: 1 }
+  building_plaster_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: unskilled, count: 4 }
+    - { trade: equipment_operator, count: 1 }
+    - { trade: supervisor, count: 1 }
+  building_waterproofing_crew:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  building_tiling_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  joinery_crew:
+    - { trade: skilled, count: 3 }
+    - { trade: aluminium_fabricator, count: 2 }
+    - { trade: glazier, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  building_finishing_crew:
+    - { trade: painter, count: 2 }
+    - { trade: aluminium_fabricator, count: 2 }
+    - { trade: glazier, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: equipment_operator, count: 1 }
+    - { trade: supervisor, count: 1 }
+  building_painting_crew:
+    - { trade: painter, count: 3 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  building_electrical_crew:
+    - { trade: electrician, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: equipment_operator, count: 1 }
+    - { trade: supervisor, count: 1 }
+  building_plumbing_crew:
+    - { trade: plumber, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  building_hvac_crew:
+    - { trade: hvac_technician, count: 4 }
+    - { trade: highly_skilled, count: 1 }
+    - { trade: unskilled, count: 3 }
+    - { trade: equipment_operator, count: 1 }
+    - { trade: supervisor, count: 1 }
+  building_fire_crew:
+    - { trade: fire_fighting_technician, count: 3 }
+    - { trade: plumber, count: 2 }
+    - { trade: unskilled, count: 3 }
+    - { trade: supervisor, count: 1 }
+  lift_crew:
+    - { trade: lift_technician, count: 3 }
+    - { trade: highly_skilled, count: 2 }
+    - { trade: unskilled, count: 2 }
+    - { trade: supervisor, count: 1 }
+  building_external_crew:
+    - { trade: skilled, count: 2 }
+    - { trade: unskilled, count: 4 }
+    - { trade: equipment_operator, count: 1 }
+    - { trade: driver, count: 1 }
+    - { trade: supervisor, count: 1 }
+  commissioning_crew:
+    - { trade: site_engineer, count: 1 }
+    - { trade: supervisor, count: 1 }
+    - { trade: qc_technician, count: 1 }
+    - { trade: unskilled, count: 2 }
+
+# Equipment per crew profile
+equipment_per_activity:
+  building_survey: []
+  mobilization_crew: [jcb_3dx]
+  site_clearance_crew: [jcb_3dx, tipper_10t]
+  excavation_crew: [excavator_0_9cum, tipper_10t, tipper_10t, water_tanker_12kl]
+  foundation_rcc_crew: [transit_mixer_6cum, concrete_pump_boom_36m, batching_plant_30cum]
+  building_rcc_crew: [transit_mixer_6cum, concrete_pump_stationary, tower_crane_electric, batching_plant_30cum]
+  building_brickwork_crew: [tower_crane_electric, passenger_hoist]
+  building_plaster_crew: [passenger_hoist]
+  building_waterproofing_crew: []
+  building_tiling_crew: []
+  joinery_crew: [scaffolding_system]
+  building_finishing_crew: [scaffolding_system]
+  building_painting_crew: [scaffolding_system]
+  building_electrical_crew: [dg_set_500kva]
+  building_plumbing_crew: []
+  building_hvac_crew: [tower_crane_electric]
+  building_fire_crew: []
+  lift_crew: []
+  building_external_crew: [excavator_0_9cum, tipper_10t, vibratory_roller_8_10t]
+  commissioning_crew: []
+
+# Crew profile per activity key
+crew_profile_by_activity_key:
+  bld_001: building_survey
+  bld_002: mobilization_crew
+  bld_003: site_clearance_crew
+  bld_004: excavation_crew
+  bld_005: foundation_rcc_crew
+  bld_006: building_rcc_crew
+  bld_007: building_brickwork_crew
+  bld_008: building_plaster_crew
+  bld_009: building_waterproofing_crew
+  bld_010: building_tiling_crew
+  bld_011: joinery_crew
+  bld_012: building_finishing_crew
+  bld_013: building_painting_crew
+  bld_014: building_electrical_crew
+  bld_015: building_plumbing_crew
+  bld_016: building_hvac_crew
+  bld_017: building_fire_crew
+  bld_018: lift_crew
+  bld_019: building_external_crew
+  bld_020: commissioning_crew
+
+# =============================================================================
+# Direct unit rates — 2026 Hyderabad indicative (CPWD DSR 2021 basis)
+# =============================================================================
+# Rates include material + labour + plant at CPWD all-in level.
+# Overhead and profit applied separately by the engine.
+direct_unit_rates_inr:
+  bld_001: 250000        # Survey + soil investigation: Rs 2.5 lakh LS (1.0 unit)
+  bld_002: 500000        # Mobilization: Rs 5 lakh LS
+  bld_003: 60            # Site clearance: Rs 60/sqm
+  bld_004: 280           # Excavation: Rs 280/cum (soft soil; hard rock extra)
+  bld_005: 9500          # Foundation RCC M25: Rs 9,500/cum all-in
+  bld_006: 10500         # Frame RCC M30: Rs 10,500/cum all-in
+  bld_007: 5800          # Brickwork 230mm CM 1:5: Rs 5,800/cum
+  bld_008: 260           # 12mm plaster CM 1:4: Rs 260/sqm
+  bld_009: 480           # Waterproofing (IIR membrane): Rs 480/sqm
+  bld_010: 900           # Vitrified tiling 600×600: Rs 900/sqm laid
+  bld_011: 8500          # Doors/windows average per unit: Rs 8,500/no
+  bld_012: 380           # External plaster + texture finish: Rs 380/sqm
+  bld_013: 180           # Internal emulsion paint 2-coat: Rs 180/sqm
+  bld_014: 450           # Electrical works: Rs 450/sqm BUA
+  bld_015: 420           # Plumbing and sanitary: Rs 420/sqm BUA
+  bld_016: 380           # HVAC (split AC provision): Rs 380/sqm BUA
+  bld_017: 280           # Fire fighting: Rs 280/sqm BUA
+  bld_018: 1200000       # Passenger lift complete (MRL): Rs 12 lakh/lift
+  bld_019: 650           # External works: Rs 650/sqm
+  bld_020: 150000        # Completion & handover LS
+
+# =============================================================================
+# Material recipes per unit output
+# =============================================================================
+material_per_unit:
+  rcc_m25:
+    cement_kg: 380
+    msand_cum: 0.45
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 90
+    water_litre: 180
+    admix_plasticiser_kg: 4.0
+    ply_shuttering_sqm: 4.5
+  rcc_m30:
+    cement_kg: 400
+    msand_cum: 0.45
+    agg_20mm_cum: 0.50
+    agg_10mm_cum: 0.30
+    steel_kg: 100
+    water_litre: 180
+    admix_plasticiser_kg: 4.0
+    ply_shuttering_sqm: 4.5
+  brickwork:
+    bricks_no: 500
+    mortar_cum: 0.25
+    water_litre: 100
+  plaster:
+    cement_kg: 5.5
+    msand_cum: 0.012
+    water_litre: 25
+  waterproofing:
+    waterproofing_membrane_sqm: 1.05
+    primer_litre: 0.30
+  tiling:
+    tiles_sqm: 1.05
+    tile_adhesive_kg: 4.0
+  paint:
+    emulsion_paint_litre: 0.35
+    primer_litre: 0.12
+    putty_kg: 0.80
+
+activity_material_recipe:
+  bld_005:
+    recipe: rcc_m25
+    per_output: 1.0
+  bld_006:
+    recipe: rcc_m30
+    per_output: 1.0
+  bld_007:
+    recipe: brickwork
+    per_output: 1.0
+  bld_008:
+    recipe: plaster
+    per_output: 1.0
+  bld_009:
+    recipe: waterproofing
+    per_output: 1.0
+  bld_010:
+    recipe: tiling
+    per_output: 1.0
+  bld_013:
+    recipe: paint
+    per_output: 1.0
+
+# Activities with no material recipe
+activity_no_material_recipe:
+  - bld_001
+  - bld_002
+  - bld_003
+  - bld_004
+  - bld_011
+  - bld_012
+  - bld_014
+  - bld_015
+  - bld_016
+  - bld_017
+  - bld_018
+  - bld_019
+  - bld_020
+
+# =============================================================================
+# Material bindings
+# =============================================================================
+material_bindings:
+  cement_kg:
+    rate: cement_opc53_bag
+    wastage: cement
+    divisor: 50
+  msand_cum:
+    rate: msand_cum
+    wastage: aggregate
+    divisor: 1
+  agg_20mm_cum:
+    rate: agg_20mm_cum
+    wastage: aggregate
+    divisor: 1
+  agg_10mm_cum:
+    rate: agg_10mm_cum
+    wastage: aggregate
+    divisor: 1
+  steel_kg:
+    rate: tmt_steel_fe500d_mt
+    wastage: steel
+    divisor: 1000
+  water_litre:
+    rate: water_kl
+    wastage: water
+    divisor: 1000
+  admix_plasticiser_kg:
+    rate: admix_plasticiser_kg
+    wastage: admix
+    divisor: 1
+  ply_shuttering_sqm:
+    rate: ply_shuttering_sqm
+    wastage: formwork
+    divisor: 1
+  bricks_no:
+    rate: bricks_per_thousand
+    wastage: bricks
+    divisor: 1000
+  mortar_cum:
+    rate: mortar_ready_cum
+    wastage: mortar
+    divisor: 1
+  waterproofing_membrane_sqm:
+    rate: waterproofing_membrane_sqm
+    wastage: membrane
+    divisor: 1
+  primer_litre:
+    rate: primer_litre
+    wastage: paint
+    divisor: 1
+  tiles_sqm:
+    rate: vitrified_tiles_sqm
+    wastage: tiles
+    divisor: 1
+  tile_adhesive_kg:
+    rate: tile_adhesive_kg
+    wastage: admix
+    divisor: 1
+  emulsion_paint_litre:
+    rate: emulsion_paint_litre
+    wastage: paint
+    divisor: 1
+  putty_kg:
+    rate: putty_kg
+    wastage: admix
+    divisor: 1
+
+# =============================================================================
+# Wastage factors
+# =============================================================================
+wastage:
+  default: 0.03
+  cement: 0.03
+  aggregate: 0.05
+  steel: 0.02
+  bitumen: 0.02
+  water: 0.0
+  admix: 0.02
+  formwork: 0.10
+  bricks: 0.05
+  mortar: 0.05
+  membrane: 0.05
+  paint: 0.05
+  tiles: 0.05
+
+wastage_non_material:
+  fuel_idle_pct: 0.05
+  plant_idle_pct: 0.05
+  labour_idle_pct: 0.05
+
+# =============================================================================
+# Cost factors
+# =============================================================================
+statutory_and_overheads:
+  overhead_slabs:
+    - { max_budget_cr: 2.0, overhead_pct: 12.0 }
+    - { max_budget_cr: 10.0, overhead_pct: 10.0 }
+    - { max_budget_cr: 999999, overhead_pct: 8.0 }
+  profit_pct: 10.0
+
+cost_breakdown_shares:
+  labour_share: 0.25
+  material_share: 0.55
+  equipment_share: 0.12
+  fuel_share: 0.08
+
+crashing_factors:
+  equipment_mobilization_pct: 0.03
+  shift_overtime_premium_pct: 0.15
+  supervision_per_front_pct: 0.02
+  site_congestion_factor_pct: 0.01
+
+acceleration_step_costs:
+  site_establishment_per_front_day: 18000
+  resident_staff_per_front_day: 12000
+  plant_hire_billing_days: 30
+  gang_interference_pct: 0.04
+
+re_sequencing_acceleration:
+  plant_redeployment_pct: 0.08
+  concurrency_congestion_pct: 0.02
+
+sdb_rate_oncost:
+  road:
+    overhead_pct: 10.0
+    contractor_profit_pct: 10.0
+  structures:
+    overhead_pct: 12.0
+    contractor_profit_pct: 10.0
+  structure_categories:
+    - Superstructure
+    - Substructure
+    - MEP
+
+# =============================================================================
+# Escalation
+# =============================================================================
+escalation:
+  enabled: false
+  annual_rate_pct: 5.0
+  source: ""
+  contract_escalation_clause: ""
+
+# =============================================================================
+# Major plant
+# =============================================================================
+major_plant: [tower_crane_electric, batching_plant_30cum]
+major_plant_max_units: 1
+
+# =============================================================================
+# Staggered handover chains (floor-by-floor: frame leads finishing by ~4 weeks)
+# =============================================================================
+staggered_handover_chains: []

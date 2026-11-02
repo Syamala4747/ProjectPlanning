@@ -1,0 +1,339 @@
+{
+  "data": {
+    "document": {
+      "title": "Water Pipeline Construction Activity Guidelines",
+      "project_type": "pipeline",
+      "template_version": "2.0",
+      "currency": "INR",
+      "source_basis": "CPHEEO Manual on Water Supply Systems (Part-III), CPWD DSR 2021, IS 12288, IS 8329, IS 4984"
+    },
+    "activity_master": [
+      {
+        "id": "PIP-001",
+        "key": "pip_001",
+        "wbs_code": "PIP-001",
+        "parent_wbs": "1.1",
+        "wbs_level": 3,
+        "work_package": "Preliminaries",
+        "name": "Survey, route marking and setting out",
+        "description": "Total station / GPS survey, centreline marking, benchmarks, as-built documentation",
+        "category": "Preliminaries",
+        "unit": "km",
+        "base_crews": 1,
+        "productivity_rate": 2.0,
+        "productivity_unit": "km/day",
+        "predecessors": [],
+        "spec_ref": "CPHEEO Part-III Clause 5.2"
+      },
+      {
+        "id": "PIP-002",
+        "key": "pip_002",
+        "wbs_code": "PIP-002",
+        "parent_wbs": "1.1",
+        "wbs_level": 3,
+        "work_package": "Preliminaries",
+        "name": "Mobilization and site establishment",
+        "description": "Contractor mobilization, site office, stores, welfare, temporary power and water",
+        "category": "Preliminaries",
+        "unit": "LS",
+        "base_crews": 1,
+        "productivity_rate": 0.04,
+        "productivity_unit": "LS/day",
+        "predecessors": [
+          "PIP-001"
+        ],
+        "spec_ref": "Contract General Conditions"
+      },
+      {
+        "id": "PIP-003",
+        "key": "pip_003",
+        "wbs_code": "PIP-003",
+        "parent_wbs": "1.2",
+        "wbs_level": 3,
+        "work_package": "Site Preparation",
+        "name": "Site clearance and access preparation",
+        "description": "Clearing vegetation, fencing, access road formation along pipeline corridor",
+        "category": "Site Preparation",
+        "unit": "sqm",
+        "base_crews": 1,
+        "productivity_rate": 900.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "PIP-002"
+        ],
+        "spec_ref": "CPWD DSR Part-I Item 1.1"
+      },
+      {
+        "id": "PIP-004",
+        "key": "pip_004",
+        "wbs_code": "PIP-004",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Earthwork",
+        "name": "Trench excavation",
+        "description": "Machine excavation in all types of soil; trimming and dressing of trench sides and bottom",
+        "category": "Earthwork",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 300.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "PIP-003"
+        ],
+        "spec_ref": "CPWD DSR Part-I Item 2.1.1; CPHEEO 6.2.1"
+      },
+      {
+        "id": "PIP-005",
+        "key": "pip_005",
+        "wbs_code": "PIP-005",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Earthwork",
+        "name": "Dewatering and trench support",
+        "description": "Pumping groundwater and surface water; timber/steel sheet pile support where required",
+        "category": "Earthwork",
+        "unit": "day",
+        "base_crews": 1,
+        "productivity_rate": 1.0,
+        "productivity_unit": "day/day",
+        "predecessors": [
+          "PIP-004"
+        ],
+        "spec_ref": "CPHEEO Manual Clause 6.2.3"
+      },
+      {
+        "id": "PIP-006",
+        "key": "pip_006",
+        "wbs_code": "PIP-006",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Pipe Installation",
+        "name": "Bedding and pipe foundation preparation",
+        "description": "150mm granular bedding layer; compaction and levelling to correct gradient",
+        "category": "Pipe Installation",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 40.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "PIP-004"
+        ],
+        "spec_ref": "IS 12288 Clause 4.2; CPHEEO 6.3"
+      },
+      {
+        "id": "PIP-007",
+        "key": "pip_007",
+        "wbs_code": "PIP-007",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Pipe Installation",
+        "name": "Pipe supply, delivery and stacking",
+        "description": "Supply and delivery of DI/HDPE/MS/RCC pipes to site; unloading and stacking with crane",
+        "category": "Pipe Installation",
+        "unit": "m",
+        "base_crews": 1,
+        "productivity_rate": 100.0,
+        "productivity_unit": "m/day",
+        "predecessors": [
+          "PIP-002"
+        ],
+        "spec_ref": "IS 8329 (DI), IS 4984 (HDPE), IS 3589 (MS)"
+      },
+      {
+        "id": "PIP-008",
+        "key": "pip_008",
+        "wbs_code": "PIP-008",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Pipe Installation",
+        "name": "Pipe lowering, laying and alignment",
+        "description": "Crane-lowering of pipes into prepared trench; alignment and gradient check",
+        "category": "Pipe Installation",
+        "unit": "m",
+        "base_crews": 1,
+        "productivity_rate": 50.0,
+        "productivity_unit": "m/day",
+        "predecessors": [
+          "PIP-006",
+          "PIP-007"
+        ],
+        "spec_ref": "IS 12288 Clause 5; CPHEEO 6.4"
+      },
+      {
+        "id": "PIP-009",
+        "key": "pip_009",
+        "wbs_code": "PIP-009",
+        "parent_wbs": "1.4",
+        "wbs_level": 3,
+        "work_package": "Pipe Installation",
+        "name": "Pipe jointing and fittings installation",
+        "description": "Rubber ring push-in (DI), butt fusion (HDPE), or welded (MS) joints; tees, bends, reducers",
+        "category": "Pipe Installation",
+        "unit": "joint",
+        "base_crews": 1,
+        "productivity_rate": 20.0,
+        "productivity_unit": "joints/day",
+        "predecessors": [
+          "PIP-008"
+        ],
+        "spec_ref": "IS 8329 Annex E; IS 4984 Clause 9"
+      },
+      {
+        "id": "PIP-010",
+        "key": "pip_010",
+        "wbs_code": "PIP-010",
+        "parent_wbs": "1.5",
+        "wbs_level": 3,
+        "work_package": "Structures and Fittings",
+        "name": "Valve chambers and appurtenances",
+        "description": "BW masonry / RCC valve chambers; gate valves, air valves, scour valves, flow meters",
+        "category": "Structures and Fittings",
+        "unit": "no",
+        "base_crews": 1,
+        "productivity_rate": 0.5,
+        "productivity_unit": "chamber/day",
+        "predecessors": [
+          "PIP-008"
+        ],
+        "spec_ref": "CPHEEO 6.5; IS 14846 (sluice valves)"
+      },
+      {
+        "id": "PIP-011",
+        "key": "pip_011",
+        "wbs_code": "PIP-011",
+        "parent_wbs": "1.6",
+        "wbs_level": 3,
+        "work_package": "Concrete Works",
+        "name": "Thrust blocks and anchor blocks",
+        "description": "M20 RCC thrust/anchor blocks at bends, tees and reducers per IS 456",
+        "category": "Concrete Works",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 15.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "PIP-009"
+        ],
+        "spec_ref": "IS 456; CPHEEO 6.5.4"
+      },
+      {
+        "id": "PIP-012",
+        "key": "pip_012",
+        "wbs_code": "PIP-012",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Earthwork",
+        "name": "Initial backfilling and selected surround",
+        "description": "Selected granular material from 150mm above invert to 300mm above crown; compacted in 150mm layers",
+        "category": "Earthwork",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 120.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "PIP-009",
+          "PIP-011"
+        ],
+        "spec_ref": "IS 12288 Clause 6; CPHEEO 6.6"
+      },
+      {
+        "id": "PIP-013",
+        "key": "pip_013",
+        "wbs_code": "PIP-013",
+        "parent_wbs": "1.3",
+        "wbs_level": 3,
+        "work_package": "Earthwork",
+        "name": "Final backfilling and compaction",
+        "description": "Backfilling above initial surround with approved excavated material; compacted in 200mm layers",
+        "category": "Earthwork",
+        "unit": "cum",
+        "base_crews": 1,
+        "productivity_rate": 200.0,
+        "productivity_unit": "cum/day",
+        "predecessors": [
+          "PIP-012"
+        ],
+        "spec_ref": "CPWD DSR Part-I Item 2.10; CPHEEO 6.6"
+      },
+      {
+        "id": "PIP-014",
+        "key": "pip_014",
+        "wbs_code": "PIP-014",
+        "parent_wbs": "1.7",
+        "wbs_level": 3,
+        "work_package": "Testing and Commissioning",
+        "name": "Hydrostatic pressure testing",
+        "description": "Hydraulic pressure test at 1.5× working pressure for 24 hours per test section",
+        "category": "Testing and Commissioning",
+        "unit": "test_section",
+        "base_crews": 1,
+        "productivity_rate": 1.0,
+        "productivity_unit": "test_section/day",
+        "predecessors": [
+          "PIP-009",
+          "PIP-013"
+        ],
+        "spec_ref": "IS 12288 Clause 8; CPHEEO 6.7.1"
+      },
+      {
+        "id": "PIP-015",
+        "key": "pip_015",
+        "wbs_code": "PIP-015",
+        "parent_wbs": "1.7",
+        "wbs_level": 3,
+        "work_package": "Testing and Commissioning",
+        "name": "Flushing, disinfection and water quality testing",
+        "description": "Flushing with potable water; chlorine disinfection per IS 10500; bacteriological testing",
+        "category": "Testing and Commissioning",
+        "unit": "km",
+        "base_crews": 1,
+        "productivity_rate": 1.0,
+        "productivity_unit": "km/day",
+        "predecessors": [
+          "PIP-014"
+        ],
+        "spec_ref": "IS 10500; CPHEEO 6.7.2; MoH guidelines"
+      },
+      {
+        "id": "PIP-016",
+        "key": "pip_016",
+        "wbs_code": "PIP-016",
+        "parent_wbs": "1.8",
+        "wbs_level": 3,
+        "work_package": "Restoration",
+        "name": "Road and surface reinstatement",
+        "description": "Reinstatement of road surface (WMM + 40mm BC) or paved area over trench",
+        "category": "Restoration",
+        "unit": "sqm",
+        "base_crews": 1,
+        "productivity_rate": 150.0,
+        "productivity_unit": "sqm/day",
+        "predecessors": [
+          "PIP-013",
+          "PIP-014"
+        ],
+        "spec_ref": "CPWD DSR Part-I Item 14; MoRTH specifications"
+      },
+      {
+        "id": "PIP-017",
+        "key": "pip_017",
+        "wbs_code": "PIP-017",
+        "parent_wbs": "1.9",
+        "wbs_level": 3,
+        "work_package": "Closeout",
+        "name": "Commissioning, handover and demobilization",
+        "description": "Trial runs, as-built drawings, O&M manuals, final inspection, site clearance",
+        "category": "Closeout",
+        "unit": "LS",
+        "base_crews": 1,
+        "productivity_rate": 0.03,
+        "productivity_unit": "LS/day",
+        "predecessors": [
+          "PIP-015",
+          "PIP-016"
+        ],
+        "spec_ref": "Contract Completion Clause"
+      }
+    ]
+  }
+}

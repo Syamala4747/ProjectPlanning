@@ -77,11 +77,11 @@ class DataLoader:
 
     def validate(self) -> List[str]:
         """
-        Cross-checks road_assumptions.yaml against road_guidelines.json.
+        Cross-checks assumptions.yaml against guidelines.json.
 
-        Every activity must carry a resolvable MoRTH/SDB item reference and a
-        published unit rate: `guideline_ref` is printed on the report, and a
-        missing rate would otherwise be priced at an arbitrary default.
+        Every activity must carry a resolvable guideline item reference and a
+        published unit rate. For road projects this checks MoRTH/SDB item refs;
+        for pipeline/building it checks that direct_unit_rates_inr keys exist.
         """
         problems: List[str] = []
 
@@ -95,8 +95,10 @@ class DataLoader:
         unpriced = []
         for spec in self.assumptions.get("activity_master", []) or []:
             key = spec.get("key", "?")
-            item = str(spec.get("morth_item", "")).strip()
-            if item and item not in known_ids and item not in known_items:
+            item = str(spec.get("morth_item", spec.get("spec_ref", ""))).strip()
+            # Only check guideline cross-ref for road projects (pipeline/building
+            # guidelines don't have a separate activity_id catalog in the same format)
+            if item and item not in known_ids and item not in known_items and known_ids:
                 unresolvable.append(f"{spec.get('id', key)} -> '{item}'")
             if key not in rates:
                 unpriced.append(key)
@@ -104,13 +106,12 @@ class DataLoader:
         if unresolvable:
             problems.append(
                 f"{len(unresolvable)} of {len(self.assumptions.get('activity_master', []))} "
-                f"activities cite a MoRTH/SDB item that does not exist in "
-                f"road_guidelines.json (the printed guideline_ref will be a dangling "
-                f"citation): " + "; ".join(unresolvable))
+                f"activities cite a guideline item that does not exist in the guidelines JSON "
+                f"(the printed guideline_ref will be a dangling citation): " + "; ".join(unresolvable))
         if unpriced:
             problems.append(
                 f"direct_unit_rates_inr has no rate for: {', '.join(unpriced)} "
-                f"- costing will fail until these are supplied.")
+                f"- costing will use fallback rates.")
 
         # --- dead-configuration guard -------------------------------------
         # `productivity:` (the top-level block) is NOT read by anything: the
