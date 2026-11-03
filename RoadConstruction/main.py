@@ -79,14 +79,16 @@ def parse_budget_input(raw_input: str) -> float:
 
 
 def parse_start_date(raw_input: str) -> date:
-    """Parses YYYY-MM-DD or defaults to today."""
+    """Parses YYYY-MM-DD or defaults to today for an empty value."""
     s = str(raw_input).strip()
     if not s:
         return date.today()
     try:
         return datetime.strptime(s, "%Y-%m-%d").date()
-    except ValueError:
-        return date.today()
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid date '{s}'. Use YYYY-MM-DD (for example 2026-11-03)."
+        ) from exc
 
 
 def _project_type_banner(project_type: str) -> str:
@@ -745,4 +747,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(2)

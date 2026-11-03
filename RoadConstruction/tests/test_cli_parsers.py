@@ -8,7 +8,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from main import parse_budget_input, parse_duration_input
+from main import parse_budget_input, parse_duration_input, parse_start_date
 
 
 @pytest.mark.parametrize("raw, expected", [
@@ -35,3 +35,8 @@ def test_parse_budget_input(raw, expected):
 def test_invalid_budget_raises():
     with pytest.raises(ValueError):
         parse_budget_input("not a number")
+
+
+def test_invalid_start_date_is_not_silently_replaced():
+    with pytest.raises(ValueError, match="YYYY-MM-DD"):
+        parse_start_date("2026-13-01")
