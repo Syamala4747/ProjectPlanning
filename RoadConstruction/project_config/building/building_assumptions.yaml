@@ -1,5 +1,5 @@
-# =============================================================================
-# Building Construction Assumptions — Residential (CPWD DSR 2021 / Telangana)
+﻿# =============================================================================
+# Building Construction Assumptions â€” Residential (CPWD DSR 2021 / Telangana)
 # =============================================================================
 # Source basis:
 #   - CPWD DSR 2021 (Delhi rates, Hyderabad region adjustment factor 0.95)
@@ -22,8 +22,8 @@ meta:
     Hyderabad/Telangana; verify against current state SoR before tendering.
 
 sources:
-  direct_unit_rates_inr: "CPWD DSR 2021 (Hyderabad region) × 0.95 factor; adjusted to Nov-2026"
-  labour_rates_inr_per_day: "Minimum Wages Act, Telangana Zone I, Jul-2026 notification × 1.5 loaded"
+  direct_unit_rates_inr: "CPWD DSR 2021 (Hyderabad region) Ã— 0.95 factor; adjusted to Nov-2026"
+  labour_rates_inr_per_day: "Minimum Wages Act, Telangana Zone I, Jul-2026 notification Ã— 1.5 loaded"
   material_rates_inr: "CPWD DSR 2021 + local trade quotations, Nov-2026 Hyderabad"
   equipment_hire_inr_per_day: "CPWD DSR 2021 equipment schedule, escalated to Nov-2026"
 
@@ -112,7 +112,7 @@ trade_display_names:
   glazier: "glazier"
 
 # =============================================================================
-# Material rates — 2026 Hyderabad delivered-to-site
+# Material rates â€” 2026 Hyderabad delivered-to-site
 # =============================================================================
 material_rates_inr:
   cement_opc53_bag: 380
@@ -371,9 +371,49 @@ crew_profile_by_activity_key:
   bld_018: lift_crew
   bld_019: building_external_crew
   bld_020: commissioning_crew
+  site_setting_out: building_survey
+  site_clearance: site_clearance_crew
+  site_mobilization: mobilization_crew
+  excavation: excavation_crew
+  piling: foundation_rcc_crew
+  pile_testing: commissioning_crew
+  pile_head_chipping: foundation_rcc_crew
+  pile_caps: foundation_rcc_crew
+  column_stumps: foundation_rcc_crew
+  ground_beams: foundation_rcc_crew
+  plinth_filling: excavation_crew
+  anti_termite: building_waterproofing_crew
+  gf_slab: foundation_rcc_crew
+  gf_columns: building_rcc_crew
+  ff_beams_slab: building_rcc_crew
+  gf_stairs: building_rcc_crew
+  gf_walls: building_brickwork_crew
+  ff_columns: building_rcc_crew
+  sf_beams_slab: building_rcc_crew
+  ff_stairs: building_rcc_crew
+  ff_walls: building_brickwork_crew
+  sf_columns: building_rcc_crew
+  roof_beams: building_rcc_crew
+  roof_trusses: building_rcc_crew
+  roof_covering: building_waterproofing_crew
+  sf_walls: building_brickwork_crew
+  curtain_wall: building_finishing_crew
+  railings: joinery_crew
+  doors: joinery_crew
+  windows: joinery_crew
+  electrical: building_electrical_crew
+  plumbing: building_plumbing_crew
+  sanitary_fittings: building_plumbing_crew
+  internal_plaster: building_plaster_crew
+  tiling: building_tiling_crew
+  hardware: joinery_crew
+  internal_painting: building_painting_crew
+  external_render: building_finishing_crew
+  external_works: building_external_crew
+  cleaning_handover: commissioning_crew
 
 # =============================================================================
-# Direct unit rates — 2026 Hyderabad indicative (CPWD DSR 2021 basis)
+# Direct unit rates â€” 2026 Hyderabad indicative (CPWD DSR 2021 basis)
 # =============================================================================
 # Rates include material + labour + plant at CPWD all-in level.
 # Overhead and profit applied separately by the engine.
@@ -387,7 +427,7 @@ direct_unit_rates_inr:
   bld_007: 5800          # Brickwork 230mm CM 1:5: Rs 5,800/cum
   bld_008: 260           # 12mm plaster CM 1:4: Rs 260/sqm
   bld_009: 480           # Waterproofing (IIR membrane): Rs 480/sqm
-  bld_010: 900           # Vitrified tiling 600×600: Rs 900/sqm laid
+  bld_010: 900           # Vitrified tiling 600Ã—600: Rs 900/sqm laid
   bld_011: 8500          # Doors/windows average per unit: Rs 8,500/no
   bld_012: 380           # External plaster + texture finish: Rs 380/sqm
   bld_013: 180           # Internal emulsion paint 2-coat: Rs 180/sqm
@@ -398,6 +438,46 @@ direct_unit_rates_inr:
   bld_018: 1200000       # Passenger lift complete (MRL): Rs 12 lakh/lift
   bld_019: 650           # External works: Rs 650/sqm
   bld_020: 150000        # Completion & handover LS
+  site_setting_out: 250000
+  site_clearance: 60
+  site_mobilization: 500000
+  excavation: 280
+  piling: 9500
+  pile_testing: 25000
+  pile_head_chipping: 9500
+  pile_caps: 9500
+  column_stumps: 9500
+  ground_beams: 9500
+  plinth_filling: 280
+  anti_termite: 480
+  gf_slab: 9500
+  gf_columns: 10500
+  ff_beams_slab: 10500
+  gf_stairs: 10500
+  gf_walls: 5800
+  ff_columns: 10500
+  sf_beams_slab: 10500
+  ff_stairs: 10500
+  ff_walls: 5800
+  sf_columns: 10500
+  roof_beams: 10500
+  roof_trusses: 10500
+  roof_covering: 480
+  sf_walls: 5800
+  curtain_wall: 380
+  railings: 8500
+  doors: 8500
+  windows: 8500
+  electrical: 450
+  plumbing: 420
+  sanitary_fittings: 420
+  internal_plaster: 260
+  tiling: 900
+  hardware: 8500
+  internal_painting: 180
+  external_render: 380
+  external_works: 650
+  cleaning_handover: 150000
 
 # =============================================================================
 # Material recipes per unit output
@@ -468,6 +548,47 @@ activity_no_material_recipe:
   - bld_001
   - bld_002
   - bld_003
+  # CPWD direct rates are treated as all-in for the detailed low-rise template.
+  - site_setting_out
+  - site_clearance
+  - site_mobilization
+  - excavation
+  - piling
+  - pile_testing
+  - pile_head_chipping
+  - pile_caps
+  - column_stumps
+  - ground_beams
+  - plinth_filling
+  - anti_termite
+  - gf_slab
+  - gf_columns
+  - ff_beams_slab
+  - gf_stairs
+  - gf_walls
+  - ff_columns
+  - sf_beams_slab
+  - ff_stairs
+  - ff_walls
+  - sf_columns
+  - roof_beams
+  - roof_trusses
+  - roof_covering
+  - sf_walls
+  - curtain_wall
+  - railings
+  - doors
+  - windows
+  - electrical
+  - plumbing
+  - sanitary_fittings
+  - internal_plaster
+  - tiling
+  - hardware
+  - internal_painting
+  - external_render
+  - external_works
+  - cleaning_handover
   - bld_004
   - bld_011
   - bld_012
@@ -634,3 +755,4 @@ major_plant_max_units: 1
 # Staggered handover chains (floor-by-floor: frame leads finishing by ~4 weeks)
 # =============================================================================
 staggered_handover_chains: []
+

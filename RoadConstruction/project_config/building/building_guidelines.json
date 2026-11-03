@@ -1,416 +1,751 @@
 {
-  "data": {
-    "document": {
-      "title": "Residential Building Construction Activity Guidelines",
-      "project_type": "building",
-      "template_version": "2.0",
-      "currency": "INR",
-      "source_basis": "CPWD DSR 2021, IS 456, IS 800, IS 1641, NBC 2016, Telangana Building Rules 2012"
-    },
-    "activity_master": [
-      {
-        "id": "BLD-001",
-        "key": "bld_001",
-        "wbs_code": "BLD-001",
-        "parent_wbs": "1.1",
-        "wbs_level": 3,
-        "work_package": "Preliminaries",
-        "name": "Survey, soil investigation and setting out",
-        "description": "Topographic survey, soil bearing capacity tests (BH+SPT), layout and offset pegs",
-        "category": "Preliminaries",
-        "unit": "LS",
-        "base_crews": 1,
-        "productivity_rate": 0.04,
-        "productivity_unit": "LS/day",
-        "predecessors": [],
-        "spec_ref": "CPWD DSR 2021 Item 1.1; IS 1892",
-        "productivity_note": "LS: ~25 days for survey+SBI"
-      },
-      {
-        "id": "BLD-002",
-        "key": "bld_002",
-        "wbs_code": "BLD-002",
-        "parent_wbs": "1.1",
-        "wbs_level": 3,
-        "work_package": "Preliminaries",
-        "name": "Mobilization and site establishment",
-        "description": "Contractor mobilization, site offices, stores, safety, welfare, temporary utilities",
-        "category": "Preliminaries",
-        "unit": "LS",
-        "base_crews": 1,
-        "productivity_rate": 0.07,
-        "productivity_unit": "LS/day",
-        "predecessors": [
-          "BLD-001"
-        ],
-        "spec_ref": "Contract General Conditions",
-        "productivity_note": "LS: ~14 days mobilization"
-      },
-      {
-        "id": "BLD-003",
-        "key": "bld_003",
-        "wbs_code": "BLD-003",
-        "parent_wbs": "1.2",
-        "wbs_level": 3,
-        "work_package": "Site Preparation",
-        "name": "Site clearance and temporary works",
-        "description": "Demolition of old structures, site levelling, compound fencing, access roads",
-        "category": "Site Preparation",
-        "unit": "sqm",
-        "base_crews": 1,
-        "productivity_rate": 688.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-002"
-        ],
-        "spec_ref": "CPWD DSR 2021 Part-I Item 1",
-        "productivity_note": "sqm/day: 1 gang clears 688 sqm/day OK"
-      },
-      {
-        "id": "BLD-004",
-        "key": "bld_004",
-        "wbs_code": "BLD-004",
-        "parent_wbs": "1.3",
-        "wbs_level": 3,
-        "work_package": "Substructure",
-        "name": "Bulk excavation and earthwork",
-        "description": "Machine excavation for foundation and basement; dewatering, disposal of spoil",
-        "category": "Substructure",
-        "unit": "cum",
-        "base_crews": 1,
-        "productivity_rate": 300.0,
-        "productivity_unit": "cum/day",
-        "predecessors": [
-          "BLD-003"
-        ],
-        "spec_ref": "CPWD DSR 2021 Part-I Item 2.1",
-        "productivity_note": "cum/day: 1 excavation gang"
-      },
-      {
-        "id": "BLD-005",
-        "key": "bld_005",
-        "wbs_code": "BLD-005",
-        "parent_wbs": "1.3",
-        "wbs_level": 3,
-        "work_package": "Substructure",
-        "name": "Foundation: PCC, footings and raft",
-        "description": "M10 PCC bed; RCC isolated / combined footings or raft as per structural drawings",
-        "category": "Substructure",
-        "unit": "cum",
-        "base_crews": 2,
-        "productivity_rate": 15.0,
-        "productivity_unit": "cum/day",
-        "predecessors": [
-          "BLD-004"
-        ],
-        "spec_ref": "IS 456 Clause 34; CPWD DSR Item 5.1",
-        "productivity_note": "cum/day per crew x2 = 30 cum/day foundation RCC"
-      },
-      {
-        "id": "BLD-006",
-        "key": "bld_006",
-        "wbs_code": "BLD-006",
-        "parent_wbs": "1.4",
-        "wbs_level": 3,
-        "work_package": "Superstructure",
-        "name": "RCC frame: columns, beams and slabs",
-        "description": "M25/M30 RCC columns, beams, slab with TMT Fe500D reinforcement; centreing and shuttering",
-        "category": "Superstructure",
-        "unit": "cum",
-        "base_crews": 3,
-        "productivity_rate": 20.0,
-        "productivity_unit": "cum/day",
-        "predecessors": [
-          "BLD-005"
-        ],
-        "spec_ref": "IS 456; CPWD DSR Item 5.9; IS 10262",
-        "productivity_note": "cum/day per crew x3 = 60 cum/day frame RCC"
-      },
-      {
-        "id": "BLD-007",
-        "key": "bld_007",
-        "wbs_code": "BLD-007",
-        "parent_wbs": "1.4",
-        "wbs_level": 3,
-        "work_package": "Superstructure",
-        "name": "Brick/block masonry walls",
-        "description": "230mm thick fly ash brick masonry in CM 1:5; 115mm partition walls; window sills",
-        "category": "Superstructure",
-        "unit": "cum",
-        "base_crews": 4,
-        "productivity_rate": 4.8,
-        "productivity_unit": "cum/day",
-        "predecessors": [
-          "BLD-006"
-        ],
-        "spec_ref": "IS 1905; CPWD DSR Item 6.1",
-        "productivity_note": "cum/day per crew x4 = 19.2 cum/day brickwork"
-      },
-      {
-        "id": "BLD-008",
-        "key": "bld_008",
-        "wbs_code": "BLD-008",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "Plastering and pointing",
-        "description": "12mm cement plaster in CM 1:4 on brick; 6mm sponge finish on RCC; pointing",
-        "category": "Finishes",
-        "unit": "sqm",
-        "base_crews": 6,
-        "productivity_rate": 30.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-007"
-        ],
-        "spec_ref": "CPWD DSR Item 9.1; IS 1661",
-        "productivity_note": "sqm/day per crew x6 = 180 sqm/day plaster"
-      },
-      {
-        "id": "BLD-009",
-        "key": "bld_009",
-        "wbs_code": "BLD-009",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "Waterproofing works",
-        "description": "IIR/APP modified bitumen waterproofing membrane on terrace; screed; wet area treatment",
-        "category": "Finishes",
-        "unit": "sqm",
-        "base_crews": 2,
-        "productivity_rate": 30.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-006"
-        ],
-        "spec_ref": "CPWD DSR Item 13.1; IS 3067",
-        "productivity_note": "sqm/day per crew x2 = 60 sqm/day waterproofing"
-      },
-      {
-        "id": "BLD-010",
-        "key": "bld_010",
-        "wbs_code": "BLD-010",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "Flooring and tiling",
-        "description": "600×600 vitrified tiles on floors; 300×300 ceramic wall tiles in kitchen/toilets",
-        "category": "Finishes",
-        "unit": "sqm",
-        "base_crews": 6,
-        "productivity_rate": 15.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-008"
-        ],
-        "spec_ref": "CPWD DSR Item 10.1; IS 13630",
-        "productivity_note": "sqm/day per crew x6 = 90 sqm/day tiling"
-      },
-      {
-        "id": "BLD-011",
-        "key": "bld_011",
-        "wbs_code": "BLD-011",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "Doors, windows and glazing",
-        "description": "Teak-wood/UPVC door frames and shutters; aluminium glazed windows; grills",
-        "category": "Finishes",
-        "unit": "no",
-        "base_crews": 3,
-        "productivity_rate": 4.0,
-        "productivity_unit": "no/day",
-        "predecessors": [
-          "BLD-008"
-        ],
-        "spec_ref": "CPWD DSR Item 11.1; IS 4020",
-        "productivity_note": "no/day per crew x3 = 12 no/day doors+windows"
-      },
-      {
-        "id": "BLD-012",
-        "key": "bld_012",
-        "wbs_code": "BLD-012",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "External finishes and facade",
-        "description": "External wall texture/paint; cement plaster finish; stone cladding (premium)",
-        "category": "Finishes",
-        "unit": "sqm",
-        "base_crews": 3,
-        "productivity_rate": 25.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-008"
-        ],
-        "spec_ref": "CPWD DSR Item 9; IS 2395",
-        "productivity_note": "sqm/day per crew x3 = 75 sqm/day external finish"
-      },
-      {
-        "id": "BLD-013",
-        "key": "bld_013",
-        "wbs_code": "BLD-013",
-        "parent_wbs": "1.5",
-        "wbs_level": 3,
-        "work_package": "Finishes",
-        "name": "Internal painting",
-        "description": "Two coats putty + primer + two coats emulsion paint on walls/ceilings",
-        "category": "Finishes",
-        "unit": "sqm",
-        "base_crews": 6,
-        "productivity_rate": 40.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-010"
-        ],
-        "spec_ref": "CPWD DSR Item 12.1; IS 2395",
-        "productivity_note": "sqm/day per crew x6 = 240 sqm/day painting"
-      },
-      {
-        "id": "BLD-014",
-        "key": "bld_014",
-        "wbs_code": "BLD-014",
-        "parent_wbs": "1.6",
-        "wbs_level": 3,
-        "work_package": "MEP",
-        "name": "Electrical works",
-        "description": "Concealed conduit wiring, MCBs, DB boards, light points, fan points, power points, earthing",
-        "category": "MEP",
-        "unit": "sqm",
-        "base_crews": 4,
-        "productivity_rate": 8.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-007"
-        ],
-        "spec_ref": "IS 732; NBC 2016 Part-8; CPWD Item 20.1",
-        "productivity_note": "sqm/day per crew x4 = 32 sqm/day electrical"
-      },
-      {
-        "id": "BLD-015",
-        "key": "bld_015",
-        "wbs_code": "BLD-015",
-        "parent_wbs": "1.6",
-        "wbs_level": 3,
-        "work_package": "MEP",
-        "name": "Plumbing and sanitary",
-        "description": "CPVC hot/cold water supply; PVC soil/waste drainage; sanitary fixtures; overhead tank",
-        "category": "MEP",
-        "unit": "sqm",
-        "base_crews": 4,
-        "productivity_rate": 8.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-007"
-        ],
-        "spec_ref": "IS 1172; IS 2065; CPWD Item 21.1",
-        "productivity_note": "sqm/day per crew x4 = 32 sqm/day plumbing"
-      },
-      {
-        "id": "BLD-016",
-        "key": "bld_016",
-        "wbs_code": "BLD-016",
-        "parent_wbs": "1.6",
-        "wbs_level": 3,
-        "work_package": "MEP",
-        "name": "HVAC works",
-        "description": "Split AC provision (residential); central ducted AC (commercial); ventilation fans",
-        "category": "MEP",
-        "unit": "sqm",
-        "base_crews": 3,
-        "productivity_rate": 6.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-007"
-        ],
-        "spec_ref": "IS 659; NBC 2016 Part-8 Section 3",
-        "productivity_note": "sqm/day per crew x3 = 18 sqm/day HVAC"
-      },
-      {
-        "id": "BLD-017",
-        "key": "bld_017",
-        "wbs_code": "BLD-017",
-        "parent_wbs": "1.6",
-        "wbs_level": 3,
-        "work_package": "MEP",
-        "name": "Fire fighting and detection",
-        "description": "Wet riser, yard hydrants, portable extinguishers, smoke detectors, manual call points",
-        "category": "MEP",
-        "unit": "sqm",
-        "base_crews": 3,
-        "productivity_rate": 10.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-007"
-        ],
-        "spec_ref": "IS 1641; IS 15105; NBC 2016 Part-4",
-        "productivity_note": "sqm/day per crew x3 = 30 sqm/day fire-fighting"
-      },
-      {
-        "id": "BLD-018",
-        "key": "bld_018",
-        "wbs_code": "BLD-018",
-        "parent_wbs": "1.6",
-        "wbs_level": 3,
-        "work_package": "MEP",
-        "name": "Lifts and escalators",
-        "description": "Passenger lift installation (machine-room-less); shaft pit, guide rails, car, controls",
-        "category": "MEP",
-        "unit": "no",
-        "base_crews": 1,
-        "productivity_rate": 0.05,
-        "productivity_unit": "lift/day",
-        "predecessors": [
-          "BLD-006"
-        ],
-        "spec_ref": "IS 14665; NBC 2016 Part-8 Section 5",
-        "productivity_note": "lifts/day: each lift ~20 days install"
-      },
-      {
-        "id": "BLD-019",
-        "key": "bld_019",
-        "wbs_code": "BLD-019",
-        "parent_wbs": "1.7",
-        "wbs_level": 3,
-        "work_package": "External Works",
-        "name": "External development and services",
-        "description": "Compound wall, landscaping, paving, storm water drains, external lighting, gate",
-        "category": "External Works",
-        "unit": "sqm",
-        "base_crews": 1,
-        "productivity_rate": 50.0,
-        "productivity_unit": "sqm/day",
-        "predecessors": [
-          "BLD-004"
-        ],
-        "spec_ref": "CPWD DSR 2021 Part-I; Telangana Building Rules 2012",
-        "productivity_note": "sqm/day: 1 gang external works"
-      },
-      {
-        "id": "BLD-020",
-        "key": "bld_020",
-        "wbs_code": "BLD-020",
-        "parent_wbs": "1.8",
-        "wbs_level": 3,
-        "work_package": "Closeout",
-        "name": "Inspection, testing, completion and handover",
-        "description": "Statutory inspections, occupancy certificate, as-built drawings, defect liability",
-        "category": "Closeout",
-        "unit": "LS",
-        "base_crews": 1,
-        "productivity_rate": 0.1,
-        "productivity_unit": "LS/day",
-        "predecessors": [
-          "BLD-013",
-          "BLD-014",
-          "BLD-015",
-          "BLD-016",
-          "BLD-017",
-          "BLD-019"
-        ],
-        "spec_ref": "Telangana Building Rules 2012 Clause 24",
-        "productivity_note": "LS: ~10 days commissioning"
-      }
-    ]
-  }
+    "data":  {
+                 "document":  {
+                                  "title":  "Low-rise RCC framed building on bored piles (G+2)",
+                                  "project_type":  "building",
+                                  "template_version":  "3.0",
+                                  "currency":  "INR",
+                                  "source_basis":  "CPWD Specifications 2019 Vol I \u0026 II; IS 456:2000; IS 2911 (Pt 1/Sec 2); NBC 2016"
+                              },
+                 "activity_master":  [
+                                         {
+                                             "id":  "ACT-01",
+                                             "key":  "site_setting_out",
+                                             "wbs_code":  "1.1.1",
+                                             "parent_wbs":  "1.1",
+                                             "wbs_level":  3,
+                                             "work_package":  "Site Setting-Out, Clearance \u0026 Mobilization",
+                                             "name":  "Site Setting-Out, Boundary Hoarding \u0026 Safety Signage",
+                                             "category":  "Site Preparation",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  1500.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 2 (Earth Work); item 2"
+                                         },
+                                         {
+                                             "id":  "ACT-02",
+                                             "key":  "site_clearance",
+                                             "wbs_code":  "1.1.2",
+                                             "parent_wbs":  "1.1",
+                                             "wbs_level":  3,
+                                             "work_package":  "Site Setting-Out, Clearance \u0026 Mobilization",
+                                             "name":  "Site Clearance, Grubbing \u0026 Disposal to Approved Dump",
+                                             "category":  "Site Preparation",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  1200.0,
+                                             "productivity_unit":  "sqm/day/dozer",
+                                             "predecessors":  [
+                                                                  "ACT-01"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 2 (Earth Work); item 2"
+                                         },
+                                         {
+                                             "id":  "ACT-03",
+                                             "key":  "site_mobilization",
+                                             "wbs_code":  "1.1.3",
+                                             "parent_wbs":  "1.1",
+                                             "wbs_level":  3,
+                                             "work_package":  "Site Setting-Out, Clearance \u0026 Mobilization",
+                                             "name":  "Site Office, Stores, Bar-Bending Yard \u0026 Temporary Power/Water",
+                                             "category":  "Mobilization",
+                                             "unit":  "set",
+                                             "base_crews":  1,
+                                             "productivity_rate":  0.1,
+                                             "productivity_unit":  "set/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-02"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 General Specifications; item GS"
+                                         },
+                                         {
+                                             "id":  "ACT-04",
+                                             "key":  "excavation",
+                                             "wbs_code":  "1.2.1",
+                                             "parent_wbs":  "1.2",
+                                             "wbs_level":  3,
+                                             "work_package":  "Earthwork \u0026 Pile Foundation",
+                                             "name":  "Excavation to Working Platform / Pile Cut-off Level",
+                                             "category":  "Earthwork",
+                                             "unit":  "cum",
+                                             "base_crews":  1,
+                                             "productivity_rate":  150.0,
+                                             "productivity_unit":  "cum/day/excavator",
+                                             "predecessors":  [
+                                                                  "ACT-02"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 2 (Earth Work); item 2.8"
+                                         },
+                                         {
+                                             "id":  "ACT-05",
+                                             "key":  "piling",
+                                             "wbs_code":  "1.2.2",
+                                             "parent_wbs":  "1.2",
+                                             "wbs_level":  3,
+                                             "work_package":  "Earthwork \u0026 Pile Foundation",
+                                             "name":  "Bored Cast-in-Situ Piles (600mm): Boring, Cage Lowering \u0026 Tremie Concreting",
+                                             "category":  "Foundation",
+                                             "unit":  "metre",
+                                             "base_crews":  2,
+                                             "productivity_rate":  36.0,
+                                             "productivity_unit":  "metre/day/rig",
+                                             "predecessors":  [
+                                                                  "ACT-04",
+                                                                  "ACT-03"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 20 (Pile Work); IS 2911 (Pt 1/Sec 2); item 20"
+                                         },
+                                         {
+                                             "id":  "ACT-06",
+                                             "key":  "pile_testing",
+                                             "wbs_code":  "1.2.3",
+                                             "parent_wbs":  "1.2",
+                                             "wbs_level":  3,
+                                             "work_package":  "Earthwork \u0026 Pile Foundation",
+                                             "name":  "Pile Integrity (Low-Strain) \u0026 Initial/Routine Load Tests",
+                                             "category":  "QA/QC",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  10.0,
+                                             "productivity_unit":  "Nos/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-05"
+                                                              ],
+                                             "spec_ref":  "IS 2911 (Pt 4); IS 14893; item IS 2911-4"
+                                         },
+                                         {
+                                             "id":  "ACT-07",
+                                             "key":  "pile_head_chipping",
+                                             "wbs_code":  "1.2.4",
+                                             "parent_wbs":  "1.2",
+                                             "wbs_level":  3,
+                                             "work_package":  "Earthwork \u0026 Pile Foundation",
+                                             "name":  "Pile Head Chipping to Cut-off Level \u0026 PCC Blinding (1:4:8)",
+                                             "category":  "Foundation",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  12.0,
+                                             "productivity_unit":  "Nos/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-06"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 4 (Concrete Work); item 4"
+                                         },
+                                         {
+                                             "id":  "ACT-08",
+                                             "key":  "pile_caps",
+                                             "wbs_code":  "1.3.1",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "RCC Pile Caps (M25)",
+                                             "category":  "Substructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  20.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-07"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-09",
+                                             "key":  "column_stumps",
+                                             "wbs_code":  "1.3.2",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "RCC Column Stumps / Pedestals on Pile Caps",
+                                             "category":  "Substructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  8.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-08"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-10",
+                                             "key":  "ground_beams",
+                                             "wbs_code":  "1.3.3",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "RCC Ground (Plinth) Beams Linking Pile Caps",
+                                             "category":  "Substructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  12.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-09"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-11",
+                                             "key":  "plinth_filling",
+                                             "wbs_code":  "1.3.4",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "Plinth Filling, Compaction \u0026 Sand Bed",
+                                             "category":  "Earthwork",
+                                             "unit":  "cum",
+                                             "base_crews":  1,
+                                             "productivity_rate":  60.0,
+                                             "productivity_unit":  "cum/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-10"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 2 (Earth Work); item 2"
+                                         },
+                                         {
+                                             "id":  "ACT-12",
+                                             "key":  "anti_termite",
+                                             "wbs_code":  "1.3.5",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "Pre-Constructional Anti-Termite Treatment",
+                                             "category":  "Substructure",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  400.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-11"
+                                                              ],
+                                             "spec_ref":  "IS 6313 (Pt 2); item IS 6313-2"
+                                         },
+                                         {
+                                             "id":  "ACT-13",
+                                             "key":  "gf_slab",
+                                             "wbs_code":  "1.3.6",
+                                             "parent_wbs":  "1.3",
+                                             "wbs_level":  3,
+                                             "work_package":  "Substructure (Pile Caps to Plinth)",
+                                             "name":  "Ground Floor Slab-on-Grade with DPM \u0026 Rigid Floor Insulation",
+                                             "category":  "Substructure",
+                                             "unit":  "sqm",
+                                             "base_crews":  2,
+                                             "productivity_rate":  120.0,
+                                             "productivity_unit":  "sqm/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-12"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-14",
+                                             "key":  "gf_columns",
+                                             "wbs_code":  "1.4.1",
+                                             "parent_wbs":  "1.4",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Ground Floor",
+                                             "name":  "Ground Floor RCC Columns",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  6.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-13"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-15",
+                                             "key":  "ff_beams_slab",
+                                             "wbs_code":  "1.4.2",
+                                             "parent_wbs":  "1.4",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Ground Floor",
+                                             "name":  "First Floor RCC Beams \u0026 Slab (Cast Monolithically)",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  15.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-14"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-16",
+                                             "key":  "gf_stairs",
+                                             "wbs_code":  "1.4.3",
+                                             "parent_wbs":  "1.4",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Ground Floor",
+                                             "name":  "Ground-to-First Floor RCC Staircase (Half-Turn)",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  1,
+                                             "productivity_rate":  3.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-15"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-17",
+                                             "key":  "gf_walls",
+                                             "wbs_code":  "1.4.4",
+                                             "parent_wbs":  "1.4",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Ground Floor",
+                                             "name":  "Ground Floor Brick Masonry Walls",
+                                             "category":  "Masonry",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  5.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-15"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 6 (Brick Work); item 6"
+                                         },
+                                         {
+                                             "id":  "ACT-18",
+                                             "key":  "ff_columns",
+                                             "wbs_code":  "1.5.1",
+                                             "parent_wbs":  "1.5",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - First Floor",
+                                             "name":  "First Floor RCC Columns",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  6.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-15"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-19",
+                                             "key":  "sf_beams_slab",
+                                             "wbs_code":  "1.5.2",
+                                             "parent_wbs":  "1.5",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - First Floor",
+                                             "name":  "Second Floor RCC Beams \u0026 Slab (Cast Monolithically)",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  15.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-18"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-20",
+                                             "key":  "ff_stairs",
+                                             "wbs_code":  "1.5.3",
+                                             "parent_wbs":  "1.5",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - First Floor",
+                                             "name":  "First-to-Second Floor RCC Staircase (Half-Turn)",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  1,
+                                             "productivity_rate":  3.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-19"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-21",
+                                             "key":  "ff_walls",
+                                             "wbs_code":  "1.5.4",
+                                             "parent_wbs":  "1.5",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - First Floor",
+                                             "name":  "First Floor Brick Masonry Walls",
+                                             "category":  "Masonry",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  5.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-19"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 6 (Brick Work); item 6"
+                                         },
+                                         {
+                                             "id":  "ACT-22",
+                                             "key":  "sf_columns",
+                                             "wbs_code":  "1.6.1",
+                                             "parent_wbs":  "1.6",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Second Floor \u0026 Roof",
+                                             "name":  "Second Floor RCC Columns",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  6.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-19"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-23",
+                                             "key":  "roof_beams",
+                                             "wbs_code":  "1.6.2",
+                                             "parent_wbs":  "1.6",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Second Floor \u0026 Roof",
+                                             "name":  "Roof RCC Ring / Tie Beams",
+                                             "category":  "Superstructure",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  10.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-22"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 5 (RCC); IS 456:2000; item 5"
+                                         },
+                                         {
+                                             "id":  "ACT-24",
+                                             "key":  "roof_trusses",
+                                             "wbs_code":  "1.6.3",
+                                             "parent_wbs":  "1.6",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Second Floor \u0026 Roof",
+                                             "name":  "Structural Steel Roof Trusses \u0026 Purlins",
+                                             "category":  "Roofing",
+                                             "unit":  "MT",
+                                             "base_crews":  1,
+                                             "productivity_rate":  1.5,
+                                             "productivity_unit":  "MT/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-23"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 10 (Steel Work); IS 800:2007; item 10"
+                                         },
+                                         {
+                                             "id":  "ACT-25",
+                                             "key":  "roof_covering",
+                                             "wbs_code":  "1.6.4",
+                                             "parent_wbs":  "1.6",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Second Floor \u0026 Roof",
+                                             "name":  "Roof Covering (Sheeting / Tiles) with Insulation \u0026 Flashing",
+                                             "category":  "Roofing",
+                                             "unit":  "sqm",
+                                             "base_crews":  2,
+                                             "productivity_rate":  80.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-24"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 12 (Roofing); item 12"
+                                         },
+                                         {
+                                             "id":  "ACT-26",
+                                             "key":  "sf_walls",
+                                             "wbs_code":  "1.6.5",
+                                             "parent_wbs":  "1.6",
+                                             "wbs_level":  3,
+                                             "work_package":  "Superstructure - Second Floor \u0026 Roof",
+                                             "name":  "Second Floor Brick Masonry Walls",
+                                             "category":  "Masonry",
+                                             "unit":  "cum",
+                                             "base_crews":  2,
+                                             "productivity_rate":  5.0,
+                                             "productivity_unit":  "cum/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-23"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 6 (Brick Work); item 6"
+                                         },
+                                         {
+                                             "id":  "ACT-27",
+                                             "key":  "curtain_wall",
+                                             "wbs_code":  "1.7.1",
+                                             "parent_wbs":  "1.7",
+                                             "wbs_level":  3,
+                                             "work_package":  "Envelope, Doors \u0026 Windows",
+                                             "name":  "Curtain Wall Glazing (Aluminium Frame \u0026 Glass)",
+                                             "category":  "Envelope",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  15.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-23"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 21 (Aluminium Work); item 21"
+                                         },
+                                         {
+                                             "id":  "ACT-28",
+                                             "key":  "railings",
+                                             "wbs_code":  "1.7.2",
+                                             "parent_wbs":  "1.7",
+                                             "wbs_level":  3,
+                                             "work_package":  "Envelope, Doors \u0026 Windows",
+                                             "name":  "Staircase Handrails \u0026 Balcony Guardrails (Aluminium)",
+                                             "category":  "Envelope",
+                                             "unit":  "metre",
+                                             "base_crews":  1,
+                                             "productivity_rate":  20.0,
+                                             "productivity_unit":  "metre/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-16",
+                                                                  "ACT-20"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 21 (Aluminium Work); item 21"
+                                         },
+                                         {
+                                             "id":  "ACT-29",
+                                             "key":  "doors",
+                                             "wbs_code":  "1.7.3",
+                                             "parent_wbs":  "1.7",
+                                             "wbs_level":  3,
+                                             "work_package":  "Envelope, Doors \u0026 Windows",
+                                             "name":  "Door Frames \u0026 Shutters - All Floors",
+                                             "category":  "Joinery",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  8.0,
+                                             "productivity_unit":  "Nos/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-17",
+                                                                  "ACT-21",
+                                                                  "ACT-26"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 9 (Wood \u0026 PVC Work); item 9"
+                                         },
+                                         {
+                                             "id":  "ACT-30",
+                                             "key":  "windows",
+                                             "wbs_code":  "1.7.4",
+                                             "parent_wbs":  "1.7",
+                                             "wbs_level":  3,
+                                             "work_package":  "Envelope, Doors \u0026 Windows",
+                                             "name":  "Aluminium Casement Windows with Glazing - All Floors",
+                                             "category":  "Joinery",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  8.0,
+                                             "productivity_unit":  "Nos/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-17",
+                                                                  "ACT-21",
+                                                                  "ACT-26"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 21 (Aluminium Work); item 21"
+                                         },
+                                         {
+                                             "id":  "ACT-31",
+                                             "key":  "electrical",
+                                             "wbs_code":  "1.8.1",
+                                             "parent_wbs":  "1.8",
+                                             "wbs_level":  3,
+                                             "work_package":  "MEP Services",
+                                             "name":  "Concealed Conduits, Wiring, DBs \u0026 Earthing",
+                                             "category":  "MEP",
+                                             "unit":  "points",
+                                             "base_crews":  2,
+                                             "productivity_rate":  20.0,
+                                             "productivity_unit":  "points/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-17",
+                                                                  "ACT-21",
+                                                                  "ACT-26"
+                                                              ],
+                                             "spec_ref":  "CPWD Gen. Spec. for Electrical Works Pt-I (Internal); IS 732; item E-I"
+                                         },
+                                         {
+                                             "id":  "ACT-32",
+                                             "key":  "plumbing",
+                                             "wbs_code":  "1.8.2",
+                                             "parent_wbs":  "1.8",
+                                             "wbs_level":  3,
+                                             "work_package":  "MEP Services",
+                                             "name":  "Internal Water Supply \u0026 Drainage Piping (CPVC / uPVC / SWR)",
+                                             "category":  "MEP",
+                                             "unit":  "metre",
+                                             "base_crews":  1,
+                                             "productivity_rate":  30.0,
+                                             "productivity_unit":  "metre/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-17",
+                                                                  "ACT-21",
+                                                                  "ACT-26"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-heads 17-19 (Sanitary, Water Supply, Drainage); item 18"
+                                         },
+                                         {
+                                             "id":  "ACT-33",
+                                             "key":  "sanitary_fittings",
+                                             "wbs_code":  "1.8.3",
+                                             "parent_wbs":  "1.8",
+                                             "wbs_level":  3,
+                                             "work_package":  "MEP Services",
+                                             "name":  "Sanitary Fixtures \u0026 CP Fittings (WC, Basins, Showers, Sinks)",
+                                             "category":  "MEP",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  8.0,
+                                             "productivity_unit":  "Nos/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-35"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 17 (Sanitary Installations); item 17"
+                                         },
+                                         {
+                                             "id":  "ACT-34",
+                                             "key":  "internal_plaster",
+                                             "wbs_code":  "1.9.1",
+                                             "parent_wbs":  "1.9",
+                                             "wbs_level":  3,
+                                             "work_package":  "Finishes",
+                                             "name":  "Internal Plastering (12/15mm CM 1:6)",
+                                             "category":  "Finishing",
+                                             "unit":  "sqm",
+                                             "base_crews":  3,
+                                             "productivity_rate":  40.0,
+                                             "productivity_unit":  "sqm/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-31",
+                                                                  "ACT-32"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 13 (Finishing); item 13"
+                                         },
+                                         {
+                                             "id":  "ACT-35",
+                                             "key":  "tiling",
+                                             "wbs_code":  "1.9.2",
+                                             "parent_wbs":  "1.9",
+                                             "wbs_level":  3,
+                                             "work_package":  "Finishes",
+                                             "name":  "Floor \u0026 Wall Tiling (Vitrified / Ceramic, Mortar \u0026 Grout)",
+                                             "category":  "Finishing",
+                                             "unit":  "sqm",
+                                             "base_crews":  2,
+                                             "productivity_rate":  25.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-34"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 11 (Flooring); item 11"
+                                         },
+                                         {
+                                             "id":  "ACT-36",
+                                             "key":  "hardware",
+                                             "wbs_code":  "1.9.3",
+                                             "parent_wbs":  "1.9",
+                                             "wbs_level":  3,
+                                             "work_package":  "Finishes",
+                                             "name":  "Kitchen Cabinets, Hoods \u0026 Fixed Hardware",
+                                             "category":  "Finishing",
+                                             "unit":  "Nos",
+                                             "base_crews":  1,
+                                             "productivity_rate":  6.0,
+                                             "productivity_unit":  "Nos/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-35"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 9 (Wood \u0026 PVC Work); item 9"
+                                         },
+                                         {
+                                             "id":  "ACT-37",
+                                             "key":  "internal_painting",
+                                             "wbs_code":  "1.9.4",
+                                             "parent_wbs":  "1.9",
+                                             "wbs_level":  3,
+                                             "work_package":  "Finishes",
+                                             "name":  "Internal Painting (Primer, Putty \u0026 2 Coats Emulsion)",
+                                             "category":  "Finishing",
+                                             "unit":  "sqm",
+                                             "base_crews":  2,
+                                             "productivity_rate":  80.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-33",
+                                                                  "ACT-36",
+                                                                  "ACT-29",
+                                                                  "ACT-30"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 13 (Finishing); item 13"
+                                         },
+                                         {
+                                             "id":  "ACT-38",
+                                             "key":  "external_render",
+                                             "wbs_code":  "1.9.5",
+                                             "parent_wbs":  "1.9",
+                                             "wbs_level":  3,
+                                             "work_package":  "Finishes",
+                                             "name":  "External Render \u0026 Weather-Proof Paint",
+                                             "category":  "Finishing",
+                                             "unit":  "sqm",
+                                             "base_crews":  2,
+                                             "productivity_rate":  30.0,
+                                             "productivity_unit":  "sqm/day/gang",
+                                             "predecessors":  [
+                                                                  "ACT-25",
+                                                                  "ACT-27",
+                                                                  "ACT-30"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-head 13 (Finishing); item 13"
+                                         },
+                                         {
+                                             "id":  "ACT-39",
+                                             "key":  "external_works",
+                                             "wbs_code":  "1.10.1",
+                                             "parent_wbs":  "1.10",
+                                             "wbs_level":  3,
+                                             "work_package":  "External Works \u0026 Handover",
+                                             "name":  "Apron, Peripheral Drains \u0026 Site Paving",
+                                             "category":  "External",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  60.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-38"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 Sub-heads 16 \u0026 19 (Road Work, Drainage); item 19"
+                                         },
+                                         {
+                                             "id":  "ACT-40",
+                                             "key":  "cleaning_handover",
+                                             "wbs_code":  "1.10.2",
+                                             "parent_wbs":  "1.10",
+                                             "wbs_level":  3,
+                                             "work_package":  "External Works \u0026 Handover",
+                                             "name":  "Final Cleaning, Snagging \u0026 Handover",
+                                             "category":  "Closeout",
+                                             "unit":  "sqm",
+                                             "base_crews":  1,
+                                             "productivity_rate":  600.0,
+                                             "productivity_unit":  "sqm/day/crew",
+                                             "predecessors":  [
+                                                                  "ACT-37",
+                                                                  "ACT-39",
+                                                                  "ACT-28"
+                                                              ],
+                                             "spec_ref":  "CPWD Spec 2019 General Specifications; item GS"
+                                         }
+                                     ]
+             }
 }
