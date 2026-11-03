@@ -1,73 +1,36 @@
-# =============================================================================
-# Pipeline Construction Assumptions — Water Supply Pipeline (CPHEEO / CPWD DSR 2021)
-# =============================================================================
-# Source basis:
-#   - CPHEEO Manual on Water Supply Systems Part-III (2000)
-#   - CPWD DSR 2021, Hyderabad region, Vol-I civil items
-#   - IS 12288, IS 8329, IS 4984, IS 3589, IS 456
-#   - Minimum Wages Act, Telangana Zone I (2026)
-# All rates are indicative 2026 Hyderabad/Telangana delivered-to-site.
-# =============================================================================
-
 meta:
-  project_type: pipeline
-  pipeline_type: water
+  name: Water Pipeline Construction Assumptions
+  version: '1.0'
+  status: Pipeline-only planning assumptions
+  country: India
   currency: INR
-  currency_symbol: Rs
-  large_unit: crore
-  large_unit_value: 10000000
-  effective_date: "2026-11-02"
-  version: "2.0"
-  source_basis: >
-    CPHEEO Manual Part-III + CPWD DSR 2021 + IS codes. Rates are indicative
-    2026 Hyderabad/Telangana; verify against current state SoR before tendering.
-
-sources:
-  direct_unit_rates_inr: "CPWD DSR 2021 (Hyderabad region) + CPHEEO Manual Part-III; adjusted to Nov-2026 Hyderabad"
-  labour_rates_inr_per_day: "Minimum Wages Act, Telangana Zone I, Jul-2026 notification × 1.5 loaded"
-  material_rates_inr: "CPWD DSR 2021 + local trade quotations, Nov-2026 Hyderabad"
-  equipment_hire_inr_per_day: "CPWD DSR 2021 equipment schedule, escalated to Nov-2026"
-
+  effective_date: '2026-06-30'
+  reference: Common rates and calendar copied from the user's Road Assumptions YAML
+  scope: Water transmission and distribution pipeline corridor works only
+  excluded_scope:
+  - Intake well
+  - Raw water pumping station
+  - Water Treatment Plant (WTP)
+  - Clear Water Reservoir (CWR)
+  - OHT/ESR
+  - Pump house buildings
+  - Substation
+  - DG set installation
+  - SCADA/PLC building works
 calendar:
   working_days_per_week: 6
   productive_hours_per_day: 8
   equipment_hours_per_day: 9
-  holidays_per_year: 14
-  monsoon_months: [6, 7, 8, 9]
+  monsoon_months:
+  - 6
+  - 7
+  - 8
+  - 9
   monsoon_productivity_factor: 0.65
-  hilly_productivity_factor: 0.75
-  night_shift_productivity_factor: 0.80
-  night_shift_cost_multiplier: 1.50
-
-# Activities eligible for night shift work on pipeline projects
-night_work_eligible:
-  - pip_004   # trench excavation
-  - pip_013   # final backfill
-  - pip_012   # initial backfill
-  - pip_011   # concrete thrust blocks
-
-# Pipeline-specific geometric / operational parameters
-pipeline_parameters:
-  bedding_thickness_m: 0.15
-  joint_spacing_m: 5.5            # DI / MS / RCC; 6.0 for HDPE (butt-fused)
-  valve_chamber_spacing_m: 500.0  # water supply; 300 for sewerage
-  hydrotest_section_length_m: 500.0
-  thrust_block_cum_per_km: 3.2    # ~4 bends/tee per km × 0.8 cum each
-  trenchless_ratio: 0.05
-  work_corridor_m: 3.0
-  reinstatement_ratio: 0.80
-
-# When true, the CPHEEO/CPWD direct rate is used directly as the planned rate.
-# This bypasses the resource build-up (correct for published all-in rate books).
-use_direct_rate_as_planned: true
-
-# Parallelism control
-work_front_span_km: 5.0          # one trench gang per 5 km (overridden by --fronts CLI)
-crew_multiplier_cap: 4
-
-# =============================================================================
-# Labour rates
-# =============================================================================
+  hilly_productivity_factor: 0.7
+  night_shift_productivity_factor: 0.8
+  night_shift_cost_multiplier: 1.5
+  holidays_per_year: 14
 labour_rates_inr_per_day:
   unskilled: 750
   semi_skilled: 900
@@ -83,28 +46,35 @@ labour_rates_inr_per_day:
   surveyor: 3000
   plumber: 1400
   electrician: 1400
-
+  hvac_technician: 1600
+  painter: 1200
+  fire_fighting_technician: 1500
+  lift_technician: 1800
+  aluminium_fabricator: 1400
+  glazier: 1400
 trade_display_names:
-  unskilled: "mazdoor"
-  semi_skilled: "semi-skilled"
-  skilled: "skilled mason/welder"
-  highly_skilled: "pipe jointer / welder"
-  equipment_operator: "operator"
-  driver: "driver"
-  supervisor: "supervisor"
-  site_engineer: "site engineer"
-  project_manager: "project manager"
-  qc_technician: "QC technician"
-  safety_officer: "safety officer"
-  surveyor: "surveyor"
-  plumber: "plumber"
-  electrician: "electrician"
-
-# =============================================================================
-# Material rates — 2026 Hyderabad delivered-to-site
-# =============================================================================
+  unskilled: mazdoor
+  semi_skilled: semi-skilled
+  skilled: skilled mason
+  highly_skilled: bar bender / fitter
+  equipment_operator: operator
+  driver: driver
+  supervisor: supervisor
+  site_engineer: site engineer
+  project_manager: project manager
+  qc_technician: QC tech
+  safety_officer: safety officer
+  surveyor: surveyor
+  plumber: plumber
+  electrician: electrician
+  hvac_technician: HVAC tech
+  painter: painter
+  fire_fighting_technician: fire-fighting tech
+  lift_technician: lift tech
+  aluminium_fabricator: aluminium fab
+  glazier: glazier
 material_rates_inr:
-  cement_opc53_bag: 380        # 50 kg bag
+  cement_opc53_bag: 380
   cement_ppc_bag: 360
   tmt_steel_fe500d_mt: 60000
   agg_20mm_cum: 1200
@@ -113,408 +83,298 @@ material_rates_inr:
   river_sand_cum: 2000
   water_kl: 100
   diesel_litre: 100
-  binding_wire_kg: 80
-  admix_plasticiser_kg: 80
-  ply_shuttering_sqm: 350
-  bricks_per_thousand: 9000
-  mortar_ready_cum: 3500
-  # Pipeline-specific
-  di_pipe_per_metre_dn300: 3200    # DN300 K9 DI pipe, delivered, per metre
-  di_pipe_per_metre_dn400: 4800
-  di_pipe_per_metre_dn600: 7200
-  di_pipe_per_metre_dn800: 11000
-  hdpe_pipe_per_metre_dn300: 2100
-  hdpe_pipe_per_metre_dn400: 3500
-  hdpe_pipe_per_metre_dn600: 6500
-  ms_pipe_per_kg: 78             # fabricated MS pipe including anti-corrosion coating
-  rcc_hume_pipe_dn600_metre: 3500
-  rubber_gasket_each: 350        # per push-in joint (DI)
-  flange_coupling_each: 2500
-  gate_valve_dn300_each: 45000
-  gate_valve_dn400_each: 75000
-  gate_valve_dn600_each: 150000
-  air_valve_each: 12000
-  scour_valve_each: 18000
-  selected_bedding_aggregate_cum: 1400  # clean graded aggregate for pipe bedding
-  disinfection_chemical_kg: 120    # liquid chlorine / calcium hypochlorite
-  # Road reinstatement materials
-  bitumen_vg30_mt: 55000
-  agg_well_graded_cum: 1200      # WMM aggregate
-
-# =============================================================================
-# Equipment hire
-# =============================================================================
+  select_granular_cum: 500
+  hdpe_pipe_dn600_metre_reference: 1200
+  di_water_main_dn200_metre_reference: 3800
+  pipe_rates_note: The two pipe prices are carried over as reference benchmarks only. They are not a complete rate
+    table. Add supplier/BOQ rates by actual material, diameter, pressure class and PN/class.
 equipment_hire_inr_per_day:
   excavator_0_9cum: 12000
   jcb_3dx: 7000
   tipper_10t: 4500
-  transit_mixer_6cum: 7000
-  concrete_pump_boom_36m: 25000
   light_crane_3t: 6000
-  crawler_crane_50t: 35000
   water_tanker_12kl: 4500
-  dewatering_pump_set: 3500     # submersible + generator set
-  compaction_plate: 2000
-  vibratory_roller_8_10t: 9000
-  welding_machine: 1500         # for MS pipe welding
-  hdpe_butt_fusion_machine: 8000
   dg_set_125kva: 6000
-
+  hydraulic_breaker_attachment: 4000
 fuel_consumption_lph:
   excavator_0_9cum: 14.0
   jcb_3dx: 5.0
   tipper_10t: 8.0
-  transit_mixer_6cum: 10.0
-  concrete_pump_boom_36m: 18.0
   light_crane_3t: 4.0
-  crawler_crane_50t: 15.0
   water_tanker_12kl: 4.0
-  dewatering_pump_set: 4.0
-  compaction_plate: 2.0
-  vibratory_roller_8_10t: 7.0
-  welding_machine: 0.0
-  hdpe_butt_fusion_machine: 0.0
   dg_set_125kva: 22.0
-
+  hydraulic_breaker_attachment: 14.0
 equipment_tank_capacity_litres:
   excavator_0_9cum: 360
   jcb_3dx: 70
   tipper_10t: 200
-  transit_mixer_6cum: 200
-  concrete_pump_boom_36m: 400
   light_crane_3t: 120
-  crawler_crane_50t: 400
   water_tanker_12kl: 200
-  dewatering_pump_set: 50
-  compaction_plate: 20
-  vibratory_roller_8_10t: 150
-  welding_machine: 0
-  hdpe_butt_fusion_machine: 0
   dg_set_125kva: 150
-
+  hydraulic_breaker_attachment: 0
 equipment_needs_operator:
   excavator_0_9cum: true
   jcb_3dx: true
   tipper_10t: true
-  transit_mixer_6cum: true
-  concrete_pump_boom_36m: true
   light_crane_3t: true
-  crawler_crane_50t: true
   water_tanker_12kl: true
-  dewatering_pump_set: false
-  compaction_plate: true
-  vibratory_roller_8_10t: true
-  welding_machine: false
-  hdpe_butt_fusion_machine: false
   dg_set_125kva: false
-
-# =============================================================================
-# Crew compositions
-# =============================================================================
+  hydraulic_breaker_attachment: false
+pipeline_project_inputs:
+  pipeline_category: water_transmission_or_distribution
+  project_name: null
+  project_location: null
+  start_date: null
+  target_duration_days: null
+  budget_inr: null
+  pipeline_length_m: null
+  pipe_material: null
+  pipe_diameter_mm: null
+  pressure_class_or_pn_rating: null
+  design_pressure_bar: null
+  number_of_valves: 0
+  number_of_air_valves: 0
+  number_of_scour_valves: 0
+  number_of_washout_points: 0
+  number_of_thrust_blocks: 0
+  number_of_service_connections: 0
+  number_of_road_crossings: 0
+  number_of_rail_crossings: 0
+  number_of_hdd_crossings: 0
+  number_of_work_fronts: 2
+site_conditions:
+  terrain: plain
+  soil_type: ordinary
+  groundwater_condition: normal
+  rock_excavation_required: false
+  urban_or_rural: rural
+  traffic_congestion: low
+  existing_utility_congestion: low
+  right_of_way_available: true
+  dewatering_required: false
+  notes: Set these from alignment survey, geotechnical investigation, utility survey and site inspection. Plain/ordinary/normal
+    are initial defaults, not confirmed site facts.
+productivity_adjustment_factors:
+  plain_terrain: 1.0
+  hilly_terrain: 0.7
+  monsoon: 0.65
+  night_shift: 0.8
+  rolling_terrain: 0.85
+  urban_congestion: 0.75
+  high_groundwater: 0.85
+  hard_rock: 0.35
+  normal_soil: 1.0
+  note: Only apply relevant factors to affected activities. The terrain/soil/congestion values not present in the
+    road file are provisional engineering assumptions and require calibration.
 crew_composition:
-  pipeline_survey:
-    - { trade: surveyor, count: 1 }
-    - { trade: unskilled, count: 2 }
-    - { trade: supervisor, count: 1 }
-  mobilization_crew:
-    - { trade: supervisor, count: 2 }
-    - { trade: unskilled, count: 6 }
-    - { trade: equipment_operator, count: 1 }
-    - { trade: electrician, count: 1 }
-  site_clearance_crew:
-    - { trade: equipment_operator, count: 1 }
-    - { trade: driver, count: 2 }
-    - { trade: unskilled, count: 4 }
-    - { trade: supervisor, count: 1 }
-  trench_excavation_crew:
-    - { trade: equipment_operator, count: 1 }
-    - { trade: driver, count: 2 }
-    - { trade: unskilled, count: 3 }
-    - { trade: supervisor, count: 1 }
-  dewatering_crew:
-    - { trade: unskilled, count: 2 }
-    - { trade: supervisor, count: 1 }
-  bedding_crew:
-    - { trade: unskilled, count: 4 }
-    - { trade: equipment_operator, count: 1 }
-    - { trade: supervisor, count: 1 }
-  pipe_handling_crew:
-    - { trade: equipment_operator, count: 1 }
-    - { trade: driver, count: 1 }
-    - { trade: unskilled, count: 3 }
-    - { trade: supervisor, count: 1 }
-  pipe_laying_crew:
-    - { trade: skilled, count: 2 }
-    - { trade: unskilled, count: 4 }
-    - { trade: equipment_operator, count: 1 }
-    - { trade: driver, count: 1 }
-    - { trade: supervisor, count: 1 }
-  pipe_jointing_crew:
-    - { trade: highly_skilled, count: 2 }
-    - { trade: skilled, count: 1 }
-    - { trade: unskilled, count: 2 }
-    - { trade: supervisor, count: 1 }
-  chamber_crew:
-    - { trade: skilled, count: 3 }
-    - { trade: unskilled, count: 4 }
-    - { trade: equipment_operator, count: 1 }
-    - { trade: supervisor, count: 1 }
-    - { trade: plumber, count: 1 }
-  pipeline_concrete_crew:
-    - { trade: skilled, count: 2 }
-    - { trade: highly_skilled, count: 1 }
-    - { trade: unskilled, count: 6 }
-    - { trade: equipment_operator, count: 1 }
-    - { trade: driver, count: 1 }
-    - { trade: supervisor, count: 1 }
-  backfill_crew:
-    - { trade: equipment_operator, count: 1 }
-    - { trade: unskilled, count: 4 }
-    - { trade: driver, count: 1 }
-    - { trade: supervisor, count: 1 }
-  testing_crew:
-    - { trade: skilled, count: 2 }
-    - { trade: unskilled, count: 2 }
-    - { trade: qc_technician, count: 1 }
-    - { trade: supervisor, count: 1 }
-  commissioning_crew:
-    - { trade: skilled, count: 2 }
-    - { trade: qc_technician, count: 1 }
-    - { trade: plumber, count: 1 }
-    - { trade: supervisor, count: 1 }
-  reinstatement_crew:
-    - { trade: equipment_operator, count: 2 }
-    - { trade: driver, count: 2 }
-    - { trade: skilled, count: 2 }
-    - { trade: unskilled, count: 4 }
-    - { trade: supervisor, count: 1 }
-
-# Equipment per crew profile
+  trench_excavation:
+  - trade: equipment_operator
+    count: 1
+  - trade: driver
+    count: 2
+  - trade: unskilled
+    count: 3
+  - trade: supervisor
+    count: 1
+  pipe_lowering_laying_jointing:
+  - trade: highly_skilled
+    count: 2
+  - trade: skilled
+    count: 2
+  - trade: unskilled
+    count: 4
+  - trade: equipment_operator
+    count: 1
+  - trade: supervisor
+    count: 1
+  hdpe_fusion_jointing:
+  - trade: highly_skilled
+    count: 1
+  - trade: skilled
+    count: 2
+  - trade: unskilled
+    count: 2
+  - trade: supervisor
+    count: 1
+  di_ms_jointing:
+  - trade: highly_skilled
+    count: 2
+  - trade: skilled
+    count: 2
+  - trade: unskilled
+    count: 4
+  - trade: supervisor
+    count: 1
+  backfilling_compaction:
+  - trade: equipment_operator
+    count: 1
+  - trade: unskilled
+    count: 4
+  - trade: supervisor
+    count: 1
+  valve_and_fitting_installation:
+  - trade: highly_skilled
+    count: 1
+  - trade: skilled
+    count: 2
+  - trade: unskilled
+    count: 2
+  - trade: supervisor
+    count: 1
+  testing_and_disinfection:
+  - trade: highly_skilled
+    count: 1
+  - trade: skilled
+    count: 1
+  - trade: qc_technician
+    count: 1
+  - trade: site_engineer
+    count: 1
+  - trade: unskilled
+    count: 2
+  rcc_thrust_block_or_chamber:
+  - trade: skilled
+    count: 2
+  - trade: highly_skilled
+    count: 2
+  - trade: unskilled
+    count: 5
+  - trade: supervisor
+    count: 1
 equipment_per_activity:
-  pipeline_survey: []
-  mobilization_crew: [jcb_3dx]
-  site_clearance_crew: [jcb_3dx, tipper_10t]
-  trench_excavation_crew: [excavator_0_9cum, tipper_10t, water_tanker_12kl]
-  dewatering_crew: [dewatering_pump_set]
-  bedding_crew: [compaction_plate, tipper_10t]
-  pipe_handling_crew: [light_crane_3t, tipper_10t]
-  pipe_laying_crew: [light_crane_3t, tipper_10t]
-  pipe_jointing_crew: []
-  chamber_crew: [jcb_3dx, transit_mixer_6cum]
-  pipeline_concrete_crew: [transit_mixer_6cum, concrete_pump_boom_36m]
-  backfill_crew: [jcb_3dx, vibratory_roller_8_10t, tipper_10t]
-  testing_crew: []
-  commissioning_crew: []
-  reinstatement_crew: [jcb_3dx, vibratory_roller_8_10t, tipper_10t, tipper_10t]
-
-# Crew profile per activity key (used by CostCalculator._build_day_rates)
-crew_profile_by_activity_key:
-  pip_001: pipeline_survey
-  pip_002: mobilization_crew
-  pip_003: site_clearance_crew
-  pip_004: trench_excavation_crew
-  pip_005: dewatering_crew
-  pip_006: bedding_crew
-  pip_007: pipe_handling_crew
-  pip_008: pipe_laying_crew
-  pip_009: pipe_jointing_crew
-  pip_010: chamber_crew
-  pip_011: pipeline_concrete_crew
-  pip_012: backfill_crew
-  pip_013: backfill_crew
-  pip_014: testing_crew
-  pip_015: commissioning_crew
-  pip_016: reinstatement_crew
-  pip_017: commissioning_crew
-
-# =============================================================================
-# Direct unit rates — 2026 Hyderabad indicative (CPWD DSR 2021 basis)
-# =============================================================================
-direct_unit_rates_inr:
-  pip_001: 18000       # Survey & route marking: Rs 18,000/km
-  pip_002: 850000      # Mobilization lump sum (1.0 LS)
-  pip_003: 45          # Site clearance: Rs 45/sqm
-  pip_004: 320         # Trench excavation: Rs 320/cum (all strata average)
-  pip_005: 8500        # Dewatering: Rs 8,500/day
-  pip_006: 680         # Granular bedding: Rs 680/cum
-  pip_007: 6800        # Pipe supply & delivery — DN600 DI (unit = per metre)
-  pip_008: 1200        # Pipe lowering & laying: Rs 1,200/m (DN600)
-  pip_009: 850         # Jointing: Rs 850/joint (rubber ring, DI)
-  pip_010: 185000      # Valve chamber complete: Rs 1.85 lakh/chamber
-  pip_011: 8500        # RCC thrust block: Rs 8,500/cum (M20 incl. form & reinf)
-  pip_012: 420         # Initial selected backfill: Rs 420/cum
-  pip_013: 210         # Final backfill & compaction: Rs 210/cum
-  pip_014: 25000       # Hydrotest per 500m section: Rs 25,000/section
-  pip_015: 35000       # Flushing & disinfection: Rs 35,000/km
-  pip_016: 680         # Road reinstatement (WMM+BC): Rs 680/sqm
-  pip_017: 350000      # Commissioning & handover lump sum
-
-# =============================================================================
-# Material recipes per unit output
-# =============================================================================
-material_per_unit:
-  rcc_m20:
-    cement_kg: 320
-    river_sand_cum: 0.50
-    agg_20mm_cum: 0.65
-    agg_10mm_cum: 0.30
-    steel_kg: 60
-    water_litre: 165
-    admix_plasticiser_kg: 3.0
-    ply_shuttering_sqm: 3.5
-  pipe_bedding:
-    selected_bedding_aggregate_cum: 1.05
-  selected_backfill:
-    selected_bedding_aggregate_cum: 1.02
-
-activity_material_recipe:
-  pip_006:
-    recipe: pipe_bedding
-    per_output: 1.0
-  pip_011:
-    recipe: rcc_m20
-    per_output: 1.0
-  pip_012:
-    recipe: selected_backfill
-    per_output: 1.0
-
-# Activities with no material recipe (pure labour+plant+fuel)
-activity_no_material_recipe:
-  - pip_001
-  - pip_002
-  - pip_003
-  - pip_004
-  - pip_005
-  - pip_007
-  - pip_008
-  - pip_009
-  - pip_010
-  - pip_013
-  - pip_014
-  - pip_015
-  - pip_016
-  - pip_017
-
-# =============================================================================
-# Material bindings (rate key → material_rates_inr key, wastage category, divisor)
-# =============================================================================
-material_bindings:
-  cement_kg:
-    rate: cement_opc53_bag
-    wastage: cement
-    divisor: 50
-  river_sand_cum:
-    rate: river_sand_cum
-    wastage: aggregate
-    divisor: 1
-  agg_20mm_cum:
-    rate: agg_20mm_cum
-    wastage: aggregate
-    divisor: 1
-  agg_10mm_cum:
-    rate: agg_10mm_cum
-    wastage: aggregate
-    divisor: 1
-  steel_kg:
-    rate: tmt_steel_fe500d_mt
-    wastage: steel
-    divisor: 1000
-  water_litre:
-    rate: water_kl
-    wastage: water
-    divisor: 1000
-  admix_plasticiser_kg:
-    rate: admix_plasticiser_kg
-    wastage: admix
-    divisor: 1
-  ply_shuttering_sqm:
-    rate: ply_shuttering_sqm
-    wastage: formwork
-    divisor: 1
-  selected_bedding_aggregate_cum:
-    rate: selected_bedding_aggregate_cum
-    wastage: aggregate
-    divisor: 1
-
-# =============================================================================
-# Wastage factors
-# =============================================================================
-wastage:
-  default: 0.03
-  cement: 0.03
-  aggregate: 0.05
-  steel: 0.02
-  bitumen: 0.02
-  water: 0.0
-  admix: 0.02
-  formwork: 0.10
-  bricks: 0.05
-
-wastage_non_material:
-  fuel_idle_pct: 0.05
-  plant_idle_pct: 0.05
-  labour_idle_pct: 0.04
-
-# =============================================================================
-# Cost factors
-# =============================================================================
-statutory_and_overheads:
-  overhead_slabs:
-    - { max_budget_cr: 5.0, overhead_pct: 10.0 }
-    - { max_budget_cr: 20.0, overhead_pct: 8.0 }
-    - { max_budget_cr: 999999, overhead_pct: 7.5 }
-  profit_pct: 10.0
-
-cost_breakdown_shares:
-  labour_share: 0.20
-  material_share: 0.50
-  equipment_share: 0.20
-  fuel_share: 0.10
-
-crashing_factors:
-  equipment_mobilization_pct: 0.03
-  shift_overtime_premium_pct: 0.15
-  supervision_per_front_pct: 0.02
-  site_congestion_factor_pct: 0.01
-
-acceleration_step_costs:
-  site_establishment_per_front_day: 20000
-  resident_staff_per_front_day: 12000
-  plant_hire_billing_days: 30
-  gang_interference_pct: 0.03
-
-re_sequencing_acceleration:
-  plant_redeployment_pct: 0.08
-  concurrency_congestion_pct: 0.02
-
-# SDB on-cost multipliers — pipeline equivalent (CPWD DSR basis: 8% OH + 10% CP)
-sdb_rate_oncost:
-  road:
-    overhead_pct: 8.0
-    contractor_profit_pct: 10.0
-  structures:
-    overhead_pct: 10.0
-    contractor_profit_pct: 10.0
-  structure_categories:
-    - Structures and Fittings
-    - Concrete Works
-
-# =============================================================================
-# Escalation (disabled by default — set enabled: true to activate)
-# =============================================================================
-escalation:
-  enabled: false
-  annual_rate_pct: 5.5
-  source: ""
-  contract_escalation_clause: ""
-
-# =============================================================================
-# Major plant (site-wide shared, not scaled with gang count)
-# =============================================================================
-major_plant: []
-major_plant_max_units: 1
-
-# =============================================================================
-# Staggered handover chains (pipeline front-to-front handover)
-# =============================================================================
-staggered_handover_chains: []
+  trench_excavation:
+  - excavator_0_9cum
+  - tipper_10t
+  - jcb_3dx
+  rock_excavation:
+  - excavator_0_9cum
+  - hydraulic_breaker_attachment
+  - tipper_10t
+  pipe_lowering_laying_jointing:
+  - light_crane_3t
+  - tipper_10t
+  hdpe_fusion_jointing:
+  - dg_set_125kva
+  backfilling_compaction:
+  - jcb_3dx
+  - water_tanker_12kl
+  valve_and_fitting_installation:
+  - light_crane_3t
+  dewatering:
+  - dg_set_125kva
+  testing_and_disinfection:
+  - dg_set_125kva
+resource_limits:
+  maximum_work_fronts: 3
+  maximum_excavators: 2
+  maximum_jcb: 3
+  maximum_tippers: 4
+  maximum_pipe_laying_crews: 3
+  maximum_fusion_or_jointing_crews: 2
+  maximum_light_cranes: 2
+  maximum_dewatering_pumps: 3
+  maximum_testing_crews: 2
+pipeline_material_inputs:
+  pipe_rate_by_material_diameter_and_class_inr_per_m: {}
+  fittings_rate_by_type_and_diameter_inr: {}
+  valve_rate_by_type_and_diameter_inr: {}
+  jointing_material_rate_by_joint_type_inr: {}
+  bedding_sand_rate_inr_per_m3: 2000
+  selected_backfill_rate_inr_per_m3: 500
+  warning_tape_rate_inr_per_m: null
+  route_marker_rate_inr_each: null
+  disinfectant_rate_inr_per_kg: null
+  note: Only bedding sand and selected granular rates are referenced from the road assumptions. Confirm whether
+    the project specification calls for these materials and use actual delivered rates.
+pipeline_specific_norms:
+  trench_excavation_quantity_formula: pipeline_length_m * trench_width_m * average_trench_depth_m
+  trench_width_m: null
+  average_trench_depth_m: null
+  bedding_thickness_m: null
+  pipe_surround_thickness_m: null
+  pipe_joint_type: null
+  hydrotest_section_length_m: null
+  hydrotest_pressure_bar: null
+  hydrotest_duration_hours: null
+  flushing_required: true
+  disinfection_required: true
+  road_reinstatement_area_sqm: null
+cost_parameters:
+  sdb_rate_oncost:
+    road:
+      overhead_pct: 8.0
+      contractor_profit_pct: 10.0
+    structures:
+      overhead_pct: 20.0
+      contractor_profit_pct: 10.0
+    structure_categories:
+    - Structures
+  wastage:
+    cement: 0.03
+    steel: 0.03
+    aggregate: 0.05
+    sand: 0.05
+    bitumen: 0.02
+    concrete: 0.04
+    bricks: 0.05
+    paint: 0.05
+    tiles: 0.05
+    waterproofing: 0.03
+    mortar: 0.05
+    default: 0.03
+  wastage_non_material:
+    fuel_idle_pct: 0.08
+    plant_idle_pct: 0.06
+    labour_idle_pct: 0.04
+  escalation:
+    enabled: true
+    source: WPI (OEA/DPIIT, base 2011-12) sub-indices; CPI-IW All-India (MoSPI); IOCL ex-refinery VG-40
+    contract_escalation_clause: null
+    index_formula: 'annual compounding: factor = (1 + r)^years to mid-point of spend'
+    material_index: WPI Manufactured Products & General Materials
+    labour_index: CPI-IW All-India Industrial Labour
+    plant_index: WPI Construction Machinery & Heavy Equipment
+    fuel_index: WPI High Speed Diesel / Energy
+    weights: cost_breakdown_shares in assumptions (labour/material/plant/fuel)
+    base_date: '2026-10-01'
+    annual_rates:
+      material: 0.04
+      labour: 0.05
+      plant: 0.03
+      fuel: 0.06
+    default_annual_rate: 0.045
+    index_overrides:
+      bitumen:
+        annual: 0.065
+        note: Based on IOCL ex-refinery VG-40 price trajectory linked to crude oil trends.
+      steel:
+        annual: 0.048
+        note: Based on WPI Mild Steel - Long Products sub-index growth trend.
+    method: spend_curve_midpoint
+    cap_pct_of_base: null
+    excluded:
+    - site_mobilization
+    - toll_plaza_atms
+    - utility_shifting
+    disclose_in_report: true
+  cost_breakdown_shares:
+    labour_share: 0.18
+    material_share: 0.54
+    equipment_share: 0.18
+    fuel_share: 0.1
+  note: Road-derived cost add-ons are retained as reference settings only. Confirm the applicable water-supply contract/SOR
+    treatment before applying overhead, contractor profit, taxes or escalation.
+duration_and_cost_calculation:
+  duration_formula: ceil(quantity / (activity_master.productivity_rate * assigned_crews * applicable_productivity_factor))
+  labour_cost: sum(crew_trade_count * labour_rate_per_day) * activity_duration_working_days
+  equipment_cost: sum(equipment_hire_rate_per_day * equipment_units) * equipment_duration_days
+  fuel_cost: equipment_hours_per_day * fuel_consumption_lph * equipment_units * diesel_rate * operating_days
+  material_cost: material_quantity_per_activity_unit * activity_quantity * material_rate
+  calendar_rule: Use the calendar values copied from the road assumptions.
+  productivity_source: Use the Productivity Rate and Base Crews from the water pipeline Activity Master; do not
+    replace these with road productivity norms.
+  dependency_rule: Follow pipeline Activity Master predecessors. Permit sectional overlap only if the execution
+    plan supports separate work fronts and testing/backfilling hold points.
+  scope_boundary: This assumptions file is for buried/above-ground water transmission and distribution pipeline
+    corridor works only; it excludes treatment plants, reservoirs, intake works and pumping-station building/E&M
+    packages.
