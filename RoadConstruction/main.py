@@ -440,6 +440,16 @@ def _build_pipeline_parser() -> argparse.ArgumentParser:
                    help="Number of intake / booster pumping stations")
     p.add_argument("--fhtc", type=int, default=0,
                    help="Number of functional household tap connections")
+    p.add_argument("--road-crossings", type=int, default=0,
+                   help="Declared open-cut road crossings (0 = derive from length)")
+    p.add_argument("--highway-crossings", type=int, default=0,
+                   help="Declared NH/SH crossings")
+    p.add_argument("--rail-crossings", type=int, default=0,
+                   help="Declared rail crossings")
+    p.add_argument("--hdd-crossings", type=int, default=0,
+                   help="Declared HDD/trenchless crossings")
+    p.add_argument("--river-crossings", type=int, default=0,
+                   help="Declared river crossings")
     p.add_argument("--duration", type=str, default="")
     p.add_argument("--budget", type=str, default="")
     p.add_argument("--start-date", type=str, default="")
@@ -572,6 +582,11 @@ def run_pipeline(args) -> None:
         wtp_capacity_mld=args.wtp_mld,
         num_ibps=args.ibps,
         num_fhtc=args.fhtc,
+        number_of_road_crossings=args.road_crossings,
+        number_of_highway_crossings=args.highway_crossings,
+        number_of_rail_crossings=args.rail_crossings,
+        number_of_hdd_crossings=args.hdd_crossings,
+        number_of_river_crossings=args.river_crossings,
     )
     guidelines, assumptions = _auto_config("pipeline", args.guidelines, args.assumptions)
     output = args.output or _CONFIG["pipeline"]["output"]

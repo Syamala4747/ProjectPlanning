@@ -114,6 +114,15 @@ class ProjectInput:
     num_ibps: int = 0                   # intake / booster pumping stations
     num_fhtc: int = 0                   # functional household tap connections
 
+    # Declared crossings. These override the configured defaults in
+    # pipeline_assumptions.yaml, so a scheme variant does not need a second
+    # assumptions file just to declare its crossings.
+    number_of_road_crossings: int = 0
+    number_of_highway_crossings: int = 0
+    number_of_rail_crossings: int = 0
+    number_of_hdd_crossings: int = 0
+    number_of_river_crossings: int = 0
+
     # --- Building-specific fields ---
     built_up_area_sqm: float = 0.0      # total built-up area across all floors (sqft input converted before passing)
     number_of_floors: int = 0           # G+N => total floors = N+1; e.g. G+3 => 4

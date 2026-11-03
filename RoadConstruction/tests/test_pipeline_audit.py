@@ -247,18 +247,17 @@ def test_workbook_reconciles_to_the_model(runs, tmp_path):
 def test_declared_crossings_do_not_create_open_cut_road_work():
     with open(ASSUMPTIONS, "r", encoding="utf-8") as fh:
         assumptions = yaml.safe_load(fh)
-    inputs = assumptions.setdefault("pipeline_project_inputs", {})
-    inputs.update({
-        "number_of_road_crossings": 4,
-        "number_of_highway_crossings": 2,
-        "number_of_rail_crossings": 1,
-        "number_of_river_crossings": 1,
-        "number_of_hdd_crossings": 2,
-    })
-    pi = ProjectInput(project_type="pipeline", start_date=date(2026, 1, 1),
-                      title="crossing check", duration_days=365, budget_crore=10.0,
-                      length_km=10.0, pipe_diameter_mm=300, pipe_material="DI",
-                      trench_depth_m=2.0)
+    pi = ProjectInput(
+        project_type="pipeline", start_date=date(2026, 1, 1),
+        title="crossing check", duration_days=365, budget_crore=10.0,
+        length_km=10.0, pipe_diameter_mm=300, pipe_material="DI",
+        trench_depth_m=2.0,
+        number_of_road_crossings=4,
+        number_of_highway_crossings=2,
+        number_of_rail_crossings=1,
+        number_of_river_crossings=1,
+        number_of_hdd_crossings=2,
+    )
     q = PipelineQuantityCalculator(pi, assumptions).calculate_quantities()
     assert q["dismantling_roads"]["quantity"] == pytest.approx(4 * 20.0)
     assert q["restoration_roads"]["quantity"] == pytest.approx(4 * 20.0)

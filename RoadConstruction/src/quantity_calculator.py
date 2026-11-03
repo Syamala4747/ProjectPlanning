@@ -344,11 +344,16 @@ class PipelineQuantityCalculator:
         self.number_of_air_valves = int(inputs.get("number_of_air_valves", 0) or 0)
         self.number_of_scour_valves = int(inputs.get("number_of_scour_valves", 0) or 0)
         self.number_of_thrust_blocks = int(inputs.get("number_of_thrust_blocks", 0) or 0)
-        self.number_of_road_crossings = int(inputs.get("number_of_road_crossings", 0) or 0)
-        self.number_of_highway_crossings = int(inputs.get("number_of_highway_crossings", 0) or 0)
-        self.number_of_rail_crossings = int(inputs.get("number_of_rail_crossings", 0) or 0)
-        self.number_of_hdd_crossings = int(inputs.get("number_of_hdd_crossings", 0) or 0)
-        self.number_of_river_crossings = int(inputs.get("number_of_river_crossings", 0) or 0)
+        self.number_of_road_crossings = _count(
+            "number_of_road_crossings", "number_of_road_crossings", int)
+        self.number_of_highway_crossings = _count(
+            "number_of_highway_crossings", "number_of_highway_crossings", int)
+        self.number_of_rail_crossings = _count(
+            "number_of_rail_crossings", "number_of_rail_crossings", int)
+        self.number_of_hdd_crossings = _count(
+            "number_of_hdd_crossings", "number_of_hdd_crossings", int)
+        self.number_of_river_crossings = _count(
+            "number_of_river_crossings", "number_of_river_crossings", int)
         self.number_of_service_connections = int(
             inputs.get("number_of_service_connections", 0) or 0)
         self.installation_method = str(
