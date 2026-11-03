@@ -177,9 +177,20 @@ class WorkbookReader:
         if mat_raw not in {"DI", "HDPE", "MS", "RCC"}:
             mat_raw = "DI"
 
-        # Trench depth
+        # Trench depth / width
         trench_depth = float(
             self._parse_float(values.get("Trench Depth (Average)")) or 2.0)
+        trench_width = float(
+            self._parse_float(values.get("Trench Width (Excavated)")) or 0.0)
+
+        # Installation method
+        method_raw = str(
+            values.get("Installation Method", "Open Trench") or "Open Trench"
+        ).strip().lower()
+        installation_method = (
+            "trenchless" if ("trenchless" in method_raw or "hdd" in method_raw)
+            else "open_trench"
+        )
 
         # Work fronts
         fronts = int(self._parse_int(values.get("Number of Work Fronts")) or 1)
@@ -193,6 +204,32 @@ class WorkbookReader:
         if pipe_type not in {"water", "sewerage", "gas"}:
             pipe_type = "water"
 
+        # Scheme-level inputs. These labels are present only for a facility
+        # run; a corridor-only workbook leaves them absent (zero).
+        num_villages = int(self._parse_int(values.get("Villages Served")) or 0)
+        num_oht = int(self._parse_int(
+            values.get("Overhead Service Reservoirs (OHT/ESR)")) or 0)
+        wtp_mld = float(
+            self._parse_float(values.get("Water Treatment Plant Capacity")) or 0.0)
+        num_ibps = int(self._parse_int(
+            values.get("Intake / Booster Pumping Stations")) or 0)
+        num_fhtc = int(self._parse_int(
+            values.get("Functional Household Tap Connections")) or 0)
+
+        # Declared site-specific crossings. Old workbooks do not carry these
+        # rows, so they fall back to zero and the quantity calculator derives
+        # only the road crossings implied by the alignment.
+        number_of_road_crossings = int(self._parse_int(
+            values.get("Road Crossings (Declared)")) or 0)
+        number_of_highway_crossings = int(self._parse_int(
+            values.get("Highway Crossings (Declared)")) or 0)
+        number_of_rail_crossings = int(self._parse_int(
+            values.get("Rail Crossings (Declared)")) or 0)
+        number_of_hdd_crossings = int(self._parse_int(
+            values.get("HDD / Trenchless Crossings (Declared)")) or 0)
+        number_of_river_crossings = int(self._parse_int(
+            values.get("River Crossings (Declared)")) or 0)
+
         title = f"{length_km:g} km DN{int(dia_mm)} {mat_raw} Pipeline"
         return ProjectInput(
             title=title,
@@ -204,9 +241,21 @@ class WorkbookReader:
             pipe_diameter_mm=dia_mm,
             pipe_material=mat_raw,
             trench_depth_m=trench_depth,
+            trench_width_m=trench_width,
+            installation_method=installation_method,
             number_of_work_fronts=fronts,
             pipeline_type=pipe_type,
             terrain=terrain,
+            num_villages=num_villages,
+            num_oht=num_oht,
+            wtp_capacity_mld=wtp_mld,
+            num_ibps=num_ibps,
+            num_fhtc=num_fhtc,
+            number_of_road_crossings=number_of_road_crossings,
+            number_of_highway_crossings=number_of_highway_crossings,
+            number_of_rail_crossings=number_of_rail_crossings,
+            number_of_hdd_crossings=number_of_hdd_crossings,
+            number_of_river_crossings=number_of_river_crossings,
         )
 
     def _extract_building_input(self, values: Dict[str, Any],
@@ -240,6 +289,11 @@ class WorkbookReader:
         basement_raw = str(values.get("Basement", "No") or "No").strip().lower()
         basement = basement_raw in {"yes", "true", "1"}
 
+        # Blocks / towers determine the external envelope and the available
+        # parallel fronts, so they must survive the workbook round-trip.
+        blocks = int(self._parse_int(
+            values.get("Number of Blocks / Towers")) or 1)
+
         title = f"{bua:,.0f} sqm G+{floors - 1} {btype.title()} Building"
         return ProjectInput(
             title=title,
@@ -254,6 +308,7 @@ class WorkbookReader:
             construction_type=ctype,
             quality_finish=quality,
             basement=basement,
+            number_of_blocks=blocks,
         )
 
     # ------------------------------------------------------------------ summary
@@ -266,10 +321,16 @@ class WorkbookReader:
         if "01_Project_Summary" not in wb.sheetnames:
             return meta
         ws = wb["01_Project_Summary"]
-        for row in ws.iter_rows(values_only=True):
-            for val in row:
-                if val and isinstance(val, str):
-                    meta["_raw_" + str(val)[:40]] = True
+
+        baseline_days = self._parse_int(
+            self._find_dashboard_value(ws, "Baseline Duration"))
+        if baseline_days is not None and baseline_days > 0:
+            meta["baseline_duration_days"] = baseline_days
+
+        baseline_cost = self._parse_float(
+            self._find_dashboard_value(ws, "Baseline Cost"))
+        if baseline_cost is not None and baseline_cost > 0:
+            meta["baseline_cost_crore"] = baseline_cost
 
         # Also grab the S-curve monthly data for baseline progress lookup.
         scurve = self._extract_scurve(wb)
@@ -277,6 +338,31 @@ class WorkbookReader:
             meta["scurve_months"] = scurve
 
         return meta
+
+    @staticmethod
+    def _find_dashboard_value(ws, label: str):
+        """Find a KPI label and return the value in the cell below it.
+
+        The Sheet 01 dashboard writes labels in one row and values directly
+        beneath them (for example E5='Baseline Duration (Normal)', E6='537
+        Days'). It falls back to the cell to the right for layouts that use
+        label/value pairs on one row.
+        """
+        wanted = str(label).strip().lower()
+        for row in ws.iter_rows():
+            for cell in row:
+                value = cell.value
+                if not isinstance(value, str):
+                    continue
+                if not value.strip().lower().startswith(wanted):
+                    continue
+                below = ws.cell(row=cell.row + 1, column=cell.column).value
+                if below is not None and str(below).strip():
+                    return below
+                right = ws.cell(row=cell.row, column=cell.column + 1).value
+                if right is not None and str(right).strip():
+                    return right
+        return None
 
     def _extract_scurve(self, wb) -> List[Dict[str, Any]]:
         """Parse Sheet 13 (S-Curve) for monthly cumulative progress data."""
@@ -305,7 +391,9 @@ class WorkbookReader:
             return None
         if isinstance(val, (int, float)):
             return float(val)
-        s = str(val).strip().replace(",", "").replace("₹", "").replace("Cr", "")
+        # Dashboard cells are formatted like "₹ 43.33 Crore" or "537 Days".
+        # Keep only the numeric token so the value is not lost to the unit.
+        s = re.sub(r"[^\d.\-]", "", str(val).strip())
         try:
             return float(s)
         except ValueError:

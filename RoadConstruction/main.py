@@ -51,24 +51,31 @@ _CONFIG = {
 
 def parse_duration_input(raw_input: str) -> int:
     """Parses duration string like '365', '365 days', '12 months' into days."""
-    s = str(raw_input).strip().lower()
-    match_months = re.search(r"(\d+(\.\d+)?)\s*(months?|m)", s)
+    s = str(raw_input).strip().lower().replace(",", "")
+    match_months = re.search(r"(\d+(?:\.\d+)?)\s*(months?|mo|m)\b", s)
     if match_months:
         months_val = float(match_months.group(1))
         return int(round(months_val * 30))
-    match_days = re.search(r"(\d+(\.\d+)?)", s)
+    match_days = re.search(r"(\d+(?:\.\d+)?)", s)
     if match_days:
         return int(round(float(match_days.group(1))))
     raise ValueError(f"Unable to parse duration from: '{raw_input}'")
 
 
 def parse_budget_input(raw_input: str) -> float:
-    """Parses budget string into float Crore."""
-    s = str(raw_input).strip().lower()
-    match = re.search(r"(\d+(\.\d+)?)", s)
-    if match:
-        return float(match.group(1))
-    raise ValueError(f"Unable to parse budget from: '{raw_input}'")
+    """Parses a budget string into Crore.
+
+    Accepts plain numbers ('1000'), currency formatting ('₹ 1,000 Cr') and
+    lakh/lac units ('150 lakh' -> 1.5 Cr). Crore is the model's native unit.
+    """
+    s = str(raw_input).strip().lower().replace(",", "")
+    match = re.search(r"(\d+(?:\.\d+)?)", s)
+    if not match:
+        raise ValueError(f"Unable to parse budget from: '{raw_input}'")
+    value = float(match.group(1))
+    if re.search(r"\b(lakh|lakhs|lac|lacs)\b", s):
+        return value / 100.0
+    return value
 
 
 def parse_start_date(raw_input: str) -> date:
@@ -134,6 +141,7 @@ def run_project_planning(
         print(f"Pipeline Type:              {getattr(project_input, 'pipeline_type', 'water').title()}")
         print(f"Pipe Specification:         DN{int(project_input.pipe_diameter_mm)} {project_input.pipe_material}")
         print(f"Total Length:               {project_input.length_km:.2f} km")
+        print(f"Installation Method:        {project_input.installation_method.replace('_', ' ').title()}")
         print(f"Trench:                     {project_input.trench_depth_m:.1f}m deep × {project_input.trench_width_m:.2f}m wide")
         print(f"Work Fronts:                {project_input.number_of_work_fronts}")
     elif ptype == "building":
@@ -232,13 +240,23 @@ def run_update_plan(args) -> None:
     if args.start_date:
         proj_input.start_date = parse_start_date(args.start_date)
 
+    ptype = str(getattr(proj_input, "project_type", "road") or "road").lower()
     print(f"      Project: {proj_input.title}")
-    print(f"      Length:  {proj_input.length_km:.1f} km, {proj_input.lanes}-Lane, {proj_input.terrain}")
+    if ptype == "building":
+        print(f"      Built-up area: {proj_input.built_up_area_sqm:,.1f} sqm, "
+              f"G+{max(0, proj_input.number_of_floors - 1)}, "
+              f"{proj_input.number_of_blocks} block(s)")
+    elif ptype == "pipeline":
+        print(f"      Length:  {proj_input.length_km:.1f} km, DN"
+              f"{int(proj_input.pipe_diameter_mm)} {proj_input.pipe_material}, "
+              f"{proj_input.number_of_work_fronts} front(s)")
+    else:
+        print(f"      Length:  {proj_input.length_km:.1f} km, "
+              f"{proj_input.lanes}-Lane, {proj_input.terrain}")
     print(f"      Start:   {proj_input.start_date}")
 
     # 2. Load guidelines and assumptions
     print("  [2/6] Loading guidelines and assumptions...")
-    ptype = str(getattr(proj_input, "project_type", "road") or "road").lower()
     guidelines_path, assumptions_path = _auto_config(
         ptype, getattr(args, "guidelines", "") or "", getattr(args, "assumptions", "") or "")
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
@@ -259,6 +277,22 @@ def run_update_plan(args) -> None:
           f"Rs {baseline_result.baseline_cost_crore:,.2f} Cr")
     print(f"      Optimized: {baseline_result.calculated_duration_days} d, "
           f"Rs {baseline_result.total_calculated_cost_crore:,.2f} Cr")
+
+    # Cross-check the re-derived baseline against the figures printed in the
+    # source workbook. A mismatch means the assumptions/config have changed
+    # since that workbook was generated, so the update is not a like-for-like
+    # replan of the original baseline.
+    source_days = metadata.get("baseline_duration_days")
+    source_cost = metadata.get("baseline_cost_crore")
+    if source_days is not None and abs(
+            baseline_result.baseline_duration_days - source_days) > 1:
+        print(f"      WARNING: source workbook baseline is {source_days} d, "
+              f"but re-derived baseline is {baseline_result.baseline_duration_days} d.")
+    if source_cost is not None and abs(
+            baseline_result.baseline_cost_crore - source_cost) > 0.05:
+        print(f"      WARNING: source workbook baseline cost is "
+              f"Rs {source_cost:,.2f} Cr, but re-derived baseline cost is "
+              f"Rs {baseline_result.baseline_cost_crore:,.2f} Cr.")
 
     # 4. Parse activity-level progress if provided
     activity_progress = None
@@ -426,6 +460,11 @@ def _build_pipeline_parser() -> argparse.ArgumentParser:
                    help="Pipe material: DI / HDPE / MS / RCC")
     p.add_argument("--trench-depth", type=float, default=2.0,
                    help="Average trench depth in metres")
+    p.add_argument("--trench-width", type=float, default=0.0,
+                   help="Excavated trench width in metres (0 = derive from pipe diameter)")
+    p.add_argument("--installation-method", type=str, default="open_trench",
+                   choices=("open_trench", "trenchless"),
+                   help="Open-trench or trenchless (HDD) installation")
     p.add_argument("--fronts", type=int, default=1,
                    help="Number of simultaneous work fronts")
     p.add_argument("--pipeline-type", type=str, default="water",
@@ -574,6 +613,8 @@ def run_pipeline(args) -> None:
         pipe_diameter_mm=args.diameter,
         pipe_material=args.material.upper(),
         trench_depth_m=args.trench_depth,
+        trench_width_m=args.trench_width,
+        installation_method=args.installation_method,
         number_of_work_fronts=args.fronts,
         pipeline_type=args.pipeline_type,
         terrain=args.terrain or "plain",
