@@ -101,7 +101,12 @@ class CPMEngine:
 
             act.ls = act.lf - act.duration_days
             act.total_float = act.ls - act.es
-            act.is_critical = (act.total_float == 0)
+            # A zero-duration, zero-quantity activity is OUT OF SCOPE (e.g. an
+            # undeclared HDD/river crossing or an absent treatment plant). It
+            # must not be reported as a critical activity: it contributes no
+            # work and no calendar, so calling it critical would put a phantom
+            # node on the reported critical path.
+            act.is_critical = (act.total_float == 0 and act.duration_days > 0)
 
         # 4. Map Dates
         for act in self.activities:
@@ -128,6 +133,15 @@ class CPMEngine:
         if not critical:
             return []
 
+        # A zero-duration activity is a PASS-THROUGH node (typically a
+        # material/size branch that is out of scope, or a declared crossing
+        # that was not configured). It is not a work-critical activity, but it
+        # is still a legitimate connector when the driving chain passes
+        # through it. Traverse those nodes, but keep them out of the reported
+        # work chain.
+        def drives(a: RoadActivity) -> bool:
+            return bool(a.is_critical or (a.duration_days == 0 and a.total_float == 0))
+
         terminal = [a for a in critical if a.ef == project_duration]
         if not terminal:
             terminal = [max(critical, key=lambda a: a.ef)]
@@ -140,16 +154,19 @@ class CPMEngine:
             drivers = []
             for pid in current.predecessors:
                 pred = self.act_dict.get(pid)
-                if pred is None or not pred.is_critical or pid in seen:
+                if pred is None or not drives(pred) or pid in seen:
                     continue
                 lag = current.predecessor_lags.get(pid, 0)
                 if pred.ef + lag == current.es:
                     drivers.append(pred)
             if not drivers:
                 break
-            nxt = max(drivers, key=lambda a: (a.ef, a.es))
-            chain.append(nxt)
+            # Prefer a real work activity; fall back to a pass-through node and
+            # keep walking until the chain re-joins real work.
+            nxt = max(drivers, key=lambda a: (a.duration_days > 0, a.ef, a.es))
             seen.add(nxt.activity_id)
+            if nxt.duration_days > 0:
+                chain.append(nxt)
             current = nxt
 
         chain.reverse()

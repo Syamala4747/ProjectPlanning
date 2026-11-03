@@ -40,26 +40,56 @@ calendar:
 
 # Activities eligible for night shift work on building projects
 night_work_eligible:
-  - bld_004   # excavation
-  - bld_005   # foundation RCC
-  - bld_006   # frame RCC (slab pours often extend overnight)
+  - excavation
+  - pile_caps          # foundation RCC
+  - column_stumps
+  - ground_beams
+  - gf_columns
+  - ff_beams_slab      # slab pours often extend overnight
+  - sf_beams_slab
+  - roof_beams
 
 # Building geometric parameters (all ratios are per sqm of built-up area)
 building_parameters:
-  foundation_rcc_per_sqm: 0.35      # cum RCC per sqm BUA (footings + raft + PCC)
+  foundation_rcc_per_sqm: 0.35      # reference foundation RCC intensity (cum/sqm BUA)
   frame_rcc_per_sqm: 0.40           # cum RCC per sqm BUA (columns + beams + slabs)
   masonry_per_sqm: 0.18             # cum brickwork per sqm BUA
   plaster_area_factor: 3.5          # sqm plaster per sqm BUA (walls both sides + ceiling)
   waterproofing_area_factor: 0.30   # terrace + toilet wet areas
   flooring_area_factor: 1.0         # 100% of BUA
-  painting_area_factor: 4.0         # sqm paint per sqm BUA (all surfaces)
+  painting_area_factor: 4.0         # sqm paint per sqm BUA (internal surfaces)
   external_works_factor: 0.50       # sqm external works per sqm site area
-  floor_area_ratio: 1.5             # for estimating site area from BUA
+  floor_area_ratio: 1.5             # plot area = BUA / FAR
   basement_excavation_depth_m: 3.5
+  # Explicit take-off factors used by BuildingQuantityCalculator.
+  floor_height_m: 3.2
+  external_wall_opening_factor: 0.20
+  pile_spacing_sqm: 12.0
+  pile_depth_base_m: 10.0
+  pile_depth_per_floor_m: 0.75
+  pile_cap_cum_per_pile: 1.0
+  column_stump_cum_per_pile: 0.6
+  ground_beam_cum_per_m: 0.18
+  plinth_fill_depth_m: 0.30
+  strip_excavation_depth_m: 0.30
+  door_per_sqm: 0.04
+  window_per_sqm: 0.05
+  electrical_points_per_sqm: 0.50
+  plumbing_m_per_sqm: 1.00
+  sanitary_per_sqm: 0.02
+  hardware_per_sqm: 0.01
+  railing_m_per_floor: 5.0
+  tiling_area_factor: 1.15
+  roof_truss_mt_per_sqm: 0.05
+  curtain_wall_factor_commercial: 0.35
+  curtain_wall_factor_premium: 0.10
 
-# When true, the CPWD DSR direct rate is used directly as the planned rate.
-# This bypasses the resource build-up (correct for published all-in rate books).
-use_direct_rate_as_planned: true
+# CPWD DSR direct rates are BARE rates (material + labour + plant). The
+# planned rate is built up by adding wastage, resource idle losses and the
+# statutory OH/profit slab, exactly as for pipeline.
+use_direct_rate_as_planned: false
+rate_build_up_mode: source_plus_oncosts
+rate_oncost_basis: statutory
 
 # Parallelism control
 crew_multiplier_cap: 4
@@ -349,28 +379,8 @@ equipment_per_activity:
   building_external_crew: [excavator_0_9cum, tipper_10t, vibratory_roller_8_10t]
   commissioning_crew: []
 
-# Crew profile per activity key
+# Crew profile per activity key (40-key catalogue)
 crew_profile_by_activity_key:
-  bld_001: building_survey
-  bld_002: mobilization_crew
-  bld_003: site_clearance_crew
-  bld_004: excavation_crew
-  bld_005: foundation_rcc_crew
-  bld_006: building_rcc_crew
-  bld_007: building_brickwork_crew
-  bld_008: building_plaster_crew
-  bld_009: building_waterproofing_crew
-  bld_010: building_tiling_crew
-  bld_011: joinery_crew
-  bld_012: building_finishing_crew
-  bld_013: building_painting_crew
-  bld_014: building_electrical_crew
-  bld_015: building_plumbing_crew
-  bld_016: building_hvac_crew
-  bld_017: building_fire_crew
-  bld_018: lift_crew
-  bld_019: building_external_crew
-  bld_020: commissioning_crew
   site_setting_out: building_survey
   site_clearance: site_clearance_crew
   site_mobilization: mobilization_crew
@@ -415,69 +425,51 @@ crew_profile_by_activity_key:
 # =============================================================================
 # Direct unit rates â€” 2026 Hyderabad indicative (CPWD DSR 2021 basis)
 # =============================================================================
-# Rates include material + labour + plant at CPWD all-in level.
-# Overhead and profit applied separately by the engine.
+# These are BARE CPWD/DSR rates: material + labour + plant at the source
+# price level. Wastage, idle losses and statutory OH/profit are added by the
+# engine via rate_build_up_mode: source_plus_oncosts + statutory.
+# Units must match building_guidelines.json exactly.
 direct_unit_rates_inr:
-  bld_001: 250000        # Survey + soil investigation: Rs 2.5 lakh LS (1.0 unit)
-  bld_002: 500000        # Mobilization: Rs 5 lakh LS
-  bld_003: 60            # Site clearance: Rs 60/sqm
-  bld_004: 280           # Excavation: Rs 280/cum (soft soil; hard rock extra)
-  bld_005: 9500          # Foundation RCC M25: Rs 9,500/cum all-in
-  bld_006: 10500         # Frame RCC M30: Rs 10,500/cum all-in
-  bld_007: 5800          # Brickwork 230mm CM 1:5: Rs 5,800/cum
-  bld_008: 260           # 12mm plaster CM 1:4: Rs 260/sqm
-  bld_009: 480           # Waterproofing (IIR membrane): Rs 480/sqm
-  bld_010: 900           # Vitrified tiling 600Ã—600: Rs 900/sqm laid
-  bld_011: 8500          # Doors/windows average per unit: Rs 8,500/no
-  bld_012: 380           # External plaster + texture finish: Rs 380/sqm
-  bld_013: 180           # Internal emulsion paint 2-coat: Rs 180/sqm
-  bld_014: 450           # Electrical works: Rs 450/sqm BUA
-  bld_015: 420           # Plumbing and sanitary: Rs 420/sqm BUA
-  bld_016: 380           # HVAC (split AC provision): Rs 380/sqm BUA
-  bld_017: 280           # Fire fighting: Rs 280/sqm BUA
-  bld_018: 1200000       # Passenger lift complete (MRL): Rs 12 lakh/lift
-  bld_019: 650           # External works: Rs 650/sqm
-  bld_020: 150000        # Completion & handover LS
-  site_setting_out: 250000
-  site_clearance: 60
-  site_mobilization: 500000
-  excavation: 280
-  piling: 9500
-  pile_testing: 25000
-  pile_head_chipping: 9500
-  pile_caps: 9500
-  column_stumps: 9500
-  ground_beams: 9500
-  plinth_filling: 280
-  anti_termite: 480
-  gf_slab: 9500
-  gf_columns: 10500
-  ff_beams_slab: 10500
-  gf_stairs: 10500
-  gf_walls: 5800
-  ff_columns: 10500
-  sf_beams_slab: 10500
-  ff_stairs: 10500
-  ff_walls: 5800
-  sf_columns: 10500
-  roof_beams: 10500
-  roof_trusses: 10500
-  roof_covering: 480
-  sf_walls: 5800
-  curtain_wall: 380
-  railings: 8500
-  doors: 8500
-  windows: 8500
-  electrical: 450
-  plumbing: 420
-  sanitary_fittings: 420
-  internal_plaster: 260
-  tiling: 900
-  hardware: 8500
-  internal_painting: 180
-  external_render: 380
-  external_works: 650
-  cleaning_handover: 150000
+  site_setting_out: 200          # survey, boundary hoarding and signage: Rs 200/sqm plot
+  site_clearance: 60             # Rs 60/sqm
+  site_mobilization: 500000      # Rs 5 lakh per mobilisation set
+  excavation: 280                # Rs 280/cum (soft soil; hard rock extra)
+  piling: 9500                   # 600 mm bored cast-in-situ pile: Rs 9,500/m
+  pile_testing: 25000            # Rs 25,000/test
+  pile_head_chipping: 2500       # Rs 2,500/pile including PCC blinding
+  pile_caps: 9500                # RCC M25: Rs 9,500/cum
+  column_stumps: 9500            # RCC M25: Rs 9,500/cum
+  ground_beams: 9500             # RCC M25: Rs 9,500/cum
+  plinth_filling: 280            # Rs 280/cum
+  anti_termite: 480              # Rs 480/sqm
+  gf_slab: 4000                  # slab-on-grade with DPM/insulation: Rs 4,000/sqm
+  gf_columns: 10500              # RCC M30: Rs 10,500/cum
+  ff_beams_slab: 10500           # RCC M30: Rs 10,500/cum
+  gf_stairs: 10500               # RCC M30: Rs 10,500/cum
+  gf_walls: 5800                 # 230 mm brickwork: Rs 5,800/cum
+  ff_columns: 10500              # RCC M30: Rs 10,500/cum
+  sf_beams_slab: 10500           # RCC M30: Rs 10,500/cum
+  ff_stairs: 10500               # RCC M30: Rs 10,500/cum
+  ff_walls: 5800                 # 230 mm brickwork: Rs 5,800/cum
+  sf_columns: 10500              # RCC M30: Rs 10,500/cum
+  roof_beams: 10500              # RCC M30: Rs 10,500/cum
+  roof_trusses: 95000            # structural steel trusses/purlins: Rs 95,000/MT
+  roof_covering: 480             # sheeting/tiles with insulation: Rs 480/sqm
+  sf_walls: 5800                 # 230 mm brickwork: Rs 5,800/cum
+  curtain_wall: 4500             # glazed curtain wall: Rs 4,500/sqm
+  railings: 5000                 # MS/SS railing: Rs 5,000/m
+  doors: 8500                    # average flush/panel door: Rs 8,500/no
+  windows: 8500                  # average aluminium/UPVC window: Rs 8,500/no
+  electrical: 450                # Rs 450/point
+  plumbing: 420                  # Rs 420/m
+  sanitary_fittings: 8000        # average WC/basin/sink set: Rs 8,000/no
+  internal_plaster: 260          # 12 mm plaster CM 1:4: Rs 260/sqm
+  tiling: 900                    # vitrified tiling: Rs 900/sqm laid
+  hardware: 8500                 # kitchen/hardware unit: Rs 8,500/no
+  internal_painting: 180         # emulsion with putty/primer: Rs 180/sqm
+  external_render: 380           # external plaster + texture finish: Rs 380/sqm
+  external_works: 650            # landscaping/paving: Rs 650/sqm
+  cleaning_handover: 75          # final cleaning/snagging: Rs 75/sqm
 
 # =============================================================================
 # Material recipes per unit output
@@ -520,35 +512,70 @@ material_per_unit:
     primer_litre: 0.12
     putty_kg: 0.80
 
+# Recipes are retained for a future first-principles / recipe-mode build-up.
+# The active pricing mode is source_plus_oncosts, so these recipes do not
+# alter the planned rate today; they are mapped to the 40-key catalogue so a
+# later switch to rate_build_up_mode: recipes is not silently zero-cost.
 activity_material_recipe:
-  bld_005:
+  pile_caps:
     recipe: rcc_m25
     per_output: 1.0
-  bld_006:
+  column_stumps:
+    recipe: rcc_m25
+    per_output: 1.0
+  ground_beams:
+    recipe: rcc_m25
+    per_output: 1.0
+  gf_columns:
     recipe: rcc_m30
     per_output: 1.0
-  bld_007:
+  ff_beams_slab:
+    recipe: rcc_m30
+    per_output: 1.0
+  gf_stairs:
+    recipe: rcc_m30
+    per_output: 1.0
+  ff_columns:
+    recipe: rcc_m30
+    per_output: 1.0
+  sf_beams_slab:
+    recipe: rcc_m30
+    per_output: 1.0
+  ff_stairs:
+    recipe: rcc_m30
+    per_output: 1.0
+  sf_columns:
+    recipe: rcc_m30
+    per_output: 1.0
+  roof_beams:
+    recipe: rcc_m30
+    per_output: 1.0
+  gf_walls:
     recipe: brickwork
     per_output: 1.0
-  bld_008:
+  ff_walls:
+    recipe: brickwork
+    per_output: 1.0
+  sf_walls:
+    recipe: brickwork
+    per_output: 1.0
+  internal_plaster:
     recipe: plaster
     per_output: 1.0
-  bld_009:
+  roof_covering:
     recipe: waterproofing
     per_output: 1.0
-  bld_010:
+  tiling:
     recipe: tiling
     per_output: 1.0
-  bld_013:
+  internal_painting:
     recipe: paint
     per_output: 1.0
 
-# Activities with no material recipe
+# Activities with no material recipe. Source_plus_oncosts does not require
+# recipe coverage; this list keeps the remaining keys explicit for a future
+# recipe-mode build-up.
 activity_no_material_recipe:
-  - bld_001
-  - bld_002
-  - bld_003
-  # CPWD direct rates are treated as all-in for the detailed low-rise template.
   - site_setting_out
   - site_clearance
   - site_mobilization
@@ -556,25 +583,10 @@ activity_no_material_recipe:
   - piling
   - pile_testing
   - pile_head_chipping
-  - pile_caps
-  - column_stumps
-  - ground_beams
   - plinth_filling
   - anti_termite
   - gf_slab
-  - gf_columns
-  - ff_beams_slab
-  - gf_stairs
-  - gf_walls
-  - ff_columns
-  - sf_beams_slab
-  - ff_stairs
-  - ff_walls
-  - sf_columns
-  - roof_beams
   - roof_trusses
-  - roof_covering
-  - sf_walls
   - curtain_wall
   - railings
   - doors
@@ -582,23 +594,10 @@ activity_no_material_recipe:
   - electrical
   - plumbing
   - sanitary_fittings
-  - internal_plaster
-  - tiling
   - hardware
-  - internal_painting
   - external_render
   - external_works
   - cleaning_handover
-  - bld_004
-  - bld_011
-  - bld_012
-  - bld_014
-  - bld_015
-  - bld_016
-  - bld_017
-  - bld_018
-  - bld_019
-  - bld_020
 
 # =============================================================================
 # Material bindings
@@ -740,10 +739,26 @@ sdb_rate_oncost:
 # Escalation
 # =============================================================================
 escalation:
+  # Disabled because no contract escalation clause was supplied. The model is
+  # fully configured, so enabling it produces a real (non-zero) escalation
+  # amount instead of silently reading the old annual_rate_pct key as zero.
   enabled: false
-  annual_rate_pct: 5.0
+  base_date: "2026-11-01"
+  annual_rates:
+    material: 0.04
+    labour: 0.05
+    plant: 0.03
+    fuel: 0.06
+  default_annual_rate: 0.045
+  method: spend_curve_midpoint
+  cap_pct_of_base: 1.0
+  index_overrides: {}
+  excluded: []
   source: ""
   contract_escalation_clause: ""
+  note: >
+    No building contract escalation clause is available. Keep disabled for
+    base estimates; enable only after recording the clause and index source.
 
 # =============================================================================
 # Major plant

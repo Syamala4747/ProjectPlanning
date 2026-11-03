@@ -117,6 +117,9 @@ class ConstraintScheduler:
         self.corridor_fronts = 1
         self.baseline_fronts = 1
         self.max_multiplier = 1
+        # Keys whose project-type calculator does not cover the current catalog.
+        # Pipeline raises instead of falling back; road/building record a warning.
+        self._quantity_fallbacks = set()
         self.levels: Dict[str, List[Tuple[int, float]]] = {}
 
     # ------------------------------------------------------------------ setup
@@ -314,8 +317,26 @@ class ConstraintScheduler:
             crews, shifts = opts[idx]
             work_fronts = max(1, crews // base_crews)
 
-            qty_info = self.quantities.get(
-                key, {"quantity": 100.0, "unit": spec.get("unit", "units")})
+            if key not in self.quantities:
+                ptype = str(getattr(self.input, "project_type", "road") or "road").lower()
+                if ptype == "pipeline":
+                    raise ValueError(
+                        f"Quantity calculator produced no quantity for activity key "
+                        f"'{key}'. A silent fallback would misprice the activity. "
+                        f"Add an explicit formula in the quantity calculator or remove "
+                        f"the activity from the guideline catalog."
+                    )
+                # Road/building catalogs are outside the pipeline audit scope.
+                # Keep their legacy behaviour but record a visible warning
+                # instead of silently pricing the activity as 100 units.
+                self._quantity_fallbacks.add(f"{act_id}/{key}")
+                qty_info = {
+                    "quantity": 100.0,
+                    "unit": spec.get("unit", "units"),
+                    "formula": "Legacy 100-unit fallback (missing quantity formula)",
+                }
+            else:
+                qty_info = self.quantities[key]
             qty = qty_info["quantity"]
             unit = qty_info.get("unit", spec.get("unit", "units"))
 
@@ -404,24 +425,30 @@ class ConstraintScheduler:
         for act in activities:
             act.weight_pct = round(
                 (act.cost.total_amount / tot_cost) * 100.0, 2) if tot_cost > 0 else 0.0
-        if activities:
+        if activities and tot_cost > 0:
+            # Put the rounding residual on the LARGEST money activity, never on
+            # the last row: that row can be an out-of-scope zero-cost activity,
+            # which would then report a phantom weight.
             diff = round(100.0 - sum(a.weight_pct for a in activities), 2)
-            activities[-1].weight_pct = round(activities[-1].weight_pct + diff, 2)
+            if diff:
+                target = max(activities, key=lambda a: a.cost.total_amount)
+                target.weight_pct = round(target.weight_pct + diff, 2)
 
         # `productivity_rate` is the single-crew rate, so quantity / rate is a
         # crew-day count that does not move when gangs are multiplied up.
-        # Activities with no measured quantity still consume a front for a day,
-        # so they are floored at one crew-day rather than carried at zero.
+        # A zero-quantity activity is genuinely out of scope (it has zero
+        # duration), so it must carry ZERO physical weight, not a nominal day.
         work = [max(a.quantity, 0.0) / (a.productivity_rate or 1.0)
-                or 1.0
                 for a in activities]
         tot_work = sum(work)
         for act, w in zip(activities, work):
             act.progress_weight_pct = round((w / tot_work) * 100.0, 2) if tot_work > 0 else 0.0
-        if activities:
+        if activities and tot_work > 0:
             diff = round(100.0 - sum(a.progress_weight_pct for a in activities), 2)
-            activities[-1].progress_weight_pct = round(
-                activities[-1].progress_weight_pct + diff, 2)
+            if diff:
+                target = max(zip(activities, work), key=lambda pair: pair[1])[0]
+                target.progress_weight_pct = round(
+                    target.progress_weight_pct + diff, 2)
 
     def _evaluate(self, state: Dict[str, Any]) -> Tuple[List[RoadActivity], int,
                                                         float, List[str], List[str]]:
@@ -881,6 +908,15 @@ class ConstraintScheduler:
 
         warnings = list(violations)
         gates = list(gates)
+        if self._quantity_fallbacks:
+            keys = sorted(self._quantity_fallbacks)
+            shown = ", ".join(keys[:5])
+            more = f" (+{len(keys) - 5} more)" if len(keys) > 5 else ""
+            gates.append(
+                f"{len(keys)} activity key(s) have no quantity formula for the "
+                f"current catalog: {shown}{more}. The legacy 100-unit fallback "
+                f"was used, so this project type's quantities are placeholders."
+            )
         mono = self._monsoon_exposure(acts)
         if mono:
             gates.append(mono)
@@ -900,6 +936,9 @@ class ConstraintScheduler:
             monthly_progress=monthly_items,
             warnings=warnings,
             validation_warnings=gates,
+            pipeline_scope=self.qty_calc.scheme_scope(),
+            accel_site_establishment_rate=self.cost_calc.site_establishment_per_front_day,
+            accel_resident_staff_rate=self.cost_calc.resident_staff_per_front_day,
             is_feasible=is_feasible,
             feasibility_message=msg,
             baseline_duration_days=base_dur,
@@ -916,10 +955,10 @@ class ConstraintScheduler:
             # (and could even make it vanish). Escalation is reported on its own
             # line on the cost sheet and in the sheet-11 bridge.
             additional_cost_crore=max(0.0, round(
-                (final_cost_cr
-                 - sum(a.cost.escalation_amount for a in acts) / 10000000.0)
-                - (base_cost_cr
-                   - sum(a.cost.escalation_amount for a in base_activities) / 10000000.0),
+                (sum(a.cost.total_amount - a.cost.escalation_amount
+                     for a in acts) / 10000000.0)
+                - (sum(a.cost.total_amount - a.cost.escalation_amount
+                       for a in base_activities) / 10000000.0),
                 2)),
             # Acceleration can only ever COST money - it can never make a project
             # cheaper, so this figure is floored at zero. A negative delta is not

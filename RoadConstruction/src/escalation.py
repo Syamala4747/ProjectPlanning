@@ -47,9 +47,33 @@ class EscalationModel:
         }
 
         # A component with no rate of its own (e.g. an overhead recovery line)
-        # escalates at the material rate rather than at zero, so nothing silently
+        # escalates at the default rate rather than at zero, so nothing silently
         # becomes free of inflation.
         self.default_rate = float(cfg.get("default_annual_rate", 0.0) or 0.0)
+
+        # Backward compatibility: older configs used a single
+        # `annual_rate_pct` (e.g. building_assumptions.yaml v2.0). It used to
+        # be ignored, which made every enabled escalation total zero. Treat it
+        # as a uniform annual rate for all four components unless an explicit
+        # `annual_rates` block already supplied rates.
+        legacy_pct = cfg.get("annual_rate_pct")
+        if legacy_pct is not None:
+            try:
+                legacy_rate = float(legacy_pct) / 100.0
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"escalation.annual_rate_pct must be numeric (got {legacy_pct!r})."
+                )
+            if not any(self.annual_rates.values()):
+                self.annual_rates = {
+                    "material": legacy_rate,
+                    "labour": legacy_rate,
+                    "plant": legacy_rate,
+                    "fuel": legacy_rate,
+                }
+            if self.default_rate == 0.0:
+                self.default_rate = legacy_rate
+
         if not any(self.annual_rates.values()):
             self.default_rate = self.annual_rate("material")
 

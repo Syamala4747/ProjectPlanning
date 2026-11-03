@@ -103,6 +103,17 @@ class ProjectInput:
     number_of_work_fronts: int = 1      # user-supplied parallelism
     pipeline_type: str = "water"        # water / sewerage / gas
 
+    # --- Scheme-level pipeline fields (multi-village water supply) ---
+    # These switch on the facility packages in the 89-activity catalogue:
+    # intake, WTP, CWR, OHT/ESR, FHTC and allied E&M.  Zero means "not in
+    # scope", which keeps a plain transmission-main run as a corridor-only
+    # estimate.  `--villages` derives sensible values for the rest.
+    num_villages: int = 0               # villages served by the scheme
+    num_oht: int = 0                    # overhead service reservoirs
+    wtp_capacity_mld: float = 0.0       # water treatment plant capacity, MLD
+    num_ibps: int = 0                   # intake / booster pumping stations
+    num_fhtc: int = 0                   # functional household tap connections
+
     # --- Building-specific fields ---
     built_up_area_sqm: float = 0.0      # total built-up area across all floors (sqft input converted before passing)
     number_of_floors: int = 0           # G+N => total floors = N+1; e.g. G+3 => 4
@@ -195,11 +206,15 @@ class ActivityCostBreakdown:
     direct_cost: float = 0.0
     direct_unit_rate: float = 0.0       # planned (resource-derived) rate used for cost
     morth_direct_unit_rate: float = 0.0 # original MoRTH source rate, never modified
-    planning_variation_pct: float = 0.0 # derived = (planned x SDB on-cost multiplier - MoRTH) / MoRTH x 100 (reporting only; both sides all-in — the MoRTH SDB rate already embeds overheads + profit)
+    planning_variation_pct: float = 0.0 # derived = (planned all-in rate - source rate) / source rate x 100 (reporting only; both sides all-in, so the gap shows the build-up uplift)
     overhead_pct: float = 10.0
     overhead_amount: float = 0.0
+    # Memo-only amounts when OH/CP are embedded in the planned rate. These are
+    # already inside `planned_unit_rate`, so they are NEVER added to the total.
+    overhead_embedded: float = 0.0
     profit_pct: float = 10.0
     profit_amount: float = 0.0
+    profit_embedded: float = 0.0
     total_amount: float = 0.0
     final_unit_rate: float = 0.0
     crash_site_establishment: float = 0.0
@@ -224,6 +239,12 @@ class ActivityCostBreakdown:
     labour_wastage_cost: float = 0.0
     resource_wastage_cost: float = 0.0
     wastage_cost: float = 0.0
+    # True when the planned rate already contains material wastage and resource
+    # idle losses (pipeline `source_plus_oncosts` build-up, building CPWD all-in
+    # rates). In that mode every `*_wastage_cost` field above is reported as 0
+    # so the workbook totals and the baseline-vs-optimized bridge reconcile
+    # exactly without charging wastage a second time.
+    wastage_in_base_rate: bool = False
     bottom_up_labour_cost: float = 0.0
     bottom_up_plant_cost: float = 0.0
     bottom_up_fuel_cost: float = 0.0
@@ -344,6 +365,13 @@ class ProjectScheduleResult:
     optimization_note: str = ""
     # Post-solve sanity gates (benchmarks from assumptions.yaml).
     validation_warnings: List[str] = field(default_factory=list)
+    # Effective pipeline scheme scope AFTER village-derived defaults have been
+    # applied by the quantity take-off (empty for road/building projects).
+    pipeline_scope: Dict[str, Any] = field(default_factory=dict)
+    # Time-driven acceleration step rates actually used by the cost engine, so
+    # report labels cite the project-type config instead of hard-coded numbers.
+    accel_site_establishment_rate: float = 0.0
+    accel_resident_staff_rate: float = 0.0
 
 
 # ======================================================================

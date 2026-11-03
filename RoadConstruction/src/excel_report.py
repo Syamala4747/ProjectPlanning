@@ -186,14 +186,14 @@ class ExcelReportGenerator:
     def _rate_basis_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
+            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (source + wastage + statutory OH/CP) | OH & CP (embedded in rate)",
             "building": "Direct Unit Rate (CPWD DSR source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
         }.get(ptype, "Direct Unit Rate (MoRTH source) | Planning Variation (%) | Planned Unit Rate (ALL-IN incl. on-costs) | OH & CP (embedded in rate)")
 
     def _baseline_cost_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Standard rate analysis based on CPHEEO / CPWD DSR (Not forced to equal budget)",
+            "pipeline": "Standard rate analysis: CPHEEO/CPWD source rate + wastage + statutory OH/profit (Not forced to equal budget)",
             "building": "Standard rate analysis based on CPWD DSR 2021 (Not forced to equal budget)",
         }.get(ptype, "Standard rate analysis based on MoRTH Standard Data Book (Not forced to equal budget)")
 
@@ -214,15 +214,16 @@ class ExcelReportGenerator:
             ("Project Start Date", str(self.p_in.start_date), "Date", "Scheduling", "Baseline Start Date"),
         ]
         common_tail = [
-            ("Working Days per Week", 6, "Days", "Calendar", "assumptions.yaml standard"),
-            ("Working Hours per Shift", 9, "Hours", "Calendar", "assumptions.yaml standard"),
-            ("Statutory GST", "18.0%", "Tax %", "Statutory Dues", "Ministry of Finance / EPC Contract Standard"),
+            ("Working Days per Week", 6, "Days", "Calendar", "assumptions.yaml: working_days_per_week"),
+            ("Productive Hours per Day", 8, "Hours", "Calendar", "assumptions.yaml: productive_hours_per_day (equipment utilisation 9 h/day)"),
+            ("Statutory GST", "18.0% (excluded from totals)", "Tax %", "Statutory Dues", "Rates are quoted ex-GST; GST is added at invoice, not in the estimate"),
         ]
 
         if ptype == "pipeline":
             dia = int(getattr(self.p_in, "pipe_diameter_mm", 0) or 0)
             mat = (getattr(self.p_in, "pipe_material", "DI") or "DI").upper()
-            pipe_std = {"DI": "IS 8329 (K9 DI pipe)", "HDPE": "IS 4984 (PE 100)", "MS": "IS 3589 (ERW/SAW)", "RCC": "IS 458 (NP4)"}.get(mat, "IS standard")
+            di_class = "K7" if dia <= 300 else "K9"
+            pipe_std = {"DI": f"IS 8329 ({di_class} DI pipe)", "HDPE": "IS 4984 (PE 100)", "MS": "IS 3589 (ERW/SAW)", "RCC": "IS 458 (NP4)"}.get(mat, "IS standard")
             td = getattr(self.p_in, "trench_depth_m", 2.0) or 2.0
             tw = getattr(self.p_in, "trench_width_m", 0.0) or 0.0
             fronts = getattr(self.p_in, "number_of_work_fronts", 1) or 1
@@ -242,6 +243,32 @@ class ExcelReportGenerator:
                 ("Bedding Type", "Granular (IS 12288)", "", "Engineering Input", "150mm compacted granular bedding"),
                 ("Hydrotest Pressure", "1.5 × working pressure", "", "QA/Testing", "CPHEEO 6.7.1; IS 12288 Clause 8"),
             ]
+            # Effective scheme-level scope supplied/derived for the water-supply
+            # package. Zero facilities mean the package is out of scope and the
+            # run is a pure transmission-corridor estimate.
+            scope = getattr(self.res, "pipeline_scope", {}) or {}
+            # `reference_wtp_mld` is always present, so test only the scope
+            # switches. A pure corridor run (all zero) must not print empty
+            # scheme-facility rows.
+            if any(scope.get(k) for k in
+                   ("villages", "ohts", "wtp_mld", "ibps", "fhtc")):
+                wtp_mld = float(scope.get("wtp_mld", 0.0) or 0.0)
+                trains = float(scope.get("wtp_trains", 0.0) or 0.0)
+                ref_mld = float(scope.get("reference_wtp_mld", 0.0) or 0.0)
+                specific += [
+                    ("Villages Served", int(scope.get("villages", 0) or 0), "Nos", "Scheme Scope",
+                     "Habitations covered by the water-supply scheme"),
+                    ("Overhead Service Reservoirs (OHT/ESR)", int(scope.get("ohts", 0) or 0), "Nos", "Scheme Facilities",
+                     "Village-derived at 1 OHT/ESR per 3 villages unless overridden"),
+                    ("Water Treatment Plant Capacity", wtp_mld, "MLD", "Scheme Facilities",
+                     f"{trains:g} × {ref_mld:g} MLD reference train(s) — CPHEEO treatment train"),
+                    ("Treatment Trains / CWR Units", round(trains, 3), "Nos", "Scheme Facilities",
+                     "Civil and E&M packages scale with MLD / reference MLD"),
+                    ("Intake / Booster Pumping Stations", int(scope.get("ibps", 0) or 0), "Nos", "Scheme Facilities",
+                     "Intake well-cum-pump house, boosting and allied E&M"),
+                    ("Functional Household Tap Connections", int(scope.get("fhtc", 0) or 0), "Nos", "Scheme Scope",
+                     "200 FHTC per village unless overridden"),
+                ]
         elif ptype == "building":
             bua = getattr(self.p_in, "built_up_area_sqm", 0) or 0
             floors = getattr(self.p_in, "number_of_floors", 1) or 1
@@ -482,6 +509,11 @@ class ExcelReportGenerator:
         blue_font  = Font(name="Calibri", size=10, bold=True, color=self.c_navy)
 
         base_map = {a.activity_id: a for a in self.base_acts}
+        # A planned rate built above the source rate carries a known on-cost
+        # split (statutory OH/CP for pipeline, SDB for road). When the planned
+        # rate equals the source rate the source is used directly and its OH/CP
+        # split is unknown, so the columns say "In source rate" instead of
+        # implying a split that was never applied.
 
         for i, opt_act in enumerate(self.opt_acts, 5):
             b_act   = base_map.get(opt_act.activity_id, opt_act)
@@ -499,8 +531,8 @@ class ExcelReportGenerator:
                 morth_r,    # 6 — Direct Unit Rate
                 var_pct,    # 7 — Planning Variation %
                 planned,    # 8 — Planned Unit Rate
-                f"{c.overhead_pct:.1f}%",
-                f"{c.profit_pct:.1f}%",
+                f"{c.overhead_pct:.1f}%" if planned > morth_r + 1e-9 else "In source rate",
+                f"{c.profit_pct:.1f}%" if planned > morth_r + 1e-9 else "In source rate",
                 opt_act.reference.morth_spec,
             ]
 
@@ -837,8 +869,8 @@ class ExcelReportGenerator:
                 c.wastage_cost,               # 10 Execution Wastage Cost
                 c.direct_cost,                # 11 Planned Direct Cost (Base + Wastage)
                 c.escalation_amount,          # 12 Price Escalation
-                c.overhead_amount,            # 13 OH Embedded (0.0)
-                c.profit_amount,              # 14 CP Embedded (0.0)
+                c.overhead_embedded,          # 13 OH embedded in planned rate
+                c.profit_embedded,            # 14 CP embedded in planned rate
                 c.total_amount,               # 15 Total Activity Cost (Direct + Escalation)
                 act.weight_pct / 100.0,       # 16 Weight %
             ]
@@ -892,18 +924,29 @@ class ExcelReportGenerator:
                 value=f"₹ {self.p_in.budget_crore:,.2f} Crore").font = self.font_bold
         curr += 1
         ws.cell(row=curr, column=4, value="Note:").font = self.font_small
+        embedded_wastage = any(
+            getattr(a.cost, "wastage_in_base_rate", False) for a in self.base_acts
+        )
+        wastage_note = (
+            "Execution wastage is EMBEDDED in the planned rate for this "
+            "project type, so col 10 is zero by design and is NOT added again."
+            if embedded_wastage else
+            "Execution Wastage Cost (col 10) captures site handling, compaction & "
+            "idle losses. Planned Direct Cost (col 11) = Base Direct Cost + Wastage."
+        )
         ws.cell(row=curr, column=5,
-                value="All costs use the ALL-IN Planned Unit Rate (col 8) — the "
+                value="All costs use the ALL-IN Planned Unit Rate (col 8). For "
+                      "pipeline the planned rate is the published direct rate plus "
+                      "material wastage, resource idle losses and statutory "
+                      "overhead + contractor's profit (OH/CP are embedded and shown "
+                      "as memo amounts in cols 13-14). For road it is the "
                       "first-principles build-up x the SDB on-cost multiplier "
-                      "(road x1.188 / structures x1.32) — so SDB overheads + "
-                      "contractor's profit are EMBEDDED in the rate and are not "
-                      "charged again (cols 13-14 are Rs 0 by design). "
+                      "(road x1.188 / structures x1.32). "
                       "Base Direct Cost (col 9) = Quantity x Planned Unit Rate. "
-                      "Execution Wastage Cost (col 10) captures site handling, "
-                      "compaction & idle losses. Planned Direct Cost (col 11) = "
-                      "Base Direct Cost + Wastage. Price Escalation (col 12) "
-                      "reflects inflation up to the mid-spend date. "
-                      "Total Activity Cost (col 15) = Planned Direct Cost + Price Escalation.").font = self.font_small
+                      + wastage_note + " "
+                      "Price Escalation (col 12) reflects inflation up to the "
+                      "mid-spend date. Total Activity Cost (col 15) = Planned "
+                      "Direct Cost + Price Escalation.").font = self.font_small
 
         self._auto_fit_columns(ws)
 
@@ -1048,9 +1091,15 @@ class ExcelReportGenerator:
             for c in range(1, 15):
                 ws.cell(row=4, column=c).fill = self.fill_pass
 
+        duration_ok = self.res.calculated_duration_days <= self.p_in.duration_days
+        cost_ok = self.res.total_calculated_cost_crore <= self.p_in.budget_crore
         summary_rows = [
-            ("Optimized Project Duration", f"{self.res.calculated_duration_days} Days (Met <= {self.p_in.duration_days} d)"),
-            ("Optimized Scheduled Cost", f"₹ {self.res.total_calculated_cost_crore:,.2f} Crore (Met <= ₹ {self.p_in.budget_crore:,.2f} Cr)"),
+            ("Optimized Project Duration",
+             f"{self.res.calculated_duration_days} Days "
+             f"({'Met' if duration_ok else 'Not met'} <= {self.p_in.duration_days} d)"),
+            ("Optimized Scheduled Cost",
+             f"₹ {self.res.total_calculated_cost_crore:,.2f} Crore "
+             f"({'Met' if cost_ok else 'Not met'} <= ₹ {self.p_in.budget_crore:,.2f} Cr)"),
             ("Scheduled Finish Date", str(opt_finish)),
             ("Optimized Critical Path", " -> ".join(self.res.critical_path)),
         ]
@@ -1224,8 +1273,8 @@ class ExcelReportGenerator:
                 surcharge_pct,                   # 18 Surcharge as % of planned
                 optimized_direct_cost,           # 19 Optimized direct cost
                 effective_rate,                  # 20 Effective direct unit rate
-                c.overhead_amount,               # 21
-                c.profit_amount,                 # 22
+                c.overhead_embedded,             # 21 OH embedded in planned rate
+                c.profit_embedded,               # 22 CP embedded in planned rate
                 c.total_amount,                  # 23
                 c.final_unit_rate,               # 24 All-in unit rate
                 act.weight_pct / 100.0,          # 25
@@ -1361,58 +1410,104 @@ class ExcelReportGenerator:
                 val_cell.font = Font(color="7B5800")
             curr += 1
 
+        duration_ok = self.res.calculated_duration_days <= self.p_in.duration_days
         budget_ok = self.res.total_calculated_cost_crore <= self.p_in.budget_crore
-        ws.cell(row=curr, column=2, value="Budget Compliance Status:").font = self.font_bold
-        ws.merge_cells(start_row=curr, start_column=2, end_row=curr, end_column=4)
-        status_cell = ws.cell(row=curr, column=5,
-                              value="PASS (Within Budget)" if budget_ok else "FAIL (Exceeded)")
-        status_cell.font = self.font_pass if budget_ok else self.font_critical
-        status_cell.fill = self.fill_pass if budget_ok else self.fill_crit
-        ws.merge_cells(start_row=curr, start_column=5, end_row=curr, end_column=10)
-        curr += 2
+        for label, ok, pass_text, fail_text in (
+            ("Duration Compliance Status:",
+             duration_ok,
+             f"PASS (Within {self.p_in.duration_days} Days)",
+             f"FAIL (Exceeded by {self.res.calculated_duration_days - self.p_in.duration_days} Days)"),
+            ("Budget Compliance Status:",
+             budget_ok,
+             "PASS (Within Budget)",
+             "FAIL (Exceeded)"),
+        ):
+            ws.cell(row=curr, column=2, value=label).font = self.font_bold
+            ws.merge_cells(start_row=curr, start_column=2, end_row=curr, end_column=4)
+            status_cell = ws.cell(row=curr, column=5,
+                                  value=pass_text if ok else fail_text)
+            status_cell.font = self.font_pass if ok else self.font_critical
+            status_cell.fill = self.fill_pass if ok else self.fill_crit
+            ws.merge_cells(start_row=curr, start_column=5, end_row=curr, end_column=10)
+            curr += 1
+        curr += 1
 
         # ---- explanatory footnote -----------------------------------------
+        ptype = getattr(self.p_in, "project_type", "road") or "road"
+        embedded_wastage = any(
+            getattr(a.cost, "wastage_in_base_rate", False) for a in self.opt_acts
+        )
+        if ptype == "pipeline":
+            rate_basis_text = (
+                "The planned rate is the published CPHEEO/CPWD direct rate plus "
+                "the configured material wastage, non-material idle losses and "
+                "statutory overhead + contractor's profit. The planning variation "
+                "in col 6 is therefore the gap between that build-up and the "
+                "published direct rate. "
+            )
+        elif ptype == "building":
+            rate_basis_text = (
+                "The planned rate is the published CPWD DSR all-in direct rate, so "
+                "the planning variation in col 6 is 0% by definition: the source "
+                "rate already includes materials, labour, plant, overhead and "
+                "contractor's profit. "
+            )
+        else:
+            rate_basis_text = (
+                "The planned rate is the first-principles resource build-up "
+                "(materials + crew + plant + fuel at the natural single-gang / "
+                "single-shift basis). The comparison is ALL-IN on both sides: the "
+                "SDB rate already contains overheads + contractor's profit (road "
+                "8%+10%, structures 20%+10%), so the build-up is multiplied by the "
+                "same factor before the gap is taken. "
+            )
+        if embedded_wastage:
+            wastage_text = (
+                "Execution wastage is EMBEDDED in the planned rate for this "
+                "project type, so columns 26-30 are ₹0 by design and wastage is "
+                "not charged a second time. "
+            )
+        else:
+            wastage_text = (
+                "Column 26 is the MATERIAL WASTAGE COST priced from first "
+                "principles: each activity's recipe is resolved into real "
+                "quantities, the material's own wastage factor is applied, and the "
+                "incremental issued quantity is priced. Columns 27-29 are fuel, "
+                "plant and labour idle losses; column 30 is their sum and is added "
+                "to direct cost. "
+            )
         footnote = (
-            "HOW TO READ THIS SHEET:  Columns 5, 6, 7 and 8 are the ORIGINAL plan and never change — "
-            "col 5 is the MoRTH SDB direct unit rate (untouched reference), col 6 is the PLANNING "
-            "VARIATION derived from the first-principles resource build-up (materials + crew + "
-            "plant + fuel at the natural single-gang/single-shift basis) vs that MoRTH rate. "
-            "The comparison is ALL-IN on both sides: the SDB rate already contains overheads + "
-            "contractor's profit (road works 8%+10%, structures 20%+10% — see sdb_rate_oncost), "
-            "so the planned build-up is multiplied by the same factor (road x1.188, structures "
-            "x1.32) before the gap is taken — that way the variation measures genuine scope and "
-            "price differences, not the overhead structure. Col 7 is the resulting Planned Unit "
-            "Rate, and multiplying by the activity quantity "
-            "gives the Planned Direct Cost (col 8). READ THE SIGNS: the direct rates in col 5 are "
-            "the MoRTH SDB yardstick at its Oct-2019 price base while the planned (build-up) rates "
-            "price 2026 resources — so a POSITIVE variation is the 2019->2026 escalation "
-            "(embankment +41%, BC +40%, GSB +37%, DBM +36%, prime coat +24%) — the honest "
-            "inflation/technology uplift. Negatives concentrate where the 2019 sanctioned rate "
-            "runs above a resource-priced build-up: sanctioned lump allowances (toll plaza, "
-            "service roads, utility shifting, road furniture) and structure productivities. "
-            "scope. Columns 9-16 are the ACCELERATION SURCHARGE: the extra cost of buying the "
-            "duration reduction, broken out by cause (fleet mobilisation, shift/overtime premium, per-extra-front "
-            "supervision, site congestion, per-extra-front site establishment and resident staff charged for every "
-            "day the front is open, plant-hire minimum-month billing uplift, and super-linear gang interference). "
-            "Column 26 is the MATERIAL WASTAGE COST priced from first principles: the activity's recipe in "
-            "material_per_unit is resolved into real quantities, each material's own factor from the 'wastage' block "
-            "(cement 3%, aggregate 5%, bitumen 2% and so on) is applied, and the issued quantity is priced from "
-            "material_rates_inr. The figure is the incremental money spent purely because of those wastage factors — "
-            "a hard-set bag of cement, a spill, overbreak, rehandling — so it differentiates cement from bitumen "
-            "rather than applying one blanket percentage. It is a REPORTED validation figure: the estimate itself is "
-            "priced from the PLANNED unit rate in column 7, while the MoRTH/SDB rate in column 5 is the untouched "
-            "reference. "
-            "Column 17 is simply the sum of columns 9-16, expressed as a percentage of the planned cost in column 18 — "
-            "this uplift is NOT a uniform percentage: it is time-driven and activity-dependent, so short, "
-            "structure-heavy activities carry a very different surcharge per rupee of work from long linear "
-            "earthwork or paving fronts. Column 19 (Optimized Direct Cost) = column 8 + column 17, so column 20 "
-            "(Effective Direct Unit Rate) = column 19 / quantity is a DERIVED rate, not a new MoRTH rate: neither "
-            "the quantity nor the MoRTH rate has been altered, the effective rate is simply higher because the "
-            "work is being executed faster with more gangs, more fronts and longer open-site time. Overhead (21) and "
-            "profit (22) are EMBEDDED in the planned rate — col 7 is the resource build-up x the SDB on-cost "
-            "multiplier (road x1.188, structures x1.32) — so columns 21-22 are Rs 0 by design and col 23 "
-            "(Total Activity Cost) = col 19 (Optimized Direct Cost) + col 30 (wastage): there is no second "
-            "on-cost pass. Col 24 is the resulting All-In Unit Rate."
+            "HOW TO READ THIS SHEET: Columns 5, 6, 7 and 8 are the ORIGINAL plan and "
+            f"never change — col 5 is the {self._source_rate_label()} (untouched "
+            "reference), col 6 is the PLANNING VARIATION between the planned rate "
+            "and that source rate, col 7 is the resulting Planned Unit Rate, and "
+            "col 8 = quantity × col 7 is the Planned Direct Cost. "
+            + rate_basis_text
+            + "READ THE SIGNS: a positive variation means the planned rate is above "
+            "the source rate; a negative variation means the source rate is above "
+            "the planned build-up. "
+            "Columns 9-16 are the ACCELERATION SURCHARGE: the extra cost of buying "
+            "the duration reduction, broken out by cause (fleet mobilisation, "
+            "shift/overtime premium, per-extra-front supervision, site congestion, "
+            "per-extra-front site establishment and resident staff charged for every "
+            "day the front is open, plant-hire minimum-month billing uplift, and "
+            "super-linear gang interference). Column 17 is the sum of columns 9-16, "
+            "expressed as a percentage of the planned cost in column 18 — this uplift "
+            "is NOT a uniform percentage: it is time-driven and activity-dependent, "
+            "so short, structure-heavy activities carry a very different surcharge "
+            "per rupee of work from long linear fronts. Column 19 (Optimized Direct "
+            "Cost) = column 8 + column 17, so column 20 (Effective Direct Unit Rate) "
+            "= column 19 / quantity is a DERIVED rate, not a new source rate: neither "
+            "the quantity nor the source rate has been altered; the effective rate is "
+            "higher because the work is being executed faster with more gangs, more "
+            "fronts and longer open-site time. Overhead (21) and profit (22) are "
+            "EMBEDDED in the planned rate and shown as memo amounts; they are not "
+            "added a second time. "
+            + wastage_text
+            + "Column 23 (Total Activity Cost) = col 19 (Optimized Direct Cost) + "
+            "col 30 (wastage) + col 31 (price escalation). Column 31 is escalation to "
+            "the mid-point of spend; it is zero when escalation is disabled in the "
+            "assumptions. Col 24 is the resulting All-In Unit Rate."
         )
         ws.cell(row=curr, column=1, value="NOTE ON THE 'EFFECTIVE DIRECT UNIT RATE'").font = Font(
             size=10, bold=True, color=self.c_navy
@@ -1442,6 +1537,9 @@ class ExcelReportGenerator:
 
         base_finish = self.p_in.start_date + timedelta(days=self.res.baseline_duration_days)
         opt_finish = self.p_in.start_date + timedelta(days=self.res.calculated_duration_days)
+        target_finish = self.p_in.start_date + timedelta(days=self.p_in.duration_days)
+        duration_ok = self.res.calculated_duration_days <= self.p_in.duration_days
+        cost_ok = self.res.total_calculated_cost_crore <= self.p_in.budget_crore
 
         ws.cell(row=4, column=1, value="EXECUTIVE COMPARISON MATRIX").font = Font(size=11, bold=True, color=self.c_navy)
         ws.merge_cells("A4:F4")
@@ -1449,12 +1547,25 @@ class ExcelReportGenerator:
         headers = ["Metric", "BASELINE", "OPTIMIZED", "VARIANCE / SAVINGS", "TARGET CONSTRAINT", "STATUS"]
         self._apply_header(ws, 5, headers)
 
+        if duration_ok and cost_ok:
+            constraint_variance = "Both Constraints Satisfied"
+            constraint_status = "PASS"
+        elif not duration_ok and not cost_ok:
+            constraint_variance = "Duration & Budget Constraints Not Met"
+            constraint_status = "FAIL"
+        elif not duration_ok:
+            constraint_variance = "Duration Constraint Not Met"
+            constraint_status = "FAIL"
+        else:
+            constraint_variance = "Budget Constraint Not Met"
+            constraint_status = "FAIL"
+
         comparison_matrix = [
-            ("Duration", f"{self.res.baseline_duration_days} Days", f"{self.res.calculated_duration_days} Days", f"-{self.res.duration_saved_days} Days Saved", f"<= {self.p_in.duration_days} Days", "PASS (FEASIBLE)" if self.res.calculated_duration_days <= self.p_in.duration_days else "FAIL"),
-            ("Cost", f"₹ {self.res.baseline_cost_crore:,.2f} Cr", f"₹ {self.res.total_calculated_cost_crore:,.2f} Cr", f"+₹ {self.res.additional_cost_crore:,.2f} Cr Acceleration (Excl. Escalation)", f"<= ₹ {self.p_in.budget_crore:,.2f} Cr", "PASS (FEASIBLE)" if self.res.total_calculated_cost_crore <= self.p_in.budget_crore else "FAIL"),
+            ("Duration", f"{self.res.baseline_duration_days} Days", f"{self.res.calculated_duration_days} Days", f"-{self.res.duration_saved_days} Days Saved", f"<= {self.p_in.duration_days} Days", "PASS (FEASIBLE)" if duration_ok else "FAIL"),
+            ("Cost", f"₹ {self.res.baseline_cost_crore:,.2f} Cr", f"₹ {self.res.total_calculated_cost_crore:,.2f} Cr", f"+₹ {self.res.additional_cost_crore:,.2f} Cr Acceleration (Excl. Escalation)", f"<= ₹ {self.p_in.budget_crore:,.2f} Cr", "PASS (FEASIBLE)" if cost_ok else "FAIL"),
             ("Resources", f"Normal ({self.res.baseline_work_fronts} Front{'s' if self.res.baseline_work_fronts != 1 else ''}, Standard Gangs)", f"Optimized ({self.res.work_fronts} Fronts, Multi-Gangs)", f"+{self.res.work_fronts - self.res.baseline_work_fronts} Parallel Fronts Deployed", "Dynamic Allocation", "ACTIVE"),
-            ("Finish Date", str(base_finish), str(opt_finish), f"{self.res.duration_saved_days} Days Earlier", f"<= {self.p_in.start_date + timedelta(days=self.p_in.duration_days)}", "ON TIME"),
-            ("Constraint Status", "Unconstrained Baseline", "Constraint-Based Plan", "Both Constraints Satisfied", "Duration & Budget Limits", "PASS"),
+            ("Finish Date", str(base_finish), str(opt_finish), f"{self.res.duration_saved_days} Days Earlier", f"<= {target_finish}", "ON TIME" if opt_finish <= target_finish else "LATE"),
+            ("Constraint Status", "Unconstrained Baseline", "Constraint-Based Plan", constraint_variance, "Duration & Budget Limits", constraint_status),
         ]
 
         curr = 6
@@ -1558,9 +1669,11 @@ class ExcelReportGenerator:
              _sum("crash_front_supervision")),
             ("Site Congestion (site density per extra gang)",
              _sum("crash_site_congestion")),
-            ("Extra-Front Site Establishment (fronts x days @ ₹27,500/day)",
+            (f"Extra-Front Site Establishment (fronts x days @ "
+             f"₹{getattr(self.res, 'accel_site_establishment_rate', 0):,.0f}/day)",
              _sum("crash_site_establishment")),
-            ("Extra-Front Resident Staff (fronts x days @ ₹16,800/day)",
+            (f"Extra-Front Resident Staff (fronts x days @ "
+             f"₹{getattr(self.res, 'accel_resident_staff_rate', 0):,.0f}/day)",
              _sum("crash_resident_staff")),
             ("Plant Hire Minimum Uplift (calendar-month billing on extra gangs)",
              _sum("crash_plant_hire_uplift")),
@@ -1640,17 +1753,27 @@ class ExcelReportGenerator:
         opt_wst = sum(a.cost.wastage_cost for a in self.opt_acts)
         base_esc = sum(a.cost.escalation_amount for a in self.base_acts)
         opt_esc = sum(a.cost.escalation_amount for a in self.opt_acts)
+        embedded_wastage = any(
+            getattr(a.cost, "wastage_in_base_rate", False)
+            for a in self.opt_acts
+        )
+        wastage_bridge_label = (
+            "(+/-) Change in execution wastage (embedded in planned rate - no separate charge)"
+            if embedded_wastage else
+            "(+/-) Change in execution wastage (gang-days moved by re-timing)"
+        )
         bridge = [
             ("(=) BASELINE TOTAL COST", self.res.baseline_cost_crore),
             ("(+/-) Change in acceleration surcharge (extra gangs / re-sequencing)",
              (opt_sur - base_sur) / 1e7),
-            ("(+/-) Change in execution wastage (gang-days moved by re-timing)",
-             (opt_wst - base_wst) / 1e7),
+            (wastage_bridge_label, (opt_wst - base_wst) / 1e7),
             ("(+/-) Change in price escalation (money spent earlier/later)",
              (opt_esc - base_esc) / 1e7),
             ("(=) OPTIMIZED TOTAL COST", self.res.total_calculated_cost_crore),
         ]
-        ws.cell(row=curr, column=1, value="COST BRIDGE (₹ Crore) — on-costs (OH+CP) are inside the all-in rate").font = Font(size=11, bold=True, color=self.c_navy)
+        ws.cell(row=curr, column=1, value=(
+            "COST BRIDGE (₹ Crore) — on-costs (OH+CP) are embedded in the "
+            "planned unit rate")).font = Font(size=11, bold=True, color=self.c_navy)
         ws.merge_cells(start_row=curr, start_column=1, end_row=curr, end_column=6)
         curr += 1
         bridge_headers = ["Cost Component", "₹ Crore", "Comment"]
@@ -1662,9 +1785,16 @@ class ExcelReportGenerator:
             vc = ws.cell(row=curr, column=2, value=round(val, 4))
             vc.number_format = "₹#,##0.00"
             vc.border = self.border_thin
-            cc = ws.cell(row=curr, column=3,
-                          value=("Total surcharge (sheet 10, cols 9-16)" if "surcharge" in label.lower()
-                                else ""))
+            cc = ws.cell(row=curr, column=3, value=(
+                "Total surcharge (sheet 10, cols 9-16)" if "surcharge" in label.lower()
+                else ("₹0 by design: wastage is embedded in the planned "
+                      "rate, so re-timing cannot add a separate charge"
+                      if (embedded_wastage and "wastage" in label.lower())
+                      else ("Execution wastage delta (sheet 10, cols 26-30)"
+                            if "wastage" in label.lower()
+                            else ("Escalation delta (sheet 10, col 31; ₹0 when disabled)"
+                                  if "escalation" in label.lower() else "")))
+            ))
             cc.font = self.font_small
             cc.border = self.border_thin
             ws.merge_cells(start_row=curr, start_column=3, end_row=curr, end_column=6)
@@ -1677,11 +1807,13 @@ class ExcelReportGenerator:
         curr += 1
         note = (
             "The optimized plan costs more than the baseline because the schedule is bought with time-driven "
-            "acceleration premium. Quantity and MoRTH rates are identical in both cases; the extra cost is "
-            "entirely the surcharge above, which scales with the number of gangs, the number of parallel work "
-            "fronts, and — via per-front establishment, resident staff and calendar-month plant billing — with "
-            "how many days each front is kept open. Run with --no-accel-cost to zero the time-driven terms and "
-            "see the legacy behaviour on identical input."
+            f"acceleration premium. Quantity and the {self._source_rate_label().lower()} are identical in both "
+            "cases; the extra cost is entirely the surcharge above, which scales with the number of gangs, the "
+            "number of parallel work fronts, and — via per-front establishment, resident staff and calendar-month "
+            "plant billing — with how many days each front is kept open. "
+            + ("Execution wastage is embedded in the planned rate, so its bridge delta is ₹0 by design. "
+               if embedded_wastage else "")
+            + "Run with --no-accel-cost to zero the time-driven terms and see the legacy behaviour on identical input."
         )
         nc = ws.cell(row=curr, column=1, value=note)
         nc.font = self.font_small

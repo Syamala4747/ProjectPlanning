@@ -90,7 +90,7 @@
       "morth_item": "2",
       "page": null,
       "unit": "cum",
-      "productivity_rate": 30.0,
+      "productivity_rate": 150.0,
       "productivity_unit": "cum/day/JCB/crew",
       "base_crews": 1,
       "predecessors": [
@@ -110,7 +110,7 @@
       "morth_item": "2",
       "page": null,
       "unit": "cum",
-      "productivity_rate": 22.0,
+      "productivity_rate": 120.0,
       "productivity_unit": "cum/day/JCB/crew",
       "base_crews": 1,
       "predecessors": [
@@ -130,11 +130,11 @@
       "morth_item": "2",
       "page": null,
       "unit": "cum",
-      "productivity_rate": 20.0,
+      "productivity_rate": 100.0,
       "productivity_unit": "cum/day/JCB/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-04"
+        "ACT-02"
       ]
     },
     {
@@ -150,11 +150,11 @@
       "morth_item": "2",
       "page": null,
       "unit": "cum",
-      "productivity_rate": 12.0,
+      "productivity_rate": 60.0,
       "productivity_unit": "cum/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-06"
+        "ACT-02"
       ]
     },
     {
@@ -170,11 +170,11 @@
       "morth_item": "2",
       "page": null,
       "unit": "cum",
-      "productivity_rate": 6.0,
+      "productivity_rate": 20.0,
       "productivity_unit": "cum/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-07"
+        "ACT-02"
       ]
     },
     {
@@ -194,7 +194,10 @@
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 2,
       "predecessors": [
-        "ACT-05"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -294,7 +297,10 @@
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 2,
       "predecessors": [
-        "ACT-05"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -354,7 +360,10 @@
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 2,
       "predecessors": [
-        "ACT-05"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -494,6 +503,7 @@
       "productivity_unit": "Mtr/day/rig",
       "base_crews": 1,
       "predecessors": [
+        "ACT-03",
         "ACT-01"
       ]
     },
@@ -574,6 +584,7 @@
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 1,
       "predecessors": [
+        "ACT-03",
         "ACT-01"
       ]
     },
@@ -614,7 +625,9 @@
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-20"
+        "ACT-16",
+        "ACT-20",
+        "ACT-23"
       ]
     },
     {
@@ -652,7 +665,10 @@
       "productivity_unit": "Each/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-31"
+        "ACT-31",
+        "ACT-35",
+        "ACT-36",
+        "ACT-37"
       ]
     },
     {
@@ -712,7 +728,10 @@
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-05"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -732,7 +751,10 @@
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-35"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -752,7 +774,10 @@
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-36"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {
@@ -772,7 +797,10 @@
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
       "predecessors": [
-        "ACT-18"
+        "ACT-14",
+        "ACT-17",
+        "ACT-18",
+        "ACT-21"
       ]
     },
     {
@@ -811,7 +839,9 @@
       "productivity_rate": 0.1,
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-41",
@@ -969,7 +999,9 @@
       "productivity_rate": 0.03,
       "productivity_unit": "Job/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-49",
@@ -1127,7 +1159,9 @@
       "productivity_rate": 0.05,
       "productivity_unit": "Job/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-57",
@@ -1265,7 +1299,9 @@
       "productivity_rate": 0.03,
       "productivity_unit": "Job/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-64",
@@ -1543,7 +1579,9 @@
       "productivity_rate": 30.0,
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-78",
@@ -1621,7 +1659,9 @@
       "productivity_rate": 50.0,
       "productivity_unit": "Cum/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-82",
@@ -1639,7 +1679,9 @@
       "productivity_rate": 0.1,
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-83",
@@ -1677,7 +1719,9 @@
       "productivity_rate": 0.2,
       "productivity_unit": "Nos/day/crew",
       "base_crews": 1,
-      "predecessors": []
+      "predecessors": [
+        "ACT-03"
+      ]
     },
     {
       "id": "ACT-85",
@@ -1776,6 +1820,7 @@
       "productivity_unit": "Set/day/crew",
       "base_crews": 1,
       "predecessors": [
+        "ACT-76",
         "ACT-88"
       ]
     }

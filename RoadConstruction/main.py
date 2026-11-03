@@ -430,6 +430,16 @@ def _build_pipeline_parser() -> argparse.ArgumentParser:
                    help="Number of simultaneous work fronts")
     p.add_argument("--pipeline-type", type=str, default="water",
                    choices=("water", "sewerage", "gas"))
+    p.add_argument("--villages", type=int, default=0,
+                   help="Number of villages served (derives OHT/FHTC/WTP defaults)")
+    p.add_argument("--ohts", type=int, default=0,
+                   help="Number of overhead service reservoirs (OHT/ESR)")
+    p.add_argument("--wtp-mld", type=float, default=0.0,
+                   help="Water treatment plant capacity in MLD (0 = not in scope)")
+    p.add_argument("--ibps", type=int, default=0,
+                   help="Number of intake / booster pumping stations")
+    p.add_argument("--fhtc", type=int, default=0,
+                   help="Number of functional household tap connections")
     p.add_argument("--duration", type=str, default="")
     p.add_argument("--budget", type=str, default="")
     p.add_argument("--start-date", type=str, default="")
@@ -557,6 +567,11 @@ def run_pipeline(args) -> None:
         number_of_work_fronts=args.fronts,
         pipeline_type=args.pipeline_type,
         terrain=args.terrain or "plain",
+        num_villages=args.villages,
+        num_oht=args.ohts,
+        wtp_capacity_mld=args.wtp_mld,
+        num_ibps=args.ibps,
+        num_fhtc=args.fhtc,
     )
     guidelines, assumptions = _auto_config("pipeline", args.guidelines, args.assumptions)
     output = args.output or _CONFIG["pipeline"]["output"]

@@ -178,9 +178,7 @@ class DataLoader:
                 "file can currently be traced to an official publication.")
         for block, label in (("material_rates_inr", "CPWD DSR / GeM / state PWD"),
                              ("equipment_hire_inr_per_day", "CPWD DSR equipment schedule")):
-            if block in self.assumptions and not (esc.get("source") or "").strip():
-                pass
-            if block in self.assumptions and f"{block}:" not in str(register):
+            if block in self.assumptions and block not in register:
                 problems.append(
                     f"`{block}` is not listed in the sources register (expected "
                     f"basis: {label}). Add the edition and base date so each rate "

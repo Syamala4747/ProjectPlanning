@@ -63,6 +63,31 @@ class CostCalculator:
         self.equipment_share= float(shares.get("equipment_share",0.18))
         self.fuel_share     = float(shares.get("fuel_share",     0.10))
 
+        # Rate basis. `source_plus_oncosts` treats the published direct rate as
+        # the direct (bare) resource cost and adds the configured material
+        # wastage, non-material idle losses and statutory OH/profit on top. It
+        # is the defensible build-up when the catalogue carries source rates but
+        # no complete bill-of-resource recipe (pipeline and building). `recipes`
+        # keeps the original first-principles material/crew/plant/fuel build-up
+        # (road).
+        self.rate_build_up_mode = str(
+            assumptions.get("rate_build_up_mode", "recipes") or "recipes"
+        )
+        self.rate_oncost_basis = str(
+            assumptions.get("rate_oncost_basis", "sdb") or "sdb"
+        )
+        raw_shares = assumptions.get("cost_breakdown_shares_by_category", {}) or {}
+        self._shares_by_category: Dict[str, Dict[str, float]] = {}
+        for cat, vals in raw_shares.items():
+            if not isinstance(vals, dict):
+                continue
+            self._shares_by_category[str(cat)] = {
+                "labour": float(vals.get("labour_share", self.labour_share)),
+                "material": float(vals.get("material_share", self.material_share)),
+                "equipment": float(vals.get("equipment_share", self.equipment_share)),
+                "fuel": float(vals.get("fuel_share", self.fuel_share)),
+            }
+
         crashing = assumptions.get("crashing_factors", {})
         self.mob_pct         = float(crashing.get("equipment_mobilization_pct",  0.03))
         self.shift_prem_pct  = float(crashing.get("shift_overtime_premium_pct",  0.15))
@@ -243,51 +268,129 @@ class CostCalculator:
         cp = float(pct.get("contractor_profit_pct", 10.0))
         return (1.0 + oh / 100.0) * (1.0 + cp / 100.0)
 
-    def _resource_planned_rate(self, activity_key: str, quantity: float):
-        """Derive ``(planned_rate_per_unit, variation_pct)`` from resources.
+    def _shares_for(self, category: Optional[str]) -> Dict[str, float]:
+        """Cost-breakdown shares for one work category (falls back to global)."""
+        return self._shares_by_category.get(str(category or ""), {
+            "labour": self.labour_share,
+            "material": self.material_share,
+            "equipment": self.equipment_share,
+            "fuel": self.fuel_share,
+        })
 
-        The planned rate is the first-principles site cost per unit of output,
-        built from the resources actually consumed by the activity:
+    def _oncost_k(self, category: Optional[str]) -> float:
+        """Applied on-cost multiplier for the configured rate basis.
 
-            materials  = recipe_per_unit x binding rate (theoretical, wastage is
-                         a separate additive allowance, never double-counted)
-            labour     = crew day rate  / natural productivity
-            plant      = plant hire/day / natural productivity
-            fuel       = lph x hours/day x diesel rate / natural productivity
-
-        It is evaluated at the activity's natural single-gang, single-shift
-        basis, so the rate is independent of how the schedule is crashed. The
-        variation is then the REPORTED gap against the MoRTH direct rate,
-        with BOTH sides all-in: the build-up is multiplied by the SDB
-        on-cost factor (road x1.188, structures x1.32) because the MoRTH
-        rate already contains overheads + contractor's profit. When the
-        activity quantity is zero there is nothing to price, so the rate
-        falls back to the direct rate with a zero variation.
-
-        For pipeline/building projects the assumptions set
-        `use_direct_rate_as_planned: true`, which means the published CPWD
-        DSR / CPHEEO rate is used directly as the planned rate (variation = 0).
-        This is appropriate when the reference rates are already all-in
-        published rates rather than a resource build-up document like MoRTH SDB.
+        `statutory` uses the project overhead/profit percentages (the same
+        figures the loader derives from the budget slab). `sdb` keeps the
+        road/structures SDB multipliers used by the MoRTH model.
         """
-        morth = float(self.direct_rates.get(activity_key, 1000.0) if activity_key in self.direct_rates else 1000.0)
-        # Handle dict-valued rates (null rates stored as {value: null, ...})
-        if isinstance(morth, dict):
-            morth = float(morth.get("value") or 1000.0)
+        if self.rate_oncost_basis in ("none", "off"):
+            return 1.0
+        if self.rate_oncost_basis == "statutory":
+            return (1.0 + self.overhead_pct / 100.0) * (1.0 + self.profit_pct / 100.0)
+        return self.sdb_oncost_multiplier(category)
 
-        # When the assumptions say to use the direct rate directly (CPWD DSR /
-        # CPHEEO rates are already all-in), skip the resource build-up entirely.
-        if self.assumptions.get("use_direct_rate_as_planned", False):
-            return morth, 0.0
+    def _embedded_oncost_rates(
+        self, bare_rate: float, category: Optional[str]
+    ) -> tuple[float, float]:
+        """Per-unit OH and CP already inside the all-in planned rate.
 
-        if quantity <= 0:
-            return morth, 0.0
+        Returned only for reporting (memo columns); the caller must not add
+        these to cost because `bare_rate * _oncost_k()` is the pricing basis.
+        """
+        if self.rate_oncost_basis in ("none", "off"):
+            return 0.0, 0.0
+        if self.rate_oncost_basis == "statutory":
+            oh = bare_rate * self.overhead_pct / 100.0
+            cp = (bare_rate + oh) * self.profit_pct / 100.0
+            return oh, cp
+        if not self._sdb_oncost:
+            return 0.0, 0.0
+        group = "structures" if (category or "") in self._sdb_structure_categories else "road"
+        pct = self._sdb_oncost.get(group) or {}
+        oh = bare_rate * float(pct.get("overhead_pct", 8.0)) / 100.0
+        cp = (bare_rate + oh) * float(pct.get("contractor_profit_pct", 10.0)) / 100.0
+        return oh, cp
+
+    def _resource_planned_rate(self, activity_key: str, quantity: float):
+        """Derive ``(planned_rate_per_unit, variation_pct)`` from assumptions.
+
+        Two build-up modes are supported:
+
+        ``source_plus_oncosts`` (pipeline and building default)
+            The published direct rate is split into material / labour / plant /
+            fuel shares by work category. Material wastage and non-material
+            utilisation losses are added, then statutory overhead + contractor
+            profit are applied. Supply items stay embedded in the published
+            source rate, so no physical recipe is required.
+
+        ``recipes`` (road default)
+            The planned rate is the first-principles site cost per unit built
+            from the resources actually consumed:
+
+                materials  = recipe_per_unit x binding rate
+                labour     = crew day rate  / natural productivity
+                plant      = plant hire/day / natural productivity
+                fuel       = lph x hours/day x diesel rate / natural productivity
+
+            It is evaluated at the activity's natural single-gang, single-shift
+            basis, so the rate is independent of how the schedule is crashed,
+            and multiplied by the SDB on-cost factor (road x1.188, structures
+            x1.32).
+
+        The variation is the REPORTED gap between the all-in planned rate and
+        the original source rate. Quantity does not change a unit rate; a
+        zero-quantity activity still shows its build-up but carries zero cost.
+        """
+        raw_rate = self.direct_rates.get(activity_key)
+        if isinstance(raw_rate, dict):
+            morth = float(raw_rate.get("value") or 1000.0)
+        elif raw_rate is None:
+            morth = 1000.0
+        else:
+            morth = float(raw_rate)
 
         spec = None
         for entry in self.assumptions.get("activity_master", []) or []:
             if entry.get("key") == activity_key:
                 spec = entry
                 break
+        category = (spec or {}).get("category")
+
+        # A direct-rate override always wins: the published rate is used as the
+        # planned rate and no on-cost build-up is applied.
+        if self.assumptions.get("use_direct_rate_as_planned", False):
+            return morth, 0.0
+
+        # ------------------------------------------------------------------
+        # Source-rate + on-costs build-up (pipeline/building catalogues).
+        #
+        # The published CPHEEO/CPWD rate is the direct (bare) resource cost.
+        # Split it with the category cost shares, add material wastage and the
+        # non-material utilisation losses, then apply statutory OH + profit.
+        # No physical recipe is needed because pipe/E&M supply is already
+        # embedded in the published direct rate.
+        # ------------------------------------------------------------------
+        if self.rate_build_up_mode == "source_plus_oncosts":
+            shares = self._shares_for(category)
+            material  = morth * shares["material"]
+            labour    = morth * shares["labour"]
+            equipment = morth * shares["equipment"]
+            fuel      = morth * shares["fuel"]
+            material_wastage = material * self.wastage_default
+            resource_loss = (
+                labour * self.labour_idle_pct
+                + equipment * self.plant_idle_pct
+                + fuel * self.fuel_idle_pct
+            )
+            planned = morth + material_wastage + resource_loss
+            oncost_k = self._oncost_k(category)
+            variation = (planned * oncost_k - morth) / morth * 100.0 if morth else 0.0
+            return planned, variation
+
+        if quantity <= 0:
+            return morth, 0.0
+
         prod = max(1e-9, float((spec or {}).get("productivity_rate", 100.0) or 100.0))
         base_crews = max(1, int((spec or {}).get("base_crews", 1) or 1))
 
@@ -318,9 +421,9 @@ class CostCalculator:
         fuel_pu = fuel_lph * self.equipment_hours_per_day * self.diesel_rate / prod
 
         planned = mat_pu + labour_pu + plant_pu + fuel_pu
-        # All-in comparison: the MoRTH rate embeds SDB overheads + contractor's
+        # All-in comparison: the source rate embeds overheads + contractor's
         # profit, so our build-up carries the same on-costs before comparing.
-        oncost_k = self.sdb_oncost_multiplier((spec or {}).get("category"))
+        oncost_k = self._oncost_k((spec or {}).get("category"))
         variation = (planned * oncost_k - morth) / morth * 100.0 if morth else 0.0
         return planned, variation
 
@@ -473,6 +576,11 @@ class CostCalculator:
                     )
 
         activity_master = self.assumptions.get("activity_master", []) or []
+        if self.rate_build_up_mode == "source_plus_oncosts":
+            # The source-rate build-up does not use material recipes; the
+            # published rate already carries supply items. Recipe coverage is
+            # therefore not a configuration requirement in this mode.
+            return
         master_keys = []
         for entry in activity_master:
             k = entry.get("key") if isinstance(entry, dict) else getattr(entry, "key", None)
@@ -483,12 +591,18 @@ class CostCalculator:
             k for k in master_keys
             if k not in self._activity_recipe and k not in self._no_material_activities
         ]
-        if uncovered:
+        if uncovered and not self.assumptions.get("use_direct_rate_as_planned", False):
             import warnings
             warnings.warn(
                 "Missing material-recipe mapping for activity_master keys: "
                 f"{', '.join(sorted(set(uncovered)))}. Material costs will be zero for these activities."
             )
+            for k in uncovered:
+                self._no_material_activities.add(k)
+        elif uncovered:
+            # Direct-rate configs price materials inside the published all-in
+            # rate. Record the keys as intentionally recipe-free so the same
+            # warning is not raised twice.
             for k in uncovered:
                 self._no_material_activities.add(k)
 
@@ -704,13 +818,18 @@ class CostCalculator:
     ) -> ActivityCostBreakdown:
         """
         Cost formula:
-          planned_rate     = first-principles resource build-up per unit of
-                             output (derived, see `_resource_planned_rate`)
+          planned_rate     = all-in build-up per unit of output (see
+                             `_resource_planned_rate`): source direct rate
+                             + wastage/idle losses, x the configured on-cost
+                             factor (pipeline statutory OH/CP, road SDB)
           base_direct_cost = quantity x planned_rate
           direct_cost      = base_direct_cost + crashing additions
-          overhead         = direct_cost x overhead_pct / 100
-          profit           = (direct_cost + overhead) x profit_pct / 100
-          total            = direct_cost + overhead + profit
+          total            = direct_cost + price escalation
+
+        OH and profit are already inside `planned_rate`. They are exposed as
+        `overhead_embedded` / `profit_embedded` for reporting only and are
+        never added again. `overhead_amount` and `profit_amount` therefore
+        stay zero when an on-cost build-up is active.
 
         Acceleration surcharge components:
           1. fleet mobilisation      - proportional to extra crews
@@ -739,31 +858,54 @@ class CostCalculator:
         # crashing — pipeline/building configs may have null values while being
         # populated incrementally. A warning is issued instead.
         if activity_key not in self.direct_rates:
-            # Provide a sensible fallback so the schedule still generates
-            # (the data_loader validate() will have already warned about this)
+            if (self.assumptions.get("use_direct_rate_as_planned", False)
+                    or self.rate_build_up_mode == "source_plus_oncosts"):
+                raise ValueError(
+                    f"No direct unit rate for activity '{activity_key}'. "
+                    f"The config prices activities from the published direct rate "
+                    f"(rate_build_up_mode: {self.rate_build_up_mode}), so a "
+                    f"placeholder rate would misprice the whole activity. Add the "
+                    f"key to direct_unit_rates_inr or remove it from the guideline catalog."
+                )
+            # Road-style resource build-up: keep the legacy placeholder so a
+            # partially populated config can still be inspected.
             morth_rate = 1000.0   # INR 1000/unit placeholder
         else:
             raw_rate = self.direct_rates[activity_key]
             if raw_rate is None or (isinstance(raw_rate, dict) and raw_rate.get("value") is None):
+                if (self.assumptions.get("use_direct_rate_as_planned", False)
+                        or self.rate_build_up_mode == "source_plus_oncosts"):
+                    raise ValueError(
+                        f"Direct unit rate for activity '{activity_key}' is null. "
+                        f"Add a positive rate to direct_unit_rates_inr."
+                    )
                 morth_rate = 1000.0  # null value in config → placeholder
             else:
                 rate_val = raw_rate if not isinstance(raw_rate, dict) else raw_rate.get("value", 1000.0)
                 morth_rate = float(rate_val or 1000.0)
+        category = next(
+            (s.get("category") for s in (self.assumptions.get("activity_master") or [])
+             if s.get("key") == activity_key),
+            None,
+        )
         planned_raw, variation = self._resource_planned_rate(activity_key, quantity)
         # planned_raw is the bare resource build-up (labour + plant + fuel + material).
         # Overhead and profit are applied explicitly below, so base cost uses the bare rate.
         # The all-in rate (bare * oncost_k) is stored separately for display/reporting only.
-        oncost_k = self.sdb_oncost_multiplier(
-            next((s.get("category") for s in (self.assumptions.get("activity_master") or [])
-                  if s.get("key") == activity_key), None)
-        )
+        oncost_k = self._oncost_k(category)
         # When using direct rate as planned rate (pipeline/building with CPWD/CPHEEO
         # all-in published rates), the rate already includes OH+profit — do NOT
         # multiply by oncost_k again.
         if self.assumptions.get("use_direct_rate_as_planned", False):
             oncost_k = 1.0
-        planned_rate_allin = round(planned_raw * oncost_k, 4)  # all-in, incl. SDB on-costs
+        planned_rate_allin = round(planned_raw * oncost_k, 4)  # all-in, incl. on-costs
         planned_rate = planned_rate_allin                 # ALL-IN is the pricing basis too
+
+        # Memo-only split of the on-costs already inside planned_rate_allin.
+        if self.assumptions.get("use_direct_rate_as_planned", False):
+            oh_rate, cp_rate = 0.0, 0.0
+        else:
+            oh_rate, cp_rate = self._embedded_oncost_rates(planned_raw, category)
 
         # Never let a caller exceed the configured gang ceiling.
         if self.crew_multiplier_cap > 0:
@@ -771,10 +913,11 @@ class CostCalculator:
 
         base_direct_cost = quantity * planned_rate
 
-        direct_labour   = base_direct_cost * self.labour_share
-        direct_material = base_direct_cost * self.material_share
-        direct_equip    = base_direct_cost * self.equipment_share
-        direct_fuel     = base_direct_cost * self.fuel_share
+        cost_shares     = self._shares_for(category)
+        direct_labour   = base_direct_cost * cost_shares["labour"]
+        direct_material = base_direct_cost * cost_shares["material"]
+        direct_equip    = base_direct_cost * cost_shares["equipment"]
+        direct_fuel     = base_direct_cost * cost_shares["fuel"]
 
         # --- material wastage, priced from real quantities ---
         # `wastage` in assumptions.yaml gives a factor per material (cement 3%,
@@ -876,26 +1019,45 @@ class CostCalculator:
         # It is added to direct cost so that overhead and profit also scale on it.
         # EXCEPTION: when using direct rates (CPWD/CPHEEO all-in rates), wastage
         # is already embedded in the published rate — do not add it again.
-        if self.assumptions.get("use_direct_rate_as_planned", False):
+        if (self.assumptions.get("use_direct_rate_as_planned", False)
+                or self.rate_build_up_mode == "source_plus_oncosts"):
             wastage_total = 0.0
+            reported_material_wastage = 0.0
+            reported_fuel_wastage = 0.0
+            reported_plant_wastage = 0.0
+            reported_labour_wastage = 0.0
+            reported_resource_wastage = 0.0
+            reported_wastage = 0.0
         else:
             wastage_total = bottom_up.get("wastage_cost", 0.0)
+            reported_material_wastage = bottom_up["material_wastage_cost"]
+            reported_fuel_wastage = bottom_up["fuel_wastage_cost"]
+            reported_plant_wastage = bottom_up["plant_wastage_cost"]
+            reported_labour_wastage = bottom_up["labour_wastage_cost"]
+            reported_resource_wastage = bottom_up["resource_wastage_cost"]
+            reported_wastage = bottom_up["wastage_cost"]
         direct_cost_tot  = base_direct_cost + crash_total_surcharge + wastage_total
         direct_cost_tot  = max(direct_cost_tot, base_direct_cost)
         direct_unit_rate = direct_cost_tot / max(quantity, 0.001)
 
-        # On-costs (SDB overhead + contractor's profit) are applied ONCE, inside
-        # `planned_rate` above via `sdb_oncost_multiplier` — the same multiplier
-        # the MoRTH direct rate already embeds, so "planned vs direct" compares
-        # like with like. They are therefore NOT charged a second time here, and
-        # the Overhead / Profit columns on the report are memo-only zeros by
-        # design. Pricing the bare rate and adding on-costs at project level
-        # instead would leave the sheet contradicting itself: col 7 prints the
-        # all-in rate while col 8 = quantity x the BARE rate, so no row would
-        # satisfy col8 = qty x col7, and the total would also apply the
-        # on-costs to the acceleration surcharge and the wastage.
+        # On-costs are applied ONCE, inside `planned_rate` above, using either
+        # the statutory OH/CP slab (pipeline) or the SDB multiplier (road).
+        # They are therefore NOT charged a second time here. The embedded
+        # on-cost amounts are memo-only; `overhead_amount` / `profit_amount`
+        # stay zero so the total identity is simply direct + escalation.
         overhead_amount = 0.0
         profit_amount   = 0.0
+        # Memo-only: the OH/CP already inside planned_rate (not added to total).
+        # Split the actual on-cost portion of the rounded all-in rate so the two
+        # memo columns sum to quantity x (planned - bare) within rounding.
+        oncost_amount = max(0.0, (planned_rate_allin - planned_raw) * quantity)
+        oncost_rate_sum = oh_rate + cp_rate
+        if oncost_rate_sum > 0:
+            overhead_embedded = oncost_amount * oh_rate / oncost_rate_sum
+            profit_embedded   = oncost_amount * cp_rate / oncost_rate_sum
+        else:
+            overhead_embedded = 0.0
+            profit_embedded   = 0.0
 
         # --- price escalation -------------------------------------------------
         # Applied once, to the finished direct cost (works + acceleration +
@@ -903,10 +1065,10 @@ class CostCalculator:
         # comparable with the 2019 yardstick and the sheet identities hold:
         #     total = base + surcharge + wastage + escalation
         shares = {
-            "material": self.material_share,
-            "labour":   self.labour_share,
-            "plant":    self.equipment_share,
-            "fuel":     self.fuel_share,
+            "material": cost_shares["material"],
+            "labour":   cost_shares["labour"],
+            "plant":    cost_shares["equipment"],
+            "fuel":     cost_shares["fuel"],
         }
         esc = self.escalation.apply(direct_cost_tot, float(escalation_years or 0.0),
                                     shares, activity_key,
@@ -928,8 +1090,10 @@ class CostCalculator:
             planning_variation_pct = round(variation, 4),            # derived vs MoRTH all-in
             overhead_pct           = self.overhead_pct,
             overhead_amount        = round(overhead_amount, 2),
+            overhead_embedded      = round(overhead_embedded, 2),
             profit_pct             = self.profit_pct,
             profit_amount          = round(profit_amount, 2),
+            profit_embedded        = round(profit_embedded, 2),
             total_amount           = round(total_amount, 2),
             final_unit_rate        = round(final_unit_rate, 2),
             crash_site_establishment = round(front_site_establishment, 2),
@@ -938,12 +1102,16 @@ class CostCalculator:
             crash_efficiency_loss   = round(efficiency_loss, 2),
             crash_total_surcharge   = crash_total_surcharge,
             bottom_up_material_cost  = bottom_up["material_cost"],
-            material_wastage_cost   = bottom_up["material_wastage_cost"],
-            fuel_wastage_cost       = bottom_up["fuel_wastage_cost"],
-            plant_wastage_cost      = bottom_up["plant_wastage_cost"],
-            labour_wastage_cost     = bottom_up["labour_wastage_cost"],
-            resource_wastage_cost   = bottom_up["resource_wastage_cost"],
-            wastage_cost            = bottom_up["wastage_cost"],
+            material_wastage_cost   = reported_material_wastage,
+            fuel_wastage_cost       = reported_fuel_wastage,
+            plant_wastage_cost      = reported_plant_wastage,
+            labour_wastage_cost     = reported_labour_wastage,
+            resource_wastage_cost   = reported_resource_wastage,
+            wastage_cost            = reported_wastage,
+            wastage_in_base_rate    = bool(
+                self.assumptions.get("use_direct_rate_as_planned", False)
+                or self.rate_build_up_mode == "source_plus_oncosts"
+            ),
             bottom_up_labour_cost   = bottom_up["labour_cost"],
             bottom_up_plant_cost    = bottom_up["plant_cost"],
             bottom_up_fuel_cost     = bottom_up["fuel_cost"],

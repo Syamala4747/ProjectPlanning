@@ -13,6 +13,7 @@ Covers:
 import os
 import sys
 import shutil
+import tempfile
 from datetime import date, timedelta
 
 import pytest
@@ -20,6 +21,8 @@ from openpyxl import load_workbook
 
 # Ensure the project root is on the path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Generated workbooks go to a temp directory, never the repository root.
+TEST_DIR = tempfile.mkdtemp(prefix="planner_tests_")
 sys.path.insert(0, ROOT)
 
 from src.models import (
@@ -35,8 +38,10 @@ from src.update_excel_report import UpdateExcelReportGenerator
 
 # ------------------------------------------------------------------ fixtures
 
-BASELINE_FILE = os.path.join(ROOT, "_test_baseline.xlsx")
-UPDATED_FILE = os.path.join(ROOT, "_test_updated.xlsx")
+BASELINE_FILE = os.path.join(TEST_DIR, "_test_baseline.xlsx")
+UPDATED_FILE = os.path.join(TEST_DIR, "_test_updated.xlsx")
+ROAD_GUIDELINES = os.path.join(ROOT, "project_config", "road", "road_guidelines.json")
+ROAD_ASSUMPTIONS = os.path.join(ROOT, "project_config", "road", "road_assumptions.yaml")
 
 BASELINE_INPUT = ProjectInput(
     title="10 KM 2-Lane Highway Project",
@@ -52,7 +57,8 @@ BASELINE_INPUT = ProjectInput(
 @pytest.fixture(scope="module")
 def baseline_result():
     """Run the existing planning pipeline and return the result."""
-    loader = DataLoader()
+    loader = DataLoader(guidelines_path=ROAD_GUIDELINES,
+                        assumptions_path=ROAD_ASSUMPTIONS)
     loader.load_all(terrain="plain")
     scheduler = ConstraintScheduler(project_input=BASELINE_INPUT, data_loader=loader)
     result = scheduler.solve()
@@ -335,7 +341,7 @@ class TestRegression:
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         assert r.returncode == 0
-        assert "Road Construction" in r.stdout or "Road Construction" in r.stderr
+        assert "Road / Pipeline / Building" in r.stdout or "Road / Pipeline / Building" in r.stderr
 
     def test_update_plan_help(self):
         """The update-plan subcommand help is accessible."""
@@ -434,7 +440,7 @@ class TestOptionalTargetDate:
 class TestSCurveDelayDisplay:
     def test_scurve_sheet_contains_delay_kpi_and_headers(self, update_result):
         """The S-curve sheet includes delay tracking KPI cards and columns."""
-        wb_path = os.path.join(ROOT, "_test_scurve_check.xlsx")
+        wb_path = os.path.join(TEST_DIR, "_test_scurve_check.xlsx")
         reporter = UpdateExcelReportGenerator(result=update_result, output_path=wb_path)
         reporter.generate()
         wb = load_workbook(wb_path)
