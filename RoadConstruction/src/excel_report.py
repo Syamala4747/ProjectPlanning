@@ -381,6 +381,16 @@ class ExcelReportGenerator:
                 ("Joint Spacing (approx)", 5.5 if mat != "HDPE" else 6.0, "m", "Pipe Specification", "Rubber-ring (DI/RCC) or butt-fused (HDPE)"),
                 ("Bedding Type", "Granular (IS 12288)", "", "Engineering Input", "150mm compacted granular bedding"),
                 ("Hydrotest Pressure", "1.5 × working pressure", "", "QA/Testing", "CPHEEO 6.7.1; IS 12288 Clause 8"),
+                ("Road Crossings (Declared)", int(getattr(self.p_in, "number_of_road_crossings", 0) or 0), "Nos", "Crossings",
+                 "0 = derive open-cut road crossings from length"),
+                ("Highway Crossings (Declared)", int(getattr(self.p_in, "number_of_highway_crossings", 0) or 0), "Nos", "Crossings",
+                 "NH/SH crossings are never invented"),
+                ("Rail Crossings (Declared)", int(getattr(self.p_in, "number_of_rail_crossings", 0) or 0), "Nos", "Crossings",
+                 "Rail crossings are never invented"),
+                ("HDD / Trenchless Crossings (Declared)", int(getattr(self.p_in, "number_of_hdd_crossings", 0) or 0), "Nos", "Crossings",
+                 "Trenchless crossings are never invented"),
+                ("River Crossings (Declared)", int(getattr(self.p_in, "number_of_river_crossings", 0) or 0), "Nos", "Crossings",
+                 "River crossings are never invented"),
             ]
             # Effective scheme-level scope supplied/derived for the water-supply
             # package. Zero facilities mean the package is out of scope and the

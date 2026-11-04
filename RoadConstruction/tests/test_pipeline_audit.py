@@ -30,6 +30,7 @@ from src.data_loader import DataLoader
 from src.constraint_scheduler import ConstraintScheduler
 from src.excel_report import ExcelReportGenerator
 from src.quantity_calculator import PipelineQuantityCalculator
+from src.workbook_reader import WorkbookReader
 
 GUIDELINES = os.path.join(ROOT, "project_config", "pipeline", "pipeline_guidelines.json")
 ASSUMPTIONS = os.path.join(ROOT, "project_config", "pipeline", "pipeline_assumptions.yaml")
@@ -46,6 +47,9 @@ SCENARIOS = {
         title="Regression 10-village scheme", length_km=18.0, pipe_diameter_mm=300,
         pipe_material="DI", trench_depth_m=2.0, number_of_work_fronts=3,
         duration_days=900, budget_crore=60.0, num_villages=10,
+        number_of_road_crossings=2, number_of_highway_crossings=1,
+        number_of_rail_crossings=1, number_of_hdd_crossings=1,
+        number_of_river_crossings=1,
     ),
 }
 
@@ -257,6 +261,31 @@ def test_workbook_reconciles_to_the_model(runs, tmp_path):
     deltas = sum(v for k, v in bridge.items()
                  if k.startswith("(+/-)") and isinstance(v, (int, float)))
     assert bridge[base_label] + deltas == pytest.approx(bridge[opt_label], abs=0.01)
+
+
+def test_workbook_round_trip_preserves_scheme_and_crossing_inputs(runs, tmp_path):
+    """update-plan must rebuild the same scheme, not a corridor-only baseline."""
+    _, res = runs["scheme"]
+    out = tmp_path / "pipeline_round_trip.xlsx"
+    ExcelReportGenerator(res, str(out)).generate()
+
+    pi, _ = WorkbookReader(str(out)).read()
+    assert pi.project_type == "pipeline"
+    assert pi.length_km == pytest.approx(18.0)
+    assert pi.pipe_diameter_mm == pytest.approx(300.0)
+    assert pi.number_of_work_fronts == 3
+    assert pi.installation_method == "open_trench"
+    assert pi.trench_width_m == pytest.approx(res.project_input.trench_width_m)
+    assert pi.num_villages == 10
+    assert pi.num_oht == res.pipeline_scope["ohts"] == 4
+    assert pi.wtp_capacity_mld == pytest.approx(5.0)
+    assert pi.num_ibps == res.pipeline_scope["ibps"] == 1
+    assert pi.num_fhtc == res.pipeline_scope["fhtc"] == 2000
+    assert pi.number_of_road_crossings == 2
+    assert pi.number_of_highway_crossings == 1
+    assert pi.number_of_rail_crossings == 1
+    assert pi.number_of_hdd_crossings == 1
+    assert pi.number_of_river_crossings == 1
 
 
 def test_declared_crossings_do_not_create_open_cut_road_work():

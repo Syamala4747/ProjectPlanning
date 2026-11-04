@@ -141,6 +141,15 @@ class TestWorkbookReader:
         assert "scurve_months" in metadata
         assert len(metadata["scurve_months"]) > 0
 
+    def test_dashboard_baseline_figures_extracted(self, baseline_workbook, baseline_result):
+        """The source baseline duration/cost are available for drift checks."""
+        result, _ = baseline_result
+        reader = WorkbookReader(baseline_workbook)
+        _, metadata = reader.read()
+        assert metadata["baseline_duration_days"] == result.baseline_duration_days
+        assert metadata["baseline_cost_crore"] == pytest.approx(
+            result.baseline_cost_crore, abs=0.01)
+
 
 # ==================================================================
 # 2. PROGRESS-GAP CALCULATION

@@ -31,6 +31,7 @@ from src.escalation import EscalationModel
 from src.excel_report import ExcelReportGenerator
 from src.models import ProjectInput
 from src.quantity_calculator import BuildingQuantityCalculator
+from src.workbook_reader import WorkbookReader
 
 GUIDELINES = os.path.join(ROOT, "project_config", "building", "building_guidelines.json")
 ASSUMPTIONS = os.path.join(ROOT, "project_config", "building", "building_assumptions.yaml")
@@ -98,6 +99,27 @@ def test_every_catalogue_key_is_quantified_and_units_match(run):
             assert sched.quantities[key]["quantity"] == 0.0
         else:
             assert sched.quantities[key]["quantity"] > 0.0, f"{key} has no quantity"
+
+
+def test_workbook_round_trip_preserves_building_inputs(tmp_path):
+    """update-plan must retain blocks, quality and construction type."""
+    pi = _input(number_of_blocks=3, quality_finish="premium",
+                construction_type="steel", basement=True)
+    loader = DataLoader(guidelines_path=GUIDELINES, assumptions_path=ASSUMPTIONS)
+    loader.load_all(terrain=pi.terrain)
+    res = ConstraintScheduler(pi, loader, enable_acceleration_cost=True).solve()
+
+    out = tmp_path / "building_round_trip.xlsx"
+    ExcelReportGenerator(res, str(out)).generate()
+
+    rebuilt, _ = WorkbookReader(str(out)).read()
+    assert rebuilt.project_type == "building"
+    assert rebuilt.built_up_area_sqm == pytest.approx(2000.0)
+    assert rebuilt.number_of_floors == 4
+    assert rebuilt.number_of_blocks == 3
+    assert rebuilt.construction_type == "steel"
+    assert rebuilt.quality_finish == "premium"
+    assert rebuilt.basement is True
 
 
 def test_site_area_is_not_divided_by_floors_twice():
