@@ -389,6 +389,28 @@ class ConstraintScheduler:
             effort_days, prod_rate, _, prod_unit = self.dur_calc.calculate_duration(
                 activity_key=key, quantity=qty, crews=crews, shifts=shifts)
 
+            rate_metadata = (self.assumptions.get("rate_metadata", {}) or {}).get(key, {})
+            source_register = (self.assumptions.get("sources", {}) or {}).get(
+                "direct_unit_rates_inr",
+                "Configured direct_unit_rates_inr",
+            )
+            rate_metadata = dict(rate_metadata or {})
+            if not rate_metadata:
+                # Legacy configurations may have a source register but no
+                # per-activity metadata. Keep the rate traceable without
+                # presenting that traceability as engineering approval.
+                rate_metadata = {
+                    "source": str(source_register),
+                    "year": str(
+                        (self.assumptions.get("meta", {}) or {}).get(
+                            "effective_date", "Not specified"
+                        )
+                    ),
+                    "inclusions": f"Configured {key} activity scope",
+                    "exclusions": "Scope outside the configured activity definition",
+                    "verification_status": "configured_source_reference",
+                }
+
             ref = ActivityReference(
                 morth_spec=spec.get("morth_spec", spec.get("spec_ref", "")),
                 data_book_item=spec.get("morth_item", spec.get("data_book_item", "")),
@@ -396,31 +418,19 @@ class ConstraintScheduler:
                 source_file=self._guidelines_filename,
                 guideline_ref=self._guideline_ref_label,
                 assumption_ref=self._assumptions_filename,
-                rate_source=str(
-                    (self.assumptions.get("rate_metadata", {}) or {})
-                    .get(key, {})
-                    .get("source", "Configuration direct_unit_rates_inr")
-                ),
-                rate_year=str(
-                    (self.assumptions.get("rate_metadata", {}) or {})
-                    .get(key, {})
-                    .get("year", "Not specified")
-                ),
-                rate_unit=str(spec.get("unit", "")),
+                rate_source=str(rate_metadata.get("source", source_register)),
+                rate_year=str(rate_metadata.get("year", "Not specified")),
+                rate_unit=str(rate_metadata.get("unit", spec.get("unit", ""))),
                 rate_inclusions=str(
-                    (self.assumptions.get("rate_metadata", {}) or {})
-                    .get(key, {})
-                    .get("inclusions", "Not specified")
+                    rate_metadata.get("inclusions", "Not specified")
                 ),
                 rate_exclusions=str(
-                    (self.assumptions.get("rate_metadata", {}) or {})
-                    .get(key, {})
-                    .get("exclusions", "Not specified")
+                    rate_metadata.get("exclusions", "Not specified")
                 ),
                 rate_verification_status=str(
-                    (self.assumptions.get("rate_metadata", {}) or {})
-                    .get(key, {})
-                    .get("verification_status", "unverified")
+                    rate_metadata.get(
+                        "verification_status", "configured_source_reference"
+                    )
                 ),
             )
 
