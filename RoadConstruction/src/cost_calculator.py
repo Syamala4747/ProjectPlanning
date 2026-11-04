@@ -64,12 +64,9 @@ class CostCalculator:
         self.fuel_share     = float(shares.get("fuel_share",     0.10))
 
         # Rate basis. `source_plus_oncosts` treats the published direct rate as
-        # the direct (bare) resource cost and adds the configured material
-        # wastage, non-material idle losses and statutory OH/profit on top. It
-        # is the defensible build-up when the catalogue carries source rates but
-        # no complete bill-of-resource recipe (pipeline and building). `recipes`
-        # keeps the original first-principles material/crew/plant/fuel build-up
-        # (road).
+        # the direct (bare) resource cost and applies statutory OH/profit.
+        # Wastage is always a separate direct-cost line. This is the same
+        # accounting contract used by the recipe-based road build-up.
         self.rate_build_up_mode = str(
             assumptions.get("rate_build_up_mode", "recipes") or "recipes"
         )
@@ -318,11 +315,10 @@ class CostCalculator:
         Two build-up modes are supported:
 
         ``source_plus_oncosts`` (pipeline and building default)
-            The published direct rate is split into material / labour / plant /
-            fuel shares by work category. Material wastage and non-material
-            utilisation losses are added, then statutory overhead + contractor
-            profit are applied. Supply items stay embedded in the published
-            source rate, so no physical recipe is required.
+            The published direct rate is treated as the bare resource cost and
+            statutory overhead + contractor profit are applied. Wastage and
+            non-material utilisation losses are calculated separately in the
+            direct-cost build-up.
 
         ``recipes`` (road default)
             The planned rate is the first-principles site cost per unit built
@@ -366,24 +362,12 @@ class CostCalculator:
         # Source-rate + on-costs build-up (pipeline/building catalogues).
         #
         # The published CPHEEO/CPWD rate is the direct (bare) resource cost.
-        # Split it with the category cost shares, add material wastage and the
-        # non-material utilisation losses, then apply statutory OH + profit.
-        # No physical recipe is needed because pipe/E&M supply is already
-        # embedded in the published direct rate.
+        # Convert it to the all-in planned rate with the same on-cost
+        # multiplier used by road. Wastage is priced separately below, so all
+        # project types share one direct-cost identity.
         # ------------------------------------------------------------------
         if self.rate_build_up_mode == "source_plus_oncosts":
-            shares = self._shares_for(category)
-            material  = morth * shares["material"]
-            labour    = morth * shares["labour"]
-            equipment = morth * shares["equipment"]
-            fuel      = morth * shares["fuel"]
-            material_wastage = material * self.wastage_default
-            resource_loss = (
-                labour * self.labour_idle_pct
-                + equipment * self.plant_idle_pct
-                + fuel * self.fuel_idle_pct
-            )
-            planned = morth + material_wastage + resource_loss
+            planned = morth
             oncost_k = self._oncost_k(category)
             variation = (planned * oncost_k - morth) / morth * 100.0 if morth else 0.0
             return planned, variation
@@ -1014,20 +998,27 @@ class CostCalculator:
             + efficiency_loss,
             2,
         )
-        # Wastage (material spoilage + fuel/plant/labour idle losses) is a real
-        # site cost and must be carried into the budget, not just reported.
-        # It is added to direct cost so that overhead and profit also scale on it.
-        # EXCEPTION: when using direct rates (CPWD/CPHEEO all-in rates), wastage
-        # is already embedded in the published rate — do not add it again.
-        if (self.assumptions.get("use_direct_rate_as_planned", False)
-                or self.rate_build_up_mode == "source_plus_oncosts"):
-            wastage_total = 0.0
-            reported_material_wastage = 0.0
-            reported_fuel_wastage = 0.0
-            reported_plant_wastage = 0.0
-            reported_labour_wastage = 0.0
-            reported_resource_wastage = 0.0
-            reported_wastage = 0.0
+        # Wastage is a real site cost and is always a separate direct-cost
+        # component, matching the road resource build-up. Source-rate
+        # activities use their configured resource shares because they do not
+        # have a physical material recipe.
+        if self.rate_build_up_mode == "source_plus_oncosts":
+            shares = self._shares_for(category)
+            material_base = morth_rate * shares["material"]
+            labour_base = morth_rate * shares["labour"]
+            equipment_base = morth_rate * shares["equipment"]
+            fuel_base = morth_rate * shares["fuel"]
+            reported_material_wastage = quantity * material_base * self.wastage_default * oncost_k
+            reported_fuel_wastage = quantity * fuel_base * self.fuel_idle_pct * oncost_k
+            reported_plant_wastage = quantity * equipment_base * self.plant_idle_pct * oncost_k
+            reported_labour_wastage = quantity * labour_base * self.labour_idle_pct * oncost_k
+            reported_resource_wastage = (
+                reported_fuel_wastage
+                + reported_plant_wastage
+                + reported_labour_wastage
+            )
+            reported_wastage = reported_material_wastage + reported_resource_wastage
+            wastage_total = reported_wastage
         else:
             wastage_total = bottom_up.get("wastage_cost", 0.0)
             reported_material_wastage = bottom_up["material_wastage_cost"]
@@ -1108,10 +1099,7 @@ class CostCalculator:
             labour_wastage_cost     = reported_labour_wastage,
             resource_wastage_cost   = reported_resource_wastage,
             wastage_cost            = reported_wastage,
-            wastage_in_base_rate    = bool(
-                self.assumptions.get("use_direct_rate_as_planned", False)
-                or self.rate_build_up_mode == "source_plus_oncosts"
-            ),
+            wastage_in_base_rate    = False,
             bottom_up_labour_cost   = bottom_up["labour_cost"],
             bottom_up_plant_cost    = bottom_up["plant_cost"],
             bottom_up_fuel_cost     = bottom_up["fuel_cost"],

@@ -383,7 +383,10 @@
       "productivity_unit": "Mtr/day/crew",
       "base_crews": 2,
       "predecessors": [
-        "ACT-17"
+        "ACT-05",
+        "ACT-06",
+        "ACT-07",
+        "ACT-08"
       ]
     },
     {

@@ -68,6 +68,23 @@ class ProgressCalculator:
                 overlap_days = max(0, min(act.ef, p_end) - max(act.es, p_start))
                 month_act_pct = (overlap_days / act_dur) * 100.0
                 activity_monthly_matrix[act.activity_id][m] = round(month_act_pct, 1)
+            if (
+                str(getattr(self.project_input, "project_type", "road") or "road").lower()
+                == "pipeline"
+            ):
+                # Preserve the displayed one-decimal precision while making
+                # each pipeline activity reconcile exactly to 100%.
+                rounded_total = sum(activity_monthly_matrix[act.activity_id])
+                if activity_monthly_matrix[act.activity_id]:
+                    last_index = max(
+                        index for index, value in enumerate(
+                            activity_monthly_matrix[act.activity_id]
+                        ) if value > 0
+                    )
+                    last = activity_monthly_matrix[act.activity_id][last_index]
+                    activity_monthly_matrix[act.activity_id][last_index] = round(
+                        last + (100.0 - rounded_total), 1
+                    )
 
         cum_progress = 0.0
         cum_expenditure = 0.0
@@ -100,5 +117,19 @@ class ProgressCalculator:
 
         if monthly_items:
             monthly_items[-1].cumulative_planned_progress_pct = 100.0
+            # The workbook displays expenditure to two decimals. Reconcile
+            # that displayed series to the activity total so every project
+            # type has an exact S-curve cost identity after export.
+            displayed_total = sum(
+                item.period_expenditure_crore for item in monthly_items
+            )
+            monthly_items[-1].period_expenditure_crore = round(
+                monthly_items[-1].period_expenditure_crore
+                + (total_project_cost / 10000000.0 - displayed_total),
+                2,
+            )
+            monthly_items[-1].cumulative_expenditure_crore = round(
+                total_project_cost / 10000000.0, 2
+            )
 
         return monthly_items, activity_monthly_matrix

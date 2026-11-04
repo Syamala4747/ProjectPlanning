@@ -139,15 +139,16 @@ def test_quantities_follow_geometry_and_totals(run):
     assert q["windows"] == pytest.approx(100.0, abs=0.1)
 
 
-def test_planned_rates_are_built_up_with_embedded_oncosts(run):
+def test_planned_rates_and_wastage_use_shared_cost_method(run):
     _, res, _ = run
     for a in res.activities:
         c = a.cost
         assert c.planned_unit_rate > 0
         assert c.planned_unit_rate > c.morth_direct_unit_rate, a.activity_key
         assert c.planning_variation_pct > 0, a.activity_key
-        assert c.wastage_in_base_rate, a.activity_key
-        assert c.wastage_cost == 0, a.activity_key
+        assert not c.wastage_in_base_rate, a.activity_key
+        if a.quantity > 0:
+            assert c.wastage_cost > 0, a.activity_key
         assert c.overhead_amount == 0 and c.profit_amount == 0
         if a.quantity > 0:
             assert c.overhead_embedded > 0, a.activity_key

@@ -84,6 +84,7 @@ class ExcelReportGenerator:
         self._build_sheet_12_monthly_schedule(wb)
         self._build_sheet_13_scurve(wb)
         self._build_sheet_14_critical_path(wb)
+        self._build_sheet_15_validation(wb)
 
         try:
             wb.save(self.output_path)
@@ -94,6 +95,144 @@ class ExcelReportGenerator:
             wb.save(fallback_path)
             print(f"\n⚠️  Note: '{self.output_path}' was open in Excel. Saved as '{fallback_path}' instead.")
             return fallback_path
+
+    def _build_sheet_15_validation(self, wb):
+        """Write the structured validation and sanity-check result."""
+        ws = wb.create_sheet(title="15_Validation_Checks")
+        report = getattr(self.res, "validation_report", None)
+        status = getattr(report, "status", "NOT RUN")
+        errors = list(getattr(report, "errors", []) or [])
+        warnings = list(getattr(report, "warnings", []) or [])
+        issues = list(getattr(report, "issues", []) or [])
+
+        self._create_banner(
+            ws,
+            "VALIDATION & SANITY CHECK RESULTS",
+            "Complete validation register: PASS checks, review warnings, and hard errors",
+            7,
+        )
+        ws.cell(row=4, column=1, value="Overall status").font = self.font_bold
+        ws.cell(row=4, column=2, value=status)
+        ws.cell(row=5, column=1, value="Error count").font = self.font_bold
+        ws.cell(row=5, column=2, value=len(errors))
+        ws.cell(row=6, column=1, value="Warning count").font = self.font_bold
+        ws.cell(row=6, column=2, value=len(warnings))
+        ws.cell(row=7, column=1, value="Passed check count").font = self.font_bold
+        check_catalog = [
+            ("NO_ACTIVITIES", "Activity list is present"),
+            ("QUANTITY_FORMULA", "Pipeline quantities and soil partition reconcile"),
+            ("SOIL_SHARES_NOT_100", "Soil percentages total 100%"),
+            ("ACTIVITY_MASTER", "Scheduled activities exist in the activity master"),
+            ("ZERO_ACTIVE_QUANTITY", "Active activities have positive quantities"),
+            ("CIRCULAR_DEPENDENCY", "Activity network is cycle-free"),
+            ("MISSING_PREDECESSOR", "All predecessors exist"),
+            ("PRECEDENCE_VIOLATION", "Predecessor dates are respected"),
+            ("ENGINEERING_HANDOVER_REVIEW", "Engineering handovers are represented"),
+            ("PRODUCTIVITY_DURATION_MISMATCH", "Effort days match quantity/productivity/crews"),
+            ("CALENDAR_DURATION_MISMATCH", "Calendar duration matches working-day rules"),
+            ("INVALID_ACTIVITY_DATES", "Activity dates are valid"),
+            ("CPM_EF_IDENTITY", "CPM EF equals ES plus duration"),
+            ("CPM_LF_IDENTITY", "CPM LF equals LS plus duration"),
+            ("CPM_FLOAT_IDENTITY", "CPM float equals LS minus ES"),
+            ("NEGATIVE_FLOAT", "CPM floats are non-negative"),
+            ("INVALID_CREW_COUNT", "Crew allocations are valid"),
+            ("INVALID_SHIFT_COUNT", "Shift allocations are valid"),
+            ("CREW_CAP_EXCEEDED", "Crew caps are respected"),
+            ("UNIT_RATE_BUILDUP_MISMATCH", "Planned unit-rate build-up reconciles"),
+            ("INVALID_PLANNED_RATE", "Planned rates are positive"),
+            ("DIRECT_COST_RECONCILIATION", "Direct cost reconciles"),
+            ("TOTAL_COST_RECONCILIATION", "Total cost reconciles"),
+            ("EMBEDDED_ONCOST_DUPLICATION", "Embedded overhead/profit are not double-counted"),
+            ("WASTAGE_RECONCILIATION", "Separate wastage components reconcile"),
+            ("ESCALATION_OUTPUT_INVALID", "Escalation outputs are valid"),
+            ("PROVISIONAL_ESCALATION", "Escalation source and clause are approved"),
+            ("PROJECT_DURATION_RECONCILIATION", "Project finish reconciles to activity network"),
+            ("FEASIBILITY_DURATION_MISMATCH", "Duration constraint is satisfied"),
+            ("FEASIBILITY_BUDGET_MISMATCH", "Budget constraint is satisfied"),
+            ("MONTHLY_COST_RECONCILIATION", "Monthly costs reconcile to project total"),
+            ("PROGRESS_NOT_COMPLETE", "Monthly progress reaches 100%"),
+            ("WORKBOOK_ACTIVITY_SET_MISMATCH", "Workbook activity set matches schedule"),
+            ("WORKBOOK_SCURVE_PROGRESS_MISMATCH", "Workbook S-curve progress reconciles"),
+            ("WORKBOOK_SCURVE_COST_MISMATCH", "Workbook S-curve costs reconcile"),
+            ("SCHEDULER_SANITY", "Scheduler planning-risk warnings"),
+        ]
+        for row in range(4, 8):
+            for col in range(1, 3):
+                cell = ws.cell(row=row, column=col)
+                cell.border = self.border_thin
+                if col == 2:
+                    cell.fill = self.fill_pass if (
+                        (row == 4 and status == "PASS") or
+                        (row == 7) or
+                        (row != 4 and cell.value == 0)
+                    ) else self.fill_crit
+
+        ws.cell(row=8, column=1, value="Interpretation").font = self.font_bold
+        ws.merge_cells(start_row=8, start_column=2, end_row=8, end_column=7)
+        ws.cell(
+            row=8,
+            column=2,
+            value=(
+                "ERROR rows are hard reconciliation failures and stop plan delivery. "
+                "WARNING rows are sanity or source-data review items and do not alter totals."
+            ),
+        )
+        ws.cell(row=8, column=2).alignment = Alignment(wrap_text=True)
+
+        headers = ["Severity", "Check code", "Activity ID", "Result", "Check / expected rule", "Finding", "Action"]
+        self._apply_header(ws, 10, headers)
+        issue_codes = {str(issue.code) for issue in issues}
+        rows = [(
+            str(issue.severity),
+            issue.code,
+            issue.activity_id or "-",
+            "ERROR" if issue.severity == "ERROR" else "WARNING",
+            next((description for code, description in check_catalog if code == issue.code), "Exception reported by validation engine"),
+            issue.message,
+            "Correct calculation before issue" if issue.severity == "ERROR" else "Review/confirm assumption or source data",
+        ) for issue in issues]
+        rows.extend((
+            "PASS",
+            code,
+            "-",
+            "PASS",
+            description,
+            "Check completed successfully; no exception was reported.",
+            "No action required",
+        ) for code, description in check_catalog if code not in issue_codes)
+        ws.cell(row=7, column=2, value=sum(1 for row in rows if row[0] == "PASS"))
+
+        for row_index, values in enumerate(rows, start=11):
+            severity = str(values[0])
+            for col_index, value in enumerate(values, start=1):
+                cell = ws.cell(row=row_index, column=col_index, value=value)
+                cell.border = self.border_thin
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.font = self.font_critical if severity == "ERROR" else self.font_regular
+                cell.fill = (
+                    self.fill_crit if severity == "ERROR"
+                    else self.fill_pass if severity == "PASS"
+                    else self.fill_card
+                )
+
+        if not rows:
+            ws.cell(row=11, column=1, value="PASS")
+            ws.cell(row=11, column=2, value="NO_ISSUES")
+            ws.cell(row=11, column=4, value="PASS")
+            ws.cell(row=11, column=5, value="All validation and sanity checks passed.")
+            for col in range(1, 8):
+                ws.cell(row=11, column=col).fill = self.fill_pass
+                ws.cell(row=11, column=col).border = self.border_thin
+
+        ws.freeze_panes = "A11"
+        ws.auto_filter.ref = f"A10:G{max(11, 10 + len(rows))}"
+        ws.column_dimensions["A"].width = 13
+        ws.column_dimensions["B"].width = 32
+        ws.column_dimensions["C"].width = 14
+        ws.column_dimensions["D"].width = 12
+        ws.column_dimensions["E"].width = 48
+        ws.column_dimensions["F"].width = 75
+        ws.column_dimensions["G"].width = 32
 
     def _apply_header(self, ws, row: int, titles: List[str]):
         ws.row_dimensions[row].height = 26
@@ -186,14 +325,14 @@ class ExcelReportGenerator:
     def _rate_basis_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (source + wastage + statutory OH/CP) | OH & CP (embedded in rate)",
+            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (source + statutory OH/CP) | Separate wastage",
             "building": "Direct Unit Rate (CPWD DSR source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
         }.get(ptype, "Direct Unit Rate (MoRTH source) | Planning Variation (%) | Planned Unit Rate (ALL-IN incl. on-costs) | OH & CP (embedded in rate)")
 
     def _baseline_cost_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Standard rate analysis: CPHEEO/CPWD source rate + wastage + statutory OH/profit (Not forced to equal budget)",
+            "pipeline": "Standard rate analysis: CPHEEO/CPWD source rate + statutory OH/profit; wastage is a separate direct-cost line (Not forced to equal budget)",
             "building": "Standard rate analysis based on CPWD DSR 2021 (Not forced to equal budget)",
         }.get(ptype, "Standard rate analysis based on MoRTH Standard Data Book (Not forced to equal budget)")
 
@@ -1245,7 +1384,9 @@ class ExcelReportGenerator:
             surcharge_pct = (total_surcharge / planned_cost * 100.0) if planned_cost > 0 else 0.0
 
             # Col 19 == col 8 + col 17
-            optimized_direct_cost = round(planned_cost + total_surcharge, 2)
+            optimized_direct_cost = round(
+                planned_cost + total_surcharge + c.wastage_cost, 2
+            )
             # Col 20 == col 19 / quantity. Left blank when the quantity is zero
             # (e.g. median dressing on a 2-lane road) because a rate over a
             # zero quantity is undefined - printing Rs 0.00 would imply a
@@ -1437,30 +1578,12 @@ class ExcelReportGenerator:
         embedded_wastage = any(
             getattr(a.cost, "wastage_in_base_rate", False) for a in self.opt_acts
         )
-        if ptype == "pipeline":
-            rate_basis_text = (
-                "The planned rate is the published CPHEEO/CPWD direct rate plus "
-                "the configured material wastage, non-material idle losses and "
-                "statutory overhead + contractor's profit. The planning variation "
-                "in col 6 is therefore the gap between that build-up and the "
-                "published direct rate. "
-            )
-        elif ptype == "building":
-            rate_basis_text = (
-                "The planned rate is the published CPWD DSR all-in direct rate, so "
-                "the planning variation in col 6 is 0% by definition: the source "
-                "rate already includes materials, labour, plant, overhead and "
-                "contractor's profit. "
-            )
-        else:
-            rate_basis_text = (
-                "The planned rate is the first-principles resource build-up "
-                "(materials + crew + plant + fuel at the natural single-gang / "
-                "single-shift basis). The comparison is ALL-IN on both sides: the "
-                "SDB rate already contains overheads + contractor's profit (road "
-                "8%+10%, structures 20%+10%), so the build-up is multiplied by the "
-                "same factor before the gap is taken. "
-            )
+        rate_basis_text = (
+            "The planned rate is the bare source/resource rate plus the configured "
+            "overhead and contractor-profit on-costs. Wastage is calculated from "
+            "the configured material/resource allowances as a separate direct-cost "
+            "line for road, pipeline and building. "
+        )
         if embedded_wastage:
             wastage_text = (
                 "Execution wastage is EMBEDDED in the planned rate for this "

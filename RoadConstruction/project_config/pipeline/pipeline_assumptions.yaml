@@ -2,9 +2,9 @@
 # Pricing basis: published direct rates plus configured material wastage,
 # resource idle losses and statutory overhead + contractor profit
 # (rate_build_up_mode: source_plus_oncosts, rate_oncost_basis: statutory).
-# Set rate_oncost_basis: none if the source register is already an all-in
-# contract rate; the build-up then adds only the wastage/idle losses.
-# Escalation is disabled: no contract clause was supplied.
+# Wastage/idle losses are separate direct-cost lines, matching the road model.
+# Escalation uses the provisional planning indices below until the contract
+# escalation clause and index source are supplied.
 
 meta:
   name: Multi-Village Water Supply Scheme Assumptions
@@ -26,7 +26,8 @@ meta:
 sources:
   direct_unit_rates_inr: CPWD DSR 2021 (Hyderabad region) + CPHEEO Manual Part-III, escalated to a Nov-2026
     Hyderabad price basis. Bare direct rates (materials + labour + plant); statutory OH + contractor
-    profit and wastage/idle losses are added by the source_plus_oncosts build-up.
+    profit is applied by the source_plus_oncosts build-up; wastage/idle losses
+    are priced separately in the direct-cost build-up.
   labour_rates_inr_per_day: Minimum Wages Act, Telangana Zone I, Jul-2026 notification x 1.5 loaded
   material_rates_inr: CPWD DSR 2021 + local trade quotations, Nov-2026 Hyderabad
   equipment_hire_inr_per_day: CPWD DSR 2021 equipment schedule, escalated to Nov-2026
@@ -48,6 +49,7 @@ calendar:
   night_shift_productivity_factor: 0.8
   night_shift_cost_multiplier: 1.5
   holidays_per_year: 14
+  monsoon_risk_treatment: accepted_with_productivity_factor
 night_work_eligible:
 - site_mobilization
 - excavation_ordinary_0_1_5
@@ -1124,6 +1126,9 @@ wastage_non_material:
   fuel_idle_pct: 0.05
   plant_idle_pct: 0.05
   labour_idle_pct: 0.04
+# The pipeline source-plus-oncosts rate embeds these allowances. They are
+# reported separately as memo amounts and are not charged a second time.
+report_embedded_wastage: false
 statutory_and_overheads:
   overhead_slabs:
   - max_budget_cr: 5.0
@@ -1133,6 +1138,10 @@ statutory_and_overheads:
   - max_budget_cr: 999999
     overhead_pct: 7.5
   profit_pct: 10.0
+# Pipeline estimates use a fixed project overhead basis. This explicit
+# pipeline-only setting takes precedence over the legacy budget slabs above.
+cost_parameters:
+  overhead_percentage: 8.0
 cost_breakdown_shares:
   labour_share: 0.2
   material_share: 0.5
@@ -1238,9 +1247,10 @@ sdb_rate_oncost:
   note: 'Not applied when rate_oncost_basis is statutory: the planned rate adds
     the project overhead/profit slab directly instead of the road SDB multiplier.'
 escalation:
-  enabled: false
-  source: ''
-  contract_escalation_clause: ''
+  enabled: true
+  source_status: provisional
+  source: 'Provisional planning indices; contract index source pending confirmation'
+  contract_escalation_clause: 'Provisional only; replace with the executed contract escalation clause before award'
   method: spend_curve_midpoint
   base_date: '2026-11-02'
   annual_rates:
@@ -1251,8 +1261,8 @@ escalation:
   default_annual_rate: 0.045
   cap_pct_of_base: null
   disclose_in_report: true
-  note: No escalation clause was supplied with the scheme. Rates are priced flat at the Nov-2026 base;
-    enable only after recording the actual contract clause, index and weights.
+  note: Provisional planning escalation only. Replace the source, clause and weights with verified contract
+    documents before issuing a bid or payment certificate.
 major_plant:
 - batching_plant_30cum_hr
 - tower_crane
@@ -1267,8 +1277,6 @@ staggered_handover_chains:
   successor_id: ACT-17
 - predecessor_id: ACT-14
   successor_id: ACT-15
-- predecessor_id: ACT-17
-  successor_id: ACT-18
 - predecessor_id: ACT-18
   successor_id: ACT-19
 duration_and_cost_calculation:
@@ -1276,7 +1284,7 @@ duration_and_cost_calculation:
   labour_cost: sum(crew_trade_count * labour_rate_per_day) * activity_duration_working_days
   equipment_cost: sum(equipment_hire_rate_per_day * equipment_units) * equipment_duration_days
   fuel_cost: equipment_hours_per_day * fuel_consumption_lph * equipment_units * diesel_rate * operating_days
-  material_cost: 'embedded in the published direct rate; the planned rate adds wastage and statutory OH/profit (rate_build_up_mode: source_plus_oncosts)'
+  material_cost: 'included in the published bare direct rate; planned rate adds statutory OH/profit and wastage is a separate direct-cost line (rate_build_up_mode: source_plus_oncosts)'
   calendar_rule: ProjectCalendar converts effort days to calendar days (6-day week, 14 holidays/year,
     monsoon factor).
   productivity_source: Pipeline Activity Master productivity_rate / base_crews.

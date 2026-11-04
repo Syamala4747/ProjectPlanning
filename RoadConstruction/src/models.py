@@ -248,11 +248,9 @@ class ActivityCostBreakdown:
     labour_wastage_cost: float = 0.0
     resource_wastage_cost: float = 0.0
     wastage_cost: float = 0.0
-    # True when the planned rate already contains material wastage and resource
-    # idle losses (pipeline `source_plus_oncosts` build-up, building CPWD all-in
-    # rates). In that mode every `*_wastage_cost` field above is reported as 0
-    # so the workbook totals and the baseline-vs-optimized bridge reconcile
-    # exactly without charging wastage a second time.
+    # Compatibility flag for rate sources that embed wastage. The active road,
+    # pipeline and building configurations keep this false so wastage is a
+    # separate, auditable direct-cost component.
     wastage_in_base_rate: bool = False
     bottom_up_labour_cost: float = 0.0
     bottom_up_plant_cost: float = 0.0
@@ -474,4 +472,4 @@ class UpdatePlanResult:
     warnings: List[str] = field(default_factory=list)
     limitations: List[str] = field(default_factory=list)
     is_feasible: bool = True
-
+    validation_report: Any = None

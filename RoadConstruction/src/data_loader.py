@@ -246,6 +246,18 @@ class DataLoader:
         """
         Determines overhead percentage based on project size from road_assumptions.yaml statutory_and_overheads.
         """
+        explicit_cost_parameters = self.assumptions.get("cost_parameters", {})
+        if isinstance(explicit_cost_parameters, dict):
+            explicit_overhead = explicit_cost_parameters.get("overhead_percentage")
+            if explicit_overhead is not None:
+                overhead_pct = float(explicit_overhead)
+                if not 0.0 <= overhead_pct <= 100.0:
+                    raise ValueError(
+                        "cost_parameters.overhead_percentage must be between "
+                        f"0 and 100 (got {overhead_pct})."
+                    )
+                return overhead_pct
+
         statutory = self.assumptions.get("statutory_and_overheads", {})
         slabs = statutory.get("overhead_slabs", [])
         for slab in slabs:

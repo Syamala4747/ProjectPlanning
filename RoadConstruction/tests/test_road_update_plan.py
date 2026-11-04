@@ -34,6 +34,7 @@ from src.excel_report import ExcelReportGenerator
 from src.workbook_reader import WorkbookReader
 from src.update_planner import UpdatePlanner
 from src.update_excel_report import UpdateExcelReportGenerator
+from src.validation_sanity_checks import validate_update_result
 
 
 # ------------------------------------------------------------------ fixtures
@@ -278,7 +279,7 @@ class TestPreservation:
             "04_WBS_Hierarchy", "05_Activities", "06_Baseline_CPM",
             "07_Baseline_Cost", "08_Constraint_Optimization", "09_Optimized_CPM",
             "10_Optimized_Cost", "11_Baseline_vs_Optimized", "12_Monthly_Schedule",
-            "13_S_Curve", "14_Critical_Path",
+            "13_S_Curve", "14_Critical_Path", "15_Validation_Checks",
         ]
         assert wb.sheetnames == expected
 
@@ -293,9 +294,25 @@ class TestPreservation:
         expected = [
             "01_Update_Summary", "02_Baseline_Schedule", "03_Actual_Progress",
             "04_Activity_Status", "05_Revised_CPM", "06_Revised_Cost",
-            "07_S_Curve_Comparison", "08_Target_Feasibility",
+            "07_S_Curve_Comparison", "08_Target_Feasibility", "09_Validation_Checks",
         ]
         assert wb.sheetnames == expected
+
+    def test_updated_workbook_has_clear_validation_register(self, update_result):
+        """The updated workbook exposes PASS, WARNING and ERROR checks."""
+        update_result.validation_report = validate_update_result(
+            update_result,
+            update_result.baseline_result.project_input and {},
+        )
+        reporter = UpdateExcelReportGenerator(
+            result=update_result, output_path=UPDATED_FILE)
+        reporter.generate()
+        wb = load_workbook(UPDATED_FILE, data_only=True)
+        ws = wb["09_Validation_Checks"]
+        assert ws["B4"].value == "PASS"
+        assert ws["B5"].value == 0
+        assert ws["B6"].value >= 0
+        assert ws.max_row >= 20
 
     def test_baseline_preserved_in_result(self, update_result):
         """The original baseline result is preserved in the update result."""
@@ -328,9 +345,9 @@ class TestRegression:
         assert len(result.critical_path) > 0
 
     def test_existing_command_workbook_structure(self, baseline_workbook):
-        """The existing command still produces a 14-sheet workbook."""
+        """The existing command still produces the complete workbook."""
         wb = load_workbook(baseline_workbook)
-        assert len(wb.sheetnames) == 14
+        assert len(wb.sheetnames) == 15
 
     def test_main_help_still_works(self):
         """The main CLI still runs the existing command without 'update-plan'."""

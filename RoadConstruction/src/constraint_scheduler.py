@@ -85,16 +85,28 @@ class ConstraintScheduler:
         self.dur_calc = DurationCalculator(
             self.assumptions, project_input.length_km, self.calendar)
 
-        self.activity_specs = (
+        all_activity_specs = (
             self.guidelines.get("activity_master")
             or (self.guidelines.get("data") or {}).get("activity_master")
             or self.assumptions.get("activity_master", [])
         )
+        if str(getattr(self.input, "project_type", "road") or "road").lower() == "pipeline":
+            # Keep the catalogue and quantity ledger complete for auditability,
+            # but do not schedule alternative branches or facility packages
+            # whose derived quantity is zero for this project scope.
+            self.activity_specs = [
+                spec for spec in all_activity_specs
+                if float(self.quantities.get(spec["key"], {}).get("quantity", 0.0) or 0.0) > 0
+            ]
+        else:
+            self.activity_specs = all_activity_specs
         self.spec_by_id = {s["id"]: s for s in self.activity_specs}
         self.spec_by_key = {s["key"]: s for s in self.activity_specs}
         self.stagger_chains = [
             (item["predecessor_id"], item["successor_id"])
             for item in (self.assumptions.get("staggered_handover_chains", []) or [])
+            if item["predecessor_id"] in self.spec_by_id
+            and item["successor_id"] in self.spec_by_id
         ]
 
         # Labels for ActivityReference — read from config document block
@@ -111,6 +123,8 @@ class ConstraintScheduler:
         self.stagger_chains = [
             (item["predecessor_id"], item["successor_id"])
             for item in (self.assumptions.get("staggered_handover_chains", []) or [])
+            if item["predecessor_id"] in self.spec_by_id
+            and item["successor_id"] in self.spec_by_id
         ]
 
         self.max_fronts = 1
@@ -382,7 +396,10 @@ class ConstraintScheduler:
                 duration_days=effort_days,
                 effort_days=effort_days,
                 activity_key=key,
-                predecessors=list(spec.get("predecessors", [])),
+                predecessors=[
+                    predecessor for predecessor in spec.get("predecessors", [])
+                    if predecessor in self.spec_by_id
+                ],
                 cost=ActivityCostBreakdown(),
                 reference=ref,
                 crews=crews,

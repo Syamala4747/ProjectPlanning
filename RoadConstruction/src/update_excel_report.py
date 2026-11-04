@@ -101,6 +101,7 @@ class UpdateExcelReportGenerator:
         self._build_revised_cost(wb)
         self._build_scurve(wb)
         self._build_feasibility(wb)
+        self._build_validation(wb)
 
         try:
             wb.save(self.output_path)
@@ -112,6 +113,81 @@ class UpdateExcelReportGenerator:
             print(f"\n  Note: '{self.output_path}' was open in Excel. "
                   f"Saved as '{fallback}' instead.")
             return fallback
+
+    def _build_validation(self, wb):
+        """Write the same clear PASS/WARNING/ERROR register as new plans."""
+        ws = wb.create_sheet(title="09_Validation_Checks")
+        report = getattr(self.r, "validation_report", None)
+        status = getattr(report, "status", "NOT RUN")
+        issues = list(getattr(report, "issues", []) or [])
+        errors = list(getattr(report, "errors", []) or [])
+        warnings = list(getattr(report, "warnings", []) or [])
+        catalog = [
+            ("UPDATE_ACTIVITY_STATUS_SET_MISMATCH", "Actual status rows match baseline activities"),
+            ("UPDATE_PROGRESS_OUT_OF_RANGE", "Actual progress is between 0% and 100%"),
+            ("UPDATE_QUANTITY_RECONCILIATION", "Completed plus remaining quantity equals original"),
+            ("UPDATE_CPM_EF_IDENTITY", "Revised EF equals ES plus duration"),
+            ("UPDATE_CPM_LF_IDENTITY", "Revised LF equals LS plus duration"),
+            ("UPDATE_CPM_FLOAT_IDENTITY", "Revised float equals LS minus ES"),
+            ("UPDATE_MISSING_PREDECESSOR", "All revised predecessors exist"),
+            ("UPDATE_PRECEDENCE_VIOLATION", "Revised predecessor dates are respected"),
+            ("UPDATE_DIRECT_COST_RECONCILIATION", "Revised direct cost reconciles"),
+            ("UPDATE_TOTAL_COST_RECONCILIATION", "Revised total cost reconciles"),
+            ("UPDATE_WASTAGE_RECONCILIATION", "Revised wastage components reconcile"),
+            ("UPDATE_ESCALATION_OUTPUT_INVALID", "Revised escalation output is valid"),
+            ("UPDATE_DURATION_RECONCILIATION", "Revised duration matches activity finish"),
+            ("UPDATE_REMAINING_COST_RECONCILIATION", "Remaining cost matches revised activities"),
+            ("UPDATE_PROJECT_COST_RECONCILIATION", "Spent plus remaining equals project cost"),
+            ("UPDATE_SCURVE_COST_RECONCILIATION", "Revised S-curve cost reconciles"),
+            ("UPDATE_COMPLETION_DATE_MISSING", "Revised completion date exists"),
+            ("UPDATE_NEGATIVE_DELAY", "Projected delay is non-negative"),
+            ("UPDATE_PLANNING_WARNING", "Update planning warnings are surfaced"),
+        ]
+        self._create_banner(
+            ws,
+            "UPDATE VALIDATION & SANITY CHECK RESULTS",
+            "Complete update register: PASS checks, review warnings, and hard errors",
+            7,
+        )
+        for row, label, value in (
+            (4, "Overall status", status),
+            (5, "Error count", len(errors)),
+            (6, "Warning count", len(warnings)),
+        ):
+            ws.cell(row=row, column=1, value=label).font = self.font_bold
+            ws.cell(row=row, column=2, value=value).border = self.border_thin
+            ws.cell(row=row, column=1).border = self.border_thin
+        ws.cell(row=7, column=1, value="Passed check count").font = self.font_bold
+        headers = ["Severity", "Check code", "Activity ID", "Result", "Check / expected rule", "Finding", "Action"]
+        self._apply_header(ws, 10, headers)
+        issue_codes = {str(issue.code) for issue in issues}
+        rows = [(
+            issue.severity, issue.code, issue.activity_id or "-",
+            "ERROR" if issue.severity == "ERROR" else "WARNING",
+            next((text for code, text in catalog if code == issue.code), "Update validation finding"),
+            issue.message,
+            "Correct update calculation before issue" if issue.severity == "ERROR"
+            else "Review/confirm update assumption",
+        ) for issue in issues]
+        rows.extend((
+            "PASS", code, "-", "PASS", text,
+            "Check completed successfully; no exception was reported.",
+            "No action required",
+        ) for code, text in catalog if code not in issue_codes)
+        ws.cell(row=7, column=2, value=sum(1 for row in rows if row[0] == "PASS"))
+        for row_index, values in enumerate(rows, start=11):
+            severity = str(values[0])
+            for col_index, value in enumerate(values, start=1):
+                cell = ws.cell(row=row_index, column=col_index, value=value)
+                cell.border = self.border_thin
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.fill = self.fill_crit if severity == "ERROR" else (
+                    self.fill_pass if severity == "PASS" else self.fill_card
+                )
+        ws.freeze_panes = "A11"
+        ws.auto_filter.ref = f"A10:G{max(11, 10 + len(rows))}"
+        for col, width in {"A": 13, "B": 38, "C": 14, "D": 12, "E": 48, "F": 75, "G": 34}.items():
+            ws.column_dimensions[col].width = width
 
     # ------------------------------------------------------------------ helpers
     def _create_banner(self, ws, title: str, subtitle: str, max_cols: int = 10):

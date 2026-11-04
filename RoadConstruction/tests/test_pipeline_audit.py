@@ -4,7 +4,8 @@
 These lock in the invariants that are easy to break when the guideline
 catalogue or the assumptions file is edited:
 
-  * every catalogue key gets a quantity, a positive all-in rate and an activity
+  * every catalogue key gets a quantity and a positive all-in rate; only
+    positive-quantity keys become scheduled activities
   * quantity x rate, surcharge, wastage and total-cost identities reconcile
   * zero-quantity (out-of-scope) activities carry zero duration/cost/weight
   * CPM ES/EF/LS/LF/TF/FF are internally consistent and no zero-duration
@@ -75,8 +76,14 @@ def test_every_catalogue_key_is_quantified_and_priced(runs):
         q = sched.quantities
         acts = res.activities
         assert set(q) == keys, f"{name}: quantity keys differ from catalogue"
-        assert {a.activity_key for a in acts} == keys, f"{name}: activity keys differ"
-        assert len(acts) == len(keys)
+        active_keys = {
+            key for key, info in q.items()
+            if float(info.get("quantity", 0.0) or 0.0) > 0
+        }
+        assert {a.activity_key for a in acts} == active_keys, (
+            f"{name}: zero-quantity activities must not be scheduled"
+        )
+        assert len(acts) == len(active_keys)
 
         for a in acts:
             c = a.cost
@@ -98,15 +105,15 @@ def test_every_catalogue_key_is_quantified_and_priced(runs):
             ), f"{name}: {a.activity_key} total identity"
             assert c.direct_cost == pytest.approx(
                 a.quantity * c.planned_unit_rate
-                + c.crash_total_surcharge
                 + c.wastage_cost
+                + c.crash_total_surcharge
             ), f"{name}: {a.activity_key} direct identity"
-            # Direct all-in rates already contain wastage, OH and profit.
-            assert c.wastage_in_base_rate
+            # Wastage is a separate direct-cost line for every project type.
+            assert not c.wastage_in_base_rate
             for field in ("wastage_cost", "material_wastage_cost", "fuel_wastage_cost",
                           "plant_wastage_cost", "labour_wastage_cost",
                           "resource_wastage_cost"):
-                assert getattr(c, field) == 0, f"{name}: {a.activity_key} {field} != 0"
+                assert getattr(c, field) >= 0, f"{name}: {a.activity_key} {field} < 0"
             assert c.overhead_amount == 0 and c.profit_amount == 0
             if a.quantity > 0:
                 # On-costs are embedded in the planned rate and reported as memo
@@ -121,11 +128,19 @@ def test_every_catalogue_key_is_quantified_and_priced(runs):
                     c.overhead_embedded + c.profit_embedded
                     < a.quantity * c.planned_unit_rate
                 )
+                assert c.wastage_cost > 0
+                assert c.escalation_amount >= 0
 
-            if a.quantity <= 0:
-                assert a.duration_days == 0, f"{name}: {a.activity_key} zero-qty duration"
-                assert c.total_amount == 0, f"{name}: {a.activity_key} zero-qty cost"
-                assert a.progress_weight_pct == 0, f"{name}: {a.activity_key} zero-qty weight"
+
+def test_pipeline_overhead_is_fixed_at_eight_percent():
+    loader = DataLoader(
+        guidelines_path=GUIDELINES,
+        assumptions_path=ASSUMPTIONS,
+    )
+    loader.load_all(terrain="plain")
+
+    assert loader.get_overhead_percentage(5.0) == 8.0
+    assert loader.get_overhead_percentage(25.0) == 8.0
 
 
 def test_cpm_and_progress_invariants(runs):
@@ -232,7 +247,7 @@ def test_workbook_reconciles_to_the_model(runs, tmp_path):
     # Sheet 11: the visible cost bridge closes to the optimized total.
     ws = wb["11_Baseline_vs_Optimized"]
     bridge = {}
-    for row in ws.iter_rows(min_row=118, max_row=124, values_only=True):
+    for row in ws.iter_rows(min_row=1, values_only=True):
         if row[0]:
             bridge[str(row[0])] = row[1]
     base_label = next(k for k in bridge if k.startswith("(=) BASELINE"))

@@ -25,6 +25,13 @@ from src.excel_report import ExcelReportGenerator
 from src.workbook_reader import WorkbookReader
 from src.update_planner import UpdatePlanner
 from src.update_excel_report import UpdateExcelReportGenerator
+from src.validation_sanity_checks import (
+    format_validation_report,
+    validate_schedule_result,
+    validate_exported_workbook,
+    validate_update_result,
+    validate_exported_update_workbook,
+)
 
 # Default config paths per project type
 _CONFIG = {
@@ -122,6 +129,24 @@ def run_project_planning(
     )
     result = scheduler.solve()
 
+    validation = validate_schedule_result(
+        result,
+        loader.assumptions,
+        calendar=scheduler.calendar,
+    )
+    for warning in result.validation_warnings:
+        validation.add("WARNING", "SCHEDULER_SANITY", warning)
+    # Keep the structured report on the result so the Excel exporter can show
+    # the exact checks that were run, including warnings.
+    result.validation_report = validation
+    if validation.errors:
+        print(format_validation_report(validation))
+        raise ValueError("Schedule validation failed; workbook generation stopped.")
+    for issue in validation.warnings:
+        warning = f"{issue.code}: {issue.message}"
+        if warning not in result.warnings:
+            result.warnings.append(warning)
+
     print("=" * 80)
     print(f" {_project_type_banner(ptype)}")
     print("=" * 80)
@@ -186,6 +211,10 @@ def run_project_planning(
     print(f"\n⏳ [4/5] Generating Excel report: {output_path}...")
     reporter = ExcelReportGenerator(result=result, output_path=output_path)
     final_file = reporter.generate()
+    workbook_validation = validate_exported_workbook(final_file, result)
+    if workbook_validation.errors:
+        print(format_validation_report(workbook_validation))
+        raise ValueError("Exported workbook validation failed.")
     print(f"    ✔ Excel report generated successfully at: {os.path.abspath(final_file)}")
     print("=" * 80)
     print(" ✅ CONSTRAINT-BASED PLANNING COMPLETED SUCCESSFULLY")
@@ -300,6 +329,11 @@ def run_update_plan(args) -> None:
         data_loader=loader,
     )
     result = planner.plan()
+    update_validation = validate_update_result(result, loader.assumptions)
+    result.validation_report = update_validation
+    if update_validation.errors:
+        print(format_validation_report(update_validation))
+        raise ValueError("Updated schedule validation failed; workbook generation stopped.")
 
     # Print update summary
     print("================================================================================")
@@ -341,6 +375,10 @@ def run_update_plan(args) -> None:
     print(f"\n  [5/6] Generating updated Excel report: {args.output}...")
     reporter = UpdateExcelReportGenerator(result=result, output_path=args.output)
     final_file = reporter.generate()
+    workbook_validation = validate_exported_update_workbook(final_file, result)
+    if workbook_validation.errors:
+        print(format_validation_report(workbook_validation))
+        raise ValueError("Exported updated workbook validation failed.")
 
     # Validate the revised network
     print("  [6/6] Validating revised dependency network...")
