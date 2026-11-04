@@ -1,156 +1,262 @@
-# Project Schedule Commands
+# Project Schedule Command Templates
 
-This guide shows how to:
+This document is the command reference for generating and updating Road,
+Pipeline, and Building Excel schedules.
 
-1. Prepare input values for a new schedule.
-2. Generate a new Excel schedule for a road, pipeline, or building project.
-3. Update an existing Excel schedule for each project type.
-
-Run all commands from:
+Run commands from:
 
 ```powershell
 cd C:\Users\syama\JAVA\Desktop\road\Roadgit\ProjectPlanning\RoadConstruction
 ```
 
-Use the project virtual environment:
+Use the project virtual environment directly:
 
 ```powershell
-& ".\.venv-pipeline\Scripts\Activate.ps1"
+& ".\.venv-pipeline\Scripts\python.exe" main.py <command>
 ```
 
-If PowerShell blocks activation, run every command with the environment's
-Python executable instead:
+## Field labels used in this document
+
+- **MANDATORY**: provide this value for a reproducible project schedule.
+- **OPTIONAL**: provide it only when that scope or behavior exists.
+- **DEFAULT**: the application supplies this value when omitted.
+- **DO NOT ADD**: do not use this option unless you intentionally want to
+  override the normal behavior.
+
+Although some CLI fields have prompts or defaults, provide all **MANDATORY**
+fields explicitly in production commands. Do not rely on interactive prompts.
+
+## 1. Road project
+
+### 1.1 New road workbook fields
+
+| Field | Status | Meaning | Example |
+|---|---|---|---|
+| `--title` | MANDATORY | Project name | `"NH Link Road 10 km"` |
+| `--length` | MANDATORY | Length in kilometres | `10` |
+| `--lanes` | MANDATORY | Number of lanes | `4` |
+| `--terrain` | MANDATORY | `plain` or `hilly` | `plain` |
+| `--duration` | MANDATORY | Maximum duration | `"300 days"` |
+| `--budget` | MANDATORY | Maximum budget in crore | `250` |
+| `--start-date` | MANDATORY | Start date, `YYYY-MM-DD` | `"2026-11-04"` |
+| `--output` | MANDATORY | New Excel filename | `"road_schedule.xlsx"` |
+| `--service-road-sides` | OPTIONAL | Service-road sides; `0` means none | `2` |
+| `--toll-plazas` | OPTIONAL | Number of toll plazas | `1` |
+| `--atms` | OPTIONAL | Number of ATMS scopes | `1` |
+| `--bridges` | OPTIONAL | Number of bridges | `1` |
+| `--flyovers` | OPTIONAL | Number of flyovers | `0` |
+| `--underpasses` | OPTIONAL | Number of underpasses | `1` |
+| `--retaining-walls-sqm` | OPTIONAL | Retaining-wall area in sqm | `5000` |
+| `--no-accel-cost` | OPTIONAL | Disable acceleration cost | flag only |
+
+Optional structure activities are generated only when their input is greater
+than zero. Do not add optional fields with invented quantities.
+
+### 1.2 Road new-workbook template
 
 ```powershell
-& ".\.venv-pipeline\Scripts\python.exe" main.py ...
-```
-
-## 1. New schedule input templates
-
-### 1.1 Road project inputs
-
-| Input | Meaning | Example |
-|---|---|---|
-| `--title` | Project name | `"Hyderabad Highway"` |
-| `--length` | Road length in kilometres | `10` |
-| `--lanes` | Number of lanes | `2` |
-| `--terrain` | `plain` or `hilly` | `plain` |
-| `--duration` | Planned duration | `"365 days"` |
-| `--budget` | Budget in crore | `250` |
-| `--start-date` | Start date in `YYYY-MM-DD` format | `2026-04-01` |
-| `--output` | Output Excel file | `road_schedule.xlsx` |
-
-Road command template:
-
-```powershell
-python main.py road `
+& ".\.venv-pipeline\Scripts\python.exe" main.py road `
   --title "<ROAD PROJECT TITLE>" `
   --length <LENGTH_KM> `
-  --lanes <NUMBER_OF_LANES> `
-  --terrain plain `
-  --duration "<DURATION> days" `
+  --lanes <2_OR_4> `
+  --terrain <plain_OR_hilly> `
+  --duration "<DURATION days>" `
   --budget <BUDGET_CRORE> `
   --start-date "<YYYY-MM-DD>" `
-  --output "<ROAD_OUTPUT_FILE>.xlsx"
+  --output "<ROAD_NEW_FILE>.xlsx" `
+  --service-road-sides <0_OR_1_OR_2> `
+  --toll-plazas <0_OR_MORE> `
+  --atms <0_OR_MORE> `
+  --bridges <0_OR_MORE> `
+  --flyovers <0_OR_MORE> `
+  --underpasses <0_OR_MORE> `
+  --retaining-walls-sqm <0_OR_MORE>
 ```
 
-Use `--terrain hilly` for a hilly project. Use `--no-accel-cost` only when
-acceleration cost should intentionally be disabled.
-
-### 1.2 Pipeline project inputs
-
-| Input | Meaning | Example |
-|---|---|---|
-| `--title` | Project name | `"Hyderabad Water Pipeline"` |
-| `--length` | Pipeline length in kilometres | `10` |
-| `--diameter` | Nominal pipe diameter in millimetres | `600` |
-| `--material` | `DI`, `HDPE`, `MS`, or `RCC` | `DI` |
-| `--trench-depth` | Average trench depth in metres | `2` |
-| `--fronts` | Simultaneous work fronts | `2` |
-| `--pipeline-type` | `water`, `sewerage`, or `gas` | `water` |
-| `--duration` | Planned duration | `"365 days"` |
-| `--budget` | Budget in crore | `25` |
-| `--start-date` | Start date in `YYYY-MM-DD` format | `2026-04-01` |
-| `--output` | Output Excel file | `pipeline_schedule.xlsx` |
-
-Optional pipeline inputs include `--villages`, `--ohts`, `--wtp-mld`,
-`--ibps`, `--fhtc`, `--road-crossings`, `--highway-crossings`,
-`--rail-crossings`, `--hdd-crossings`, and `--river-crossings`.
-
-Pipeline command template:
+### 1.3 Road update-workbook template
 
 ```powershell
-python main.py pipeline `
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "<ROAD_NEW_OR_EXISTING_FILE>.xlsx" `
+  --status-date "<YYYY-MM-DD>" `
+  --actual-progress <0_TO_100> `
+  --output "<ROAD_UPDATED_FILE>.xlsx"
+```
+
+`--input`, `--status-date`, `--actual-progress`, and `--output` are mandatory.
+The update command reads the original target date from the workbook. Do not
+add `--target-date` or `--target-progress` unless a new contractual target is
+intentionally being tested.
+
+Optional update fields:
+
+```text
+--start-date <YYYY-MM-DD>
+--activity-progress <activity-progress.json>
+--no-accel-cost
+```
+
+## 2. Pipeline project
+
+### 2.1 New pipeline workbook fields
+
+| Field | Status | Meaning | Example |
+|---|---|---|---|
+| `--title` | MANDATORY | Project name | `"City Water Main"` |
+| `--length` | MANDATORY | Pipeline length in kilometres | `10` |
+| `--diameter` | MANDATORY | Pipe diameter in millimetres | `600` |
+| `--material` | MANDATORY | `DI`, `HDPE`, `MS`, or `RCC` | `DI` |
+| `--trench-depth` | MANDATORY | Average depth in metres | `2` |
+| `--fronts` | MANDATORY | Simultaneous work fronts | `2` |
+| `--duration` | MANDATORY | Maximum duration | `"365 days"` |
+| `--budget` | MANDATORY | Maximum budget in crore | `25` |
+| `--start-date` | MANDATORY | Start date, `YYYY-MM-DD` | `"2026-04-01"` |
+| `--output` | MANDATORY | New Excel filename | `"pipeline_schedule.xlsx"` |
+| `--pipeline-type` | OPTIONAL | `water`, `sewerage`, or `gas` | `water` |
+| `--trench-width` | OPTIONAL | Width in metres; `0` derives it | `0` |
+| `--installation-method` | OPTIONAL | `open_trench` or `trenchless` | `open_trench` |
+| `--terrain` | OPTIONAL | `plain` or `hilly` | `plain` |
+| `--villages` | OPTIONAL | Villages served | `0` |
+| `--ohts` | OPTIONAL | OHT/ESR count | `0` |
+| `--wtp-mld` | OPTIONAL | WTP capacity in MLD | `0` |
+| `--ibps` | OPTIONAL | Intake/booster stations | `0` |
+| `--fhtc` | OPTIONAL | Household tap connections | `0` |
+| `--road-crossings` | OPTIONAL | Declared road crossings | `0` |
+| `--highway-crossings` | OPTIONAL | Declared highway crossings | `0` |
+| `--rail-crossings` | OPTIONAL | Declared railway crossings | `0` |
+| `--hdd-crossings` | OPTIONAL | Declared HDD crossings | `0` |
+| `--river-crossings` | OPTIONAL | Declared river crossings | `0` |
+
+Use declared crossing counts. Do not enter crossings that are not confirmed by
+the route survey or engineering scope.
+
+### 2.2 Pipeline new-workbook template
+
+```powershell
+& ".\.venv-pipeline\Scripts\python.exe" main.py pipeline `
   --title "<PIPELINE PROJECT TITLE>" `
   --length <LENGTH_KM> `
   --diameter <DIAMETER_MM> `
-  --material <DI|HDPE|MS|RCC> `
+  --material <DI_OR_HDPE_OR_MS_OR_RCC> `
   --trench-depth <DEPTH_METRES> `
   --fronts <NUMBER_OF_FRONTS> `
-  --pipeline-type <water|sewerage|gas> `
-  --duration "<DURATION> days" `
+  --duration "<DURATION days>" `
   --budget <BUDGET_CRORE> `
   --start-date "<YYYY-MM-DD>" `
-  --output "<PIPELINE_OUTPUT_FILE>.xlsx"
+  --output "<PIPELINE_NEW_FILE>.xlsx" `
+  --pipeline-type <water_OR_sewerage_OR_gas> `
+  --road-crossings <0_OR_MORE> `
+  --highway-crossings <0_OR_MORE> `
+  --rail-crossings <0_OR_MORE> `
+  --hdd-crossings <0_OR_MORE> `
+  --river-crossings <0_OR_MORE>
 ```
 
-### 1.3 Building project inputs
-
-| Input | Meaning | Example |
-|---|---|---|
-| `--title` | Project name | `"Hyderabad Residential Block"` |
-| `--area` | Total built-up area in square metres | `2000` |
-| `--floors` | Total floors, including ground floor | `4` |
-| `--type` | `residential` or `commercial` | `residential` |
-| `--construction` | `rcc`, `load_bearing`, or `steel` | `rcc` |
-| `--quality` | `basic`, `standard`, or `premium` | `standard` |
-| `--blocks` | Number of blocks; `0` means auto-derive | `1` |
-| `--duration` | Planned duration | `"540 days"` |
-| `--budget` | Budget in crore | `6` |
-| `--start-date` | Start date in `YYYY-MM-DD` format | `2026-04-01` |
-| `--output` | Output Excel file | `building_schedule.xlsx` |
-
-Use `--sqft` only when the value passed to `--area` is in square feet.
-Use `--basement` when a basement is included.
-
-Building command template:
+### 2.3 Pipeline update-workbook template
 
 ```powershell
-python main.py building `
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "<PIPELINE_NEW_OR_EXISTING_FILE>.xlsx" `
+  --status-date "<YYYY-MM-DD>" `
+  --actual-progress <0_TO_100> `
+  --output "<PIPELINE_UPDATED_FILE>.xlsx"
+```
+
+Do not add `--target-date` or `--target-progress` for the normal update
+workflow. The stored workbook target is used automatically.
+
+## 3. Building project
+
+### 3.1 New building workbook fields
+
+| Field | Status | Meaning | Example |
+|---|---|---|---|
+| `--title` | MANDATORY | Project name | `"Residential Block A"` |
+| `--area` | MANDATORY | Built-up area in sqm | `2000` |
+| `--floors` | MANDATORY | Total floors including ground; G+3 = `4` | `4` |
+| `--type` | MANDATORY | `residential` or `commercial` | `residential` |
+| `--construction` | MANDATORY | `rcc`, `load_bearing`, or `steel` | `rcc` |
+| `--quality` | MANDATORY | `basic`, `standard`, or `premium` | `standard` |
+| `--foundation-type` | MANDATORY | `pile`, `raft`, or `isolated_footing` | `pile` |
+| `--duration` | MANDATORY | Maximum duration | `"540 days"` |
+| `--budget` | MANDATORY | Maximum budget in crore | `6` |
+| `--start-date` | MANDATORY | Start date, `YYYY-MM-DD` | `"2026-04-01"` |
+| `--output` | MANDATORY | New Excel filename | `"building_schedule.xlsx"` |
+| `--blocks` | OPTIONAL | Block count; `0` auto-derives | `1` |
+| `--sqft` | OPTIONAL | Interpret `--area` as square feet | flag only |
+| `--basement` | OPTIONAL | Include basement | flag only |
+| `--floor-wise-structural` | OPTIONAL | Explicit structural activity per floor | flag only |
+| `--no-accel-cost` | OPTIONAL | Disable acceleration cost | flag only |
+
+Use `--floor-wise-structural` only when the building activity catalogue has
+productivity assumptions for every generated floor activity.
+
+### 3.2 Building new-workbook template
+
+```powershell
+& ".\.venv-pipeline\Scripts\python.exe" main.py building `
   --title "<BUILDING PROJECT TITLE>" `
   --area <BUILT_UP_AREA_SQM> `
-  --floors <NUMBER_OF_FLOORS> `
-  --type <residential|commercial> `
-  --construction <rcc|load_bearing|steel> `
-  --quality <basic|standard|premium> `
-  --blocks <NUMBER_OF_BLOCKS> `
-  --duration "<DURATION> days" `
+  --floors <TOTAL_FLOORS> `
+  --type <residential_OR_commercial> `
+  --construction <rcc_OR_load_bearing_OR_steel> `
+  --quality <basic_OR_standard_OR_premium> `
+  --foundation-type <pile_OR_raft_OR_isolated_footing> `
+  --duration "<DURATION days>" `
   --budget <BUDGET_CRORE> `
   --start-date "<YYYY-MM-DD>" `
-  --output "<BUILDING_OUTPUT_FILE>.xlsx"
+  --output "<BUILDING_NEW_FILE>.xlsx" `
+  --blocks <0_OR_NUMBER_OF_BLOCKS>
 ```
 
-## 2. New schedule commands with sample input
-
-### 2.1 Road
+### 3.3 Building update-workbook template
 
 ```powershell
-python main.py road `
-  --title "Hyderabad Highway 10 km" `
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "<BUILDING_NEW_OR_EXISTING_FILE>.xlsx" `
+  --status-date "<YYYY-MM-DD>" `
+  --actual-progress <0_TO_100> `
+  --output "<BUILDING_UPDATED_FILE>.xlsx"
+```
+
+Do not add `--target-date` or `--target-progress` for the normal update
+workflow.
+
+## 4. Real project command set
+
+The following six commands create one complete example pair for each project
+type. Replace `--actual-progress 42` with the measured progress from the
+project engineer.
+
+### 4.1 Real road project: 10 km plain 4-lane highway
+
+```powershell
+& ".\.venv-pipeline\Scripts\python.exe" main.py road `
+  --title "Hyderabad Outer Link Plain 4-Lane Highway 10 km" `
   --length 10 `
-  --lanes 2 `
+  --lanes 4 `
   --terrain plain `
-  --duration "365 days" `
+  --duration "300 days" `
   --budget 250 `
-  --start-date "2026-04-01" `
-  --output "road_project_schedule.xlsx"
+  --start-date "2026-11-04" `
+  --service-road-sides 2 `
+  --bridges 1 `
+  --underpasses 1 `
+  --retaining-walls-sqm 5000 `
+  --output "hyderabad_plain_4lane_10km_schedule.xlsx"
+
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "hyderabad_plain_4lane_10km_schedule.xlsx" `
+  --status-date "2026-11-04" `
+  --actual-progress 0 `
+  --output "hyderabad_plain_4lane_10km_schedule_updated.xlsx"
 ```
 
-### 2.2 Pipeline
+### 4.2 Real pipeline project: 10 km DN600 DI water main
 
 ```powershell
-python main.py pipeline `
-  --title "Hyderabad Water Pipeline 10 km" `
+& ".\.venv-pipeline\Scripts\python.exe" main.py pipeline `
+  --title "Hyderabad City DN600 DI Water Main 10 km" `
   --length 10 `
   --diameter 600 `
   --material DI `
@@ -160,109 +266,48 @@ python main.py pipeline `
   --duration "365 days" `
   --budget 25 `
   --start-date "2026-04-01" `
-  --output "pipeline_project_schedule.xlsx"
+  --road-crossings 12 `
+  --highway-crossings 2 `
+  --rail-crossings 1 `
+  --hdd-crossings 2 `
+  --river-crossings 0 `
+  --output "hyderabad_dn600_pipeline_10km_schedule.xlsx"
+
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "hyderabad_dn600_pipeline_10km_schedule.xlsx" `
+  --status-date "2026-11-04" `
+  --actual-progress 42 `
+  --output "hyderabad_dn600_pipeline_10km_schedule_updated.xlsx"
 ```
 
-### 2.3 Building
+### 4.3 Real building project: 2,000 sqm G+3 residential block
 
 ```powershell
-python main.py building `
-  --title "Hyderabad Residential Block" `
+& ".\.venv-pipeline\Scripts\python.exe" main.py building `
+  --title "Hyderabad Residential Block G+3" `
   --area 2000 `
   --floors 4 `
   --type residential `
   --construction rcc `
   --quality standard `
+  --foundation-type pile `
   --blocks 1 `
   --duration "540 days" `
   --budget 6 `
   --start-date "2026-04-01" `
-  --output "building_project_schedule.xlsx"
-```
+  --output "hyderabad_residential_g3_schedule.xlsx"
 
-## 3. Updating an existing Excel schedule
-
-The update command is the same for road, pipeline, and building workbooks.
-The application reads the project type from the existing workbook and
-automatically loads the matching guidelines and assumptions.
-
-Required update inputs:
-
-| Input | Meaning | Example |
-|---|---|---|
-| `--input` | Existing generated Excel schedule | `road_project_schedule.xlsx` |
-| `--status-date` | Date on which progress is reported | `2026-10-01` |
-| `--actual-progress` | Actual overall progress from 0 to 100 | `42` |
-| `--output` | Updated Excel schedule | `road_project_schedule_updated.xlsx` |
-
-Optional update inputs:
-
-| Input | Meaning |
-|---|---|
-| `--start-date` | Override the original project start date |
-| `--target-date` | Date by which the target should be achieved |
-| `--target-progress` | Target progress percentage at the target date |
-| `--activity-progress` | JSON file containing activity-level progress |
-| `--no-accel-cost` | Disable acceleration cost intentionally |
-
-### 3.1 Update command template
-
-```powershell
-python main.py update-plan `
-  --input "<EXISTING_SCHEDULE>.xlsx" `
-  --status-date "<STATUS_DATE>" `
-  --actual-progress <ACTUAL_PROGRESS_PERCENT> `
-  --target-date "<TARGET_DATE>" `
-  --target-progress <TARGET_PROGRESS_PERCENT> `
-  --output "<UPDATED_SCHEDULE>.xlsx"
-```
-
-`--target-date` and `--target-progress` are optional. If `--target-date` is
-not supplied, the command uses the optimized finish date already stored in the
-existing workbook when available.
-
-## 4. Update commands with sample input
-
-### 4.1 Update a road schedule
-
-```powershell
-python main.py update-plan `
-  --input "road_project_schedule.xlsx" `
-  --status-date "2026-10-01" `
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan `
+  --input "hyderabad_residential_g3_schedule.xlsx" `
+  --status-date "2026-11-04" `
   --actual-progress 42 `
-  --target-date "2027-03-31" `
-  --target-progress 100 `
-  --output "road_project_schedule_updated.xlsx"
+  --output "hyderabad_residential_g3_schedule_updated.xlsx"
 ```
 
-### 4.2 Update a pipeline schedule
+## 5. Activity-level progress
 
-```powershell
-python main.py update-plan `
-  --input "pipeline_project_schedule.xlsx" `
-  --status-date "2026-10-01" `
-  --actual-progress 35 `
-  --target-date "2027-03-31" `
-  --target-progress 100 `
-  --output "pipeline_project_schedule_updated.xlsx"
-```
-
-### 4.3 Update a building schedule
-
-```powershell
-python main.py update-plan `
-  --input "building_project_schedule.xlsx" `
-  --status-date "2026-10-01" `
-  --actual-progress 28 `
-  --target-date "2027-09-30" `
-  --target-progress 100 `
-  --output "building_project_schedule_updated.xlsx"
-```
-
-## 5. Activity-level progress template
-
-Overall progress is enough for a basic update. For a more accurate update,
-create a JSON file with activity IDs and their completion percentages:
+Overall progress is acceptable for a basic update. For a more accurate update,
+create a JSON file whose activity IDs exist in the original workbook:
 
 ```json
 {
@@ -273,45 +318,33 @@ create a JSON file with activity IDs and their completion percentages:
 }
 ```
 
-The IDs must exist in the original workbook. Values must be between `0` and
-`100`.
-
-Use it with any project type:
+Then add this optional argument:
 
 ```powershell
-python main.py update-plan `
-  --input "pipeline_project_schedule.xlsx" `
-  --status-date "2026-10-01" `
-  --actual-progress 35 `
-  --activity-progress "pipeline_activity_progress.json" `
-  --output "pipeline_project_schedule_updated.xlsx"
+--activity-progress "activity_progress.json"
 ```
 
-## 6. What the commands produce
+All values must be between `0` and `100`.
 
-For a new project, the generated workbook contains the complete schedule,
-quantities, costs, CPM dates, monthly progress, S-curve, and validation
-register.
+## 6. Output and validation
 
-For an updated project, the generated workbook contains the baseline-versus-
-actual comparison, remaining activities, revised CPM, revised cost, revised
-monthly progress, feasibility information, and update validation.
+New workbooks contain the `15_Validation_Checks` sheet. Updated workbooks
+contain `09_Validation_Checks`.
 
-Always review the validation sheet:
+- `PASS`: arithmetic, schedule, or reconciliation check passed.
+- `WARNING`: planning or engineering review is required; totals are not
+  automatically invalid.
+- `ERROR`: hard validation failure; investigate before accepting the workbook.
 
-- New workbook: `15_Validation_Checks`
-- Updated workbook: `09_Validation_Checks`
+If the requested output workbook is open in Excel, the application writes a
+safe alternative filename such as `_new.xlsx`. Close the workbook and use the
+actual filename printed by the command.
 
-The validation sheet should show `PASS`, `WARNING`, or `ERROR` for each check.
-An `ERROR` means the workbook should not be accepted until the issue is
-understood and corrected.
-
-## 7. Check available options
+To inspect all available options:
 
 ```powershell
-python main.py road --help
-python main.py pipeline --help
-python main.py building --help
-python main.py update-plan --help
+& ".\.venv-pipeline\Scripts\python.exe" main.py road --help
+& ".\.venv-pipeline\Scripts\python.exe" main.py pipeline --help
+& ".\.venv-pipeline\Scripts\python.exe" main.py building --help
+& ".\.venv-pipeline\Scripts\python.exe" main.py update-plan --help
 ```
-
