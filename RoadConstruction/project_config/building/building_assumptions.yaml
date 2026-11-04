@@ -739,10 +739,9 @@ sdb_rate_oncost:
 # Escalation
 # =============================================================================
 escalation:
-  # Disabled because no contract escalation clause was supplied. The model is
-  # fully configured, so enabling it produces a real (non-zero) escalation
-  # amount instead of silently reading the old annual_rate_pct key as zero.
-  enabled: false
+  # Provisional planning escalation. Replace the source and clause with the
+  # executed building contract provisions before tendering or certification.
+  enabled: true
   base_date: "2026-11-01"
   annual_rates:
     material: 0.04
@@ -754,11 +753,12 @@ escalation:
   cap_pct_of_base: 1.0
   index_overrides: {}
   excluded: []
-  source: ""
-  contract_escalation_clause: ""
+  source: "Provisional planning indices; contract index source pending confirmation"
+  contract_escalation_clause: "Provisional planning allowance; replace with the executed building contract escalation clause"
   note: >
-    No building contract escalation clause is available. Keep disabled for
-    base estimates; enable only after recording the clause and index source.
+    Planning escalation is enabled for schedule forecasting. Replace the
+    provisional source, clause and weights with verified contract documents
+    before issuing a bid or payment certificate.
 
 # =============================================================================
 # Major plant
@@ -770,4 +770,3 @@ major_plant_max_units: 1
 # Staggered handover chains (floor-by-floor: frame leads finishing by ~4 weeks)
 # =============================================================================
 staggered_handover_chains: []
-

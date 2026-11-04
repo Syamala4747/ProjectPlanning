@@ -190,6 +190,7 @@ def test_building_run_cost_and_duration_are_plausible(run):
     assert res.total_calculated_cost_crore == pytest.approx(
         sum(a.cost.total_amount for a in res.activities) / 1e7, abs=0.01
     )
+    assert any(a.cost.escalation_amount > 0 for a in res.activities)
 
 
 def test_workbook_reports_embedded_oh_cp(run, tmp_path):
