@@ -948,6 +948,7 @@ direct_unit_rates_inr:
   dik7_commissioning: 45
   dik9_laying_small_med: 5200
   dik9_laying_large: 8600
+
   dik9_backfill_test: 320
   dik9_commissioning: 55
   ms_laying: 28000
@@ -1019,6 +1020,21 @@ direct_unit_rates_inr:
   ht_lt_cabling: 1500
   dg_set: 2500000
   scada_automation: 4500000
+# Audit metadata for rate traceability. The Rs 8,600/m rate is retained;
+# engineering/rate-analysis verification remains a required human approval.
+rate_metadata:
+  dik9_laying_small_med:
+    source: "Configured direct_unit_rates_inr; CPWD DSR/CPHEEO planning basis"
+    year: "2021 basis; project escalation configured separately"
+    inclusions: "Pipe lowering, laying and jointing as defined by the catalogue"
+    exclusions: "Independent transport, exceptional crossings and design changes"
+    verification_status: "provisional"
+  dik9_laying_large:
+    source: "Configured direct_unit_rates_inr; CPWD DSR/CPHEEO planning basis"
+    year: "2021 basis; project escalation configured separately"
+    inclusions: "Pipe lowering, laying and jointing as defined by the catalogue"
+    exclusions: "Independent transport, exceptional crossings and design changes"
+    verification_status: "provisional"
 activity_no_material_recipe:
 - survey_setting_out
 - utility_mapping

@@ -17,6 +17,7 @@ from .models import ProjectScheduleResult, RoadActivity, MonthlyProgressItem
 from .wbs_generator import WBSGenerator, WBSNode
 from .plan_generator import build_plan
 from .engineer_daily_log import build_daily_log
+from .workbook_metadata import attach_metadata, build_metadata
 
 class ExcelReportGenerator:
     def __init__(self, result: ProjectScheduleResult, output_path: str = "road_project_schedule.xlsx"):
@@ -90,6 +91,13 @@ class ExcelReportGenerator:
         self._build_sheet_15_validation(wb)
         self._build_sheet_plan(wb)
         self._build_sheet_daily_log(wb)
+        if self.res.guidelines_path and self.res.assumptions_path:
+            attach_metadata(
+                wb,
+                build_metadata(
+                    self.p_in, self.res.guidelines_path, self.res.assumptions_path
+                ),
+            )
 
         try:
             wb.save(self.output_path)
@@ -675,7 +683,8 @@ class ExcelReportGenerator:
                 ("Quality / Finish Level", quality, "", "Specification", "Basic / Standard / Premium — affects MEP and finishes rates"),
                 ("Basement", basement, "", "Scope", "Adds basement excavation, waterproofing and structure"),
                 ("Number of Blocks / Towers", blocks, "Blocks", "Construction Method", "Determines parallel work fronts"),
-                ("Foundation Type", "RCC Isolated / Raft", "", "Substructure", "IS 456 Clause 34; soil report governs choice"),
+                ("Foundation Type", getattr(self.p_in, "foundation_type", "pile"), "", "Substructure", "User input; geotechnical design approval required"),
+                ("Floor-wise Structural Detail", "Yes" if getattr(self.p_in, "floor_wise_structural_detail", False) else "No", "", "Reporting", "Yes creates explicit activities for floors above the catalogue template"),
                 ("Structural System", f"RCC Frame ({ctype})", "", "Engineering Input", const_std),
                 ("Cement Grade", "M25 (Foundation) / M30 (Frame)", "", "Specification", "IS 456 Table 1; IS 10262"),
                 ("Steel Grade", "Fe500D TMT", "", "Specification", "IS 1786 — high ductility"),
@@ -706,6 +715,13 @@ class ExcelReportGenerator:
                 ("WMM Thickness", 0.25, "m", "Layer Thickness", "250mm Wet Mix Macadam (MoRTH 406)"),
                 ("DBM Thickness", 0.075, "m", "Layer Thickness", "75mm Dense Bituminous Macadam (MoRTH 505)"),
                 ("BC Thickness", 0.040, "m", "Layer Thickness", "40mm Bituminous Concrete (MoRTH 507)"),
+                ("Service Road Sides", getattr(self.p_in, "service_road_sides", 0), "Sides", "Optional Scope", "0 means service roads are out of scope"),
+                ("Toll Plazas", getattr(self.p_in, "toll_plazas", 0), "Nos", "Optional Scope", "Declared user input"),
+                ("ATMS", getattr(self.p_in, "atms", 0), "Nos", "Optional Scope", "Declared user input"),
+                ("Bridges", getattr(self.p_in, "bridges", 0), "Nos", "Optional Scope", "Declared user input"),
+                ("Flyovers", getattr(self.p_in, "flyovers", 0), "Nos", "Optional Scope", "Declared user input"),
+                ("Underpasses", getattr(self.p_in, "underpasses", 0), "Nos", "Optional Scope", "Declared user input"),
+                ("Retaining Walls", getattr(self.p_in, "retaining_walls_sqm", 0), "sqm", "Optional Scope", "Declared user input"),
             ]
         return common_head + specific + common_tail
 
@@ -1125,13 +1141,14 @@ class ExcelReportGenerator:
             ws,
             self._activities_banner(),
             "WBS-aligned Baseline vs Optimized crews, durations, costs, days saved, and additional costs",
-            16
+            22
         )
         
         headers = [
             "WBS Code", "Work Package", "Activity ID", "Activity Name", "Quantity", "Unit", "Productivity",
             "Baseline Crews", "Baseline Duration (d)", "Baseline Cost (₹)", "Predecessors",
             "Optimized Crews", "Optimized Duration (d)", "Optimized Cost (₹)", "Duration Saved (d)", "Additional Cost (₹)"
+            , "Rate Source", "Rate Year", "Rate Unit", "Rate Inclusions", "Rate Exclusions", "Rate Verification"
         ]
         self._apply_header(ws, 4, headers)
         ws.freeze_panes = "A5"
@@ -1161,7 +1178,13 @@ class ExcelReportGenerator:
                 opt_act.duration_days,
                 opt_act.cost.total_amount,
                 dur_saved_formula,
-                add_cost_formula
+                add_cost_formula,
+                opt_act.reference.rate_source,
+                opt_act.reference.rate_year,
+                opt_act.reference.rate_unit,
+                opt_act.reference.rate_inclusions,
+                opt_act.reference.rate_exclusions,
+                opt_act.reference.rate_verification_status,
             ]
 
             for col_idx, val in enumerate(row_vals, 1):
@@ -1189,7 +1212,7 @@ class ExcelReportGenerator:
         ws.cell(row=tot_r, column=14, value=f"=SUM(N{start_r}:N{end_r})").number_format = "₹#,##0.00"
         ws.cell(row=tot_r, column=16, value=f"=SUM(P{start_r}:P{end_r})").number_format = "₹#,##0.00"
 
-        for c_idx in range(1, 17):
+        for c_idx in range(1, 23):
             cell = ws.cell(row=tot_r, column=c_idx)
             cell.font = self.font_bold
             cell.border = self.border_double

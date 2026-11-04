@@ -93,7 +93,9 @@ class RoadQuantityCalculator:
             self.subgrade_width_m = float(std.get("subgrade_width_m", 22.0))
             self.gsb_width_m = float(std.get("gsb_width_m", 20.5))
             self.wmm_width_m = float(std.get("wmm_width_m", 19.5))
-            self.service_road_sides = float(std.get("service_road_sides", 2.0))
+            self.service_road_sides = float(
+                getattr(project_input, "service_road_sides", 0)
+            )
         else:
             base_formation = float(params.get("formation_width_m", 28.0))
             base_carriageway = float(params.get("carriageway_width_m", 18.0))
@@ -107,7 +109,9 @@ class RoadQuantityCalculator:
             self.subgrade_width_m = round(base_subgrade * self.lane_factor, 2)
             self.gsb_width_m = round(base_gsb * self.lane_factor, 2)
             self.wmm_width_m = round(base_wmm * self.lane_factor, 2)
-            self.service_road_sides = 2.0 if self.lanes >= 4 else (1.0 if self.lanes >= 2 else 0.0)
+            self.service_road_sides = float(
+                getattr(project_input, "service_road_sides", 0)
+            )
 
         self.input.carriageway_width_m = self.carriageway_width_m
         self.input.formation_width_m = self.formation_width_m
@@ -228,28 +232,33 @@ class RoadQuantityCalculator:
             "quantity": round(pipe_count * self.pipe_culvert_length_m * culvert_width_factor, 2),
             "unit": "metre",
         }
+        bridge_count = int(getattr(self.input, "bridges", 0) or 0)
+        flyover_count = int(getattr(self.input, "flyovers", 0) or 0)
+        underpass_count = int(getattr(self.input, "underpasses", 0) or 0)
         quantities["bridge_piling"] = {
-            "quantity": round(km_factor * self.piling_ref_m, 2),
+            "quantity": round(bridge_count * self.piling_ref_m, 2),
             "unit": "metre",
         }
         quantities["bridge_substructure"] = {
-            "quantity": round(km_factor * self.bridge_sub_ref_cum, 2),
+            "quantity": round(bridge_count * self.bridge_sub_ref_cum, 2),
             "unit": "cum",
         }
         quantities["bridge_superstructure"] = {
-            "quantity": round(km_factor * self.bridge_super_ref_cum, 2),
+            "quantity": round(bridge_count * self.bridge_super_ref_cum, 2),
             "unit": "cum",
         }
         quantities["flyover_structures"] = {
-            "quantity": round(km_factor * self.flyover_ref_cum, 2),
+            "quantity": round(flyover_count * self.flyover_ref_cum, 2),
             "unit": "cum",
         }
         quantities["vup_structures"] = {
-            "quantity": round(km_factor * self.vup_ref_cum, 2),
+            "quantity": round(underpass_count * self.vup_ref_cum, 2),
             "unit": "cum",
         }
         quantities["re_walls"] = {
-            "quantity": round(km_factor * self.re_walls_ref_sqm, 2),
+            "quantity": round(
+                float(getattr(self.input, "retaining_walls_sqm", 0) or 0), 2
+            ),
             "unit": "sqm",
         }
         quantities["drainage"] = {
@@ -269,7 +278,10 @@ class RoadQuantityCalculator:
             "unit": "km",
         }
         quantities["toll_plaza_atms"] = {
-            "quantity": round(max(0.04, km_factor), 3),
+            "quantity": round(
+                int(getattr(self.input, "toll_plazas", 0) or 0)
+                + int(getattr(self.input, "atms", 0) or 0), 3
+            ),
             "unit": "set",
         }
         return quantities
@@ -767,6 +779,9 @@ class BuildingQuantityCalculator:
         self.construction_type = str(getattr(project_input, "construction_type", "rcc") or "rcc").lower()
         self.quality = str(getattr(project_input, "quality_finish", "standard") or "standard").lower()
         self.blocks = max(1, int(getattr(project_input, "number_of_blocks", 1) or 1))
+        self.foundation_type = str(
+            getattr(project_input, "foundation_type", "pile") or "pile"
+        ).strip().lower()
 
         # Total floor plate (all blocks combined).
         self.floor_area_sqm = self.bua_sqm / self.floors
@@ -877,9 +892,10 @@ class BuildingQuantityCalculator:
             frame_weights["sf_beams_slab"] = 2.0
             frame_weights["ff_stairs"] = 0.4
             frame_weights["sf_columns"] = 1.0
-        if floors > 3:
-            frame_weights["sf_beams_slab"] += 3.0 * (floors - 3)
-            frame_weights["sf_columns"] += 1.0 * (floors - 3)
+        if floors > 3 and getattr(self.input, "floor_wise_structural_detail", False):
+            for floor_no in range(4, floors + 1):
+                frame_weights[f"floor_{floor_no}_beams_slab"] = 3.0
+                frame_weights[f"floor_{floor_no}_columns"] = 1.0
 
         weight_total = sum(frame_weights.values()) or 1.0
         frame_q = {k: frame_rcc * w / weight_total for k, w in frame_weights.items()}
@@ -899,7 +915,7 @@ class BuildingQuantityCalculator:
         # --- Piles and foundation. One pile per `pile_spacing_sqm` of floor
         # plate; depth grows with the number of storeys.
         pile_count = 0
-        if self.pile_factor > 0:
+        if self.pile_factor > 0 and self.foundation_type == "pile":
             pile_count = max(12, int(math.ceil(footprint / max(self.pile_spacing_sqm, 1e-9))))
         pile_depth = 0.0
         if pile_count:
@@ -909,6 +925,12 @@ class BuildingQuantityCalculator:
             )
         piling_m = pile_count * pile_depth
         pile_tests = max(3, int(math.ceil(pile_count * 0.02))) if pile_count else 0
+        footing_count = max(4, int(math.ceil(footprint / 25.0)))
+        foundation_volume = (
+            footprint * self.foundation_rcc_per_sqm
+            if self.foundation_type == "raft"
+            else footing_count * 0.80
+        )
 
         # --- Roof and envelope.
         roof_area = footprint * 1.05
@@ -963,8 +985,12 @@ class BuildingQuantityCalculator:
         q["pile_head_chipping"] = row(
             float(pile_count), "Nos", "One per pile")
         q["pile_caps"] = row(
-            pile_count * self.pile_cap_cum_per_pile, "cum",
-            f"{pile_count} piles x {self.pile_cap_cum_per_pile} cum/pile")
+            pile_count * self.pile_cap_cum_per_pile
+            if self.foundation_type == "pile" else foundation_volume,
+            "cum",
+            (f"{pile_count} piles x {self.pile_cap_cum_per_pile} cum/pile"
+             if self.foundation_type == "pile"
+             else f"{self.foundation_type} foundation allowance"))
         q["column_stumps"] = row(
             pile_count * self.column_stump_cum_per_pile, "cum",
             f"{pile_count} piles x {self.column_stump_cum_per_pile} cum/pile")
@@ -987,6 +1013,14 @@ class BuildingQuantityCalculator:
         q["ff_walls"] = row(ff_walls, "cum", "Masonry split by storey")
         q["sf_columns"] = row(frame_q["sf_columns"], "cum", "Frame RCC allocation")
         q["roof_beams"] = row(frame_q["roof_beams"], "cum", "Frame RCC allocation")
+        if getattr(self.input, "floor_wise_structural_detail", False):
+            for floor_no in range(4, floors + 1):
+                q[f"floor_{floor_no}_beams_slab"] = row(
+                    frame_q.get(f"floor_{floor_no}_beams_slab", 0.0),
+                    "cum", f"Explicit floor {floor_no} frame RCC allocation")
+                q[f"floor_{floor_no}_columns"] = row(
+                    frame_q.get(f"floor_{floor_no}_columns", 0.0),
+                    "cum", f"Explicit floor {floor_no} frame RCC allocation")
         q["roof_trusses"] = row(
             roof_trusses_mt, "MT",
             "Steel roof only; zero for an RCC roof")

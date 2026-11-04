@@ -25,6 +25,7 @@ from src.excel_report import ExcelReportGenerator
 from src.workbook_reader import WorkbookReader
 from src.update_planner import UpdatePlanner
 from src.update_excel_report import UpdateExcelReportGenerator
+from src.workbook_metadata import freshness_warnings
 from src.validation_sanity_checks import (
     format_validation_report,
     validate_schedule_result,
@@ -137,6 +138,8 @@ def run_project_planning(
         enable_acceleration_cost=enable_acceleration_cost
     )
     result = scheduler.solve()
+    result.guidelines_path = guidelines_path
+    result.assumptions_path = assumptions_path
 
     validation = validate_schedule_result(
         result,
@@ -292,6 +295,16 @@ def run_update_plan(args) -> None:
         ptype, getattr(args, "guidelines", "") or "", getattr(args, "assumptions", "") or "")
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=proj_input.terrain)
+    freshness = freshness_warnings(
+        metadata.get("workbook_provenance", {}),
+        proj_input,
+        guidelines_path,
+        assumptions_path,
+    )
+    for warning in freshness:
+        reader.warnings.append("FRESHNESS: " + warning)
+    for warning in freshness:
+        print(f"      - FRESHNESS: {warning}")
     if loader.warnings:
         for w in loader.warnings:
             print(f"      - {w}")
@@ -304,6 +317,8 @@ def run_update_plan(args) -> None:
         enable_acceleration_cost=not args.no_accel_cost,
     )
     baseline_result = scheduler.solve()
+    baseline_result.guidelines_path = guidelines_path
+    baseline_result.assumptions_path = assumptions_path
     print(f"      Baseline: {baseline_result.baseline_duration_days} d, "
           f"Rs {baseline_result.baseline_cost_crore:,.2f} Cr")
     print(f"      Optimized: {baseline_result.calculated_duration_days} d, "
@@ -478,6 +493,14 @@ def _build_road_parser() -> argparse.ArgumentParser:
     p.add_argument("--start-date", type=str, default="")
     p.add_argument("--terrain", type=str, choices=("plain", "hilly"), default="")
     p.add_argument("--lanes", type=int, default=0)
+    p.add_argument("--service-road-sides", type=int, default=0,
+                   help="Optional service-road sides; 0 means out of scope")
+    p.add_argument("--toll-plazas", type=int, default=0)
+    p.add_argument("--atms", type=int, default=0)
+    p.add_argument("--bridges", type=int, default=0)
+    p.add_argument("--flyovers", type=int, default=0)
+    p.add_argument("--underpasses", type=int, default=0)
+    p.add_argument("--retaining-walls-sqm", type=float, default=0.0)
     p.add_argument("--guidelines", type=str, default="")
     p.add_argument("--assumptions", type=str, default="")
     p.add_argument("--output", type=str, default="")
@@ -562,6 +585,10 @@ def _build_building_parser() -> argparse.ArgumentParser:
                    help="Include basement in scope")
     p.add_argument("--blocks", type=int, default=0,
                    help="Number of blocks/towers (0 = auto-derive from area)")
+    p.add_argument("--foundation-type", type=str, default="pile",
+                   choices=("pile", "raft", "isolated_footing"))
+    p.add_argument("--floor-wise-structural", action="store_true",
+                   help="Create explicit structural activities for every floor")
     p.add_argument("--duration", type=str, default="")
     p.add_argument("--budget", type=str, default="")
     p.add_argument("--start-date", type=str, default="")
@@ -609,6 +636,13 @@ def run_road(args) -> None:
         lanes=lanes,
         terrain=terrain,
         project_type="road",
+        service_road_sides=args.service_road_sides,
+        toll_plazas=args.toll_plazas,
+        atms=args.atms,
+        bridges=args.bridges,
+        flyovers=args.flyovers,
+        underpasses=args.underpasses,
+        retaining_walls_sqm=args.retaining_walls_sqm,
     )
     guidelines, assumptions = _auto_config("road", args.guidelines, args.assumptions)
     output = args.output or _CONFIG["road"]["output"]
@@ -719,6 +753,8 @@ def run_building(args) -> None:
         quality_finish=args.quality,
         basement=args.basement,
         number_of_blocks=blocks,
+        foundation_type=args.foundation_type,
+        floor_wise_structural_detail=args.floor_wise_structural,
     )
     guidelines, assumptions = _auto_config("building", args.guidelines, args.assumptions)
     output = args.output or _CONFIG["building"]["output"]

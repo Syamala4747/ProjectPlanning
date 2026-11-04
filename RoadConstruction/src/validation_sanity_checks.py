@@ -161,6 +161,13 @@ def validate_schedule_result(
             report.add("ERROR", "INVALID_PLANNED_RATE", "Planned unit rate must be positive.", aid)
         if float(cost.direct_cost or 0.0) < 0 or float(cost.total_amount or 0.0) < 0:
             report.add("ERROR", "NEGATIVE_COST", "Cost values cannot be negative.", aid)
+        reference = getattr(activity, "reference", None)
+        if reference and not getattr(reference, "rate_source", ""):
+            report.add("WARNING", "RATE_METADATA_MISSING",
+                       "Rate source metadata is missing.", aid)
+        if reference and getattr(reference, "rate_verification_status", "unverified") == "unverified":
+            report.add("WARNING", "RATE_NOT_VERIFIED",
+                       "Rate metadata is provisional or unverified.", aid)
 
         expected_direct = quantity * float(cost.planned_unit_rate or 0.0)
         if not bool(getattr(cost, "wastage_in_base_rate", False)):

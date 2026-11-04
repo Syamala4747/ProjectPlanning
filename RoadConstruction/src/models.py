@@ -123,6 +123,15 @@ class ProjectInput:
     number_of_hdd_crossings: int = 0
     number_of_river_crossings: int = 0
 
+    # --- Road optional scope inputs ---
+    service_road_sides: int = 0
+    toll_plazas: int = 0
+    atms: int = 0
+    bridges: int = 0
+    flyovers: int = 0
+    underpasses: int = 0
+    retaining_walls_sqm: float = 0.0
+
     # --- Building-specific fields ---
     built_up_area_sqm: float = 0.0      # total built-up area across all floors (sqft input converted before passing)
     number_of_floors: int = 0           # G+N => total floors = N+1; e.g. G+3 => 4
@@ -131,6 +140,8 @@ class ProjectInput:
     quality_finish: str = "standard"    # basic / standard / premium
     basement: bool = False
     number_of_blocks: int = 1           # parallel execution units
+    foundation_type: str = "pile"       # pile / raft / isolated_footing
+    floor_wise_structural_detail: bool = False
 
     def __post_init__(self):
         self.project_type = str(self.project_type or "road").strip().lower()
@@ -145,6 +156,16 @@ class ProjectInput:
             self._init_building()
 
     def _init_road(self):
+        for field_name in (
+            "service_road_sides", "toll_plazas", "atms", "bridges",
+            "flyovers", "underpasses",
+        ):
+            value = int(getattr(self, field_name) or 0)
+            if value < 0:
+                raise ValueError(f"{field_name} cannot be negative.")
+            setattr(self, field_name, value)
+        if self.retaining_walls_sqm < 0:
+            raise ValueError("retaining_walls_sqm cannot be negative.")
         raw_terrain = self.terrain or parse_terrain_from_title(self.title)
         self.terrain = str(raw_terrain or "plain").strip().lower()
         if self.terrain in {"flat", "plains", "plain terrain"}:
@@ -194,6 +215,11 @@ class ProjectInput:
         # Derive number_of_blocks from area: 1 block per 3000 sqm (typical residential staircase block)
         if self.number_of_blocks < 1:
             self.number_of_blocks = max(1, round(self.built_up_area_sqm / 3000.0))
+        self.foundation_type = str(self.foundation_type or "pile").strip().lower()
+        if self.foundation_type not in {"pile", "raft", "isolated_footing"}:
+            raise ValueError(
+                "foundation_type must be one of pile, raft, isolated_footing."
+            )
 
 
 
@@ -205,6 +231,12 @@ class ActivityReference:
     source_file: str = "guidelines.json"
     guideline_ref: str = "Project Guidelines"
     assumption_ref: str = "assumptions.yaml"
+    rate_source: str = ""
+    rate_year: str = ""
+    rate_unit: str = ""
+    rate_inclusions: str = ""
+    rate_exclusions: str = ""
+    rate_verification_status: str = "unverified"
 
 @dataclass
 class ActivityCostBreakdown:
@@ -355,6 +387,8 @@ class ProjectScheduleResult:
     critical_path: List[str]
     monthly_progress: List[MonthlyProgressItem]
     warnings: List[str] = field(default_factory=list)
+    guidelines_path: str = ""
+    assumptions_path: str = ""
     
     # Constraint-Based Optimization Results
     is_feasible: bool = True

@@ -33,6 +33,7 @@ from .models import (
 from .plan_generator import build_plan
 from .engineer_daily_log import build_daily_log
 from .excel_report import ExcelReportGenerator
+from .workbook_metadata import attach_metadata, build_metadata
 
 
 class UpdateExcelReportGenerator:
@@ -108,6 +109,11 @@ class UpdateExcelReportGenerator:
         self._build_feasibility(wb)
         self._build_revised_resource_sheets(wb)
         self._build_validation(wb)
+        baseline = getattr(self.r, "baseline_result", None)
+        guidelines = getattr(baseline, "guidelines_path", "")
+        assumptions = getattr(baseline, "assumptions_path", "")
+        if guidelines and assumptions:
+            attach_metadata(wb, build_metadata(self.p_in, guidelines, assumptions))
 
         try:
             wb.save(self.output_path)

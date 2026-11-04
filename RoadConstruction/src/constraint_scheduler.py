@@ -90,7 +90,8 @@ class ConstraintScheduler:
             or (self.guidelines.get("data") or {}).get("activity_master")
             or self.assumptions.get("activity_master", [])
         )
-        if str(getattr(self.input, "project_type", "road") or "road").lower() == "pipeline":
+        project_type = str(getattr(self.input, "project_type", "road") or "road").lower()
+        if project_type in {"pipeline", "road"}:
             # Keep the catalogue and quantity ledger complete for auditability,
             # but do not schedule alternative branches or facility packages
             # whose derived quantity is zero for this project scope.
@@ -100,6 +101,48 @@ class ConstraintScheduler:
             ]
         else:
             self.activity_specs = all_activity_specs
+        if project_type == "building":
+            foundation = getattr(self.input, "foundation_type", "pile")
+            if foundation != "pile":
+                self.activity_specs = [
+                    spec for spec in self.activity_specs
+                    if spec.get("key") not in {
+                        "piling", "pile_testing", "pile_head_chipping", "column_stumps"
+                    }
+                ]
+            for spec in self.activity_specs:
+                if spec.get("key") == "pile_caps" and foundation != "pile":
+                    spec = dict(spec)
+                    spec["name"] = (
+                        "Raft Foundation Concrete"
+                        if foundation == "raft"
+                        else "Isolated Footings Concrete"
+                    )
+                    spec["work_package"] = "Raft Foundation" if foundation == "raft" else "Isolated Footing Foundation"
+                    self.activity_specs[self.activity_specs.index(next(
+                        item for item in self.activity_specs if item.get("key") == "pile_caps"
+                    ))] = spec
+                    break
+            floors = int(getattr(self.input, "number_of_floors", 1) or 1)
+            if floors > 3 and getattr(self.input, "floor_wise_structural_detail", False):
+                templates = {
+                    "beams_slab": next(
+                        (s for s in self.activity_specs if s.get("key") == "sf_beams_slab"), None
+                    ),
+                    "columns": next(
+                        (s for s in self.activity_specs if s.get("key") == "sf_columns"), None
+                    ),
+                }
+                for floor_no in range(4, floors + 1):
+                    for suffix, template in templates.items():
+                        if not template:
+                            continue
+                        clone = dict(template)
+                        clone["id"] = f"{template['id']}-F{floor_no}"
+                        clone["key"] = f"floor_{floor_no}_{suffix}"
+                        clone["name"] = f"Floor {floor_no} {suffix.replace('_', ' ').title()}"
+                        clone["cost_key"] = template["key"]
+                        self.activity_specs.append(clone)
         self.spec_by_id = {s["id"]: s for s in self.activity_specs}
         self.spec_by_key = {s["key"]: s for s in self.activity_specs}
         self.stagger_chains = [
@@ -364,6 +407,32 @@ class ConstraintScheduler:
                 source_file=self._guidelines_filename,
                 guideline_ref=self._guideline_ref_label,
                 assumption_ref=self._assumptions_filename,
+                rate_source=str(
+                    (self.assumptions.get("rate_metadata", {}) or {})
+                    .get(key, {})
+                    .get("source", "Configuration direct_unit_rates_inr")
+                ),
+                rate_year=str(
+                    (self.assumptions.get("rate_metadata", {}) or {})
+                    .get(key, {})
+                    .get("year", "Not specified")
+                ),
+                rate_unit=str(spec.get("unit", "")),
+                rate_inclusions=str(
+                    (self.assumptions.get("rate_metadata", {}) or {})
+                    .get(key, {})
+                    .get("inclusions", "Not specified")
+                ),
+                rate_exclusions=str(
+                    (self.assumptions.get("rate_metadata", {}) or {})
+                    .get(key, {})
+                    .get("exclusions", "Not specified")
+                ),
+                rate_verification_status=str(
+                    (self.assumptions.get("rate_metadata", {}) or {})
+                    .get(key, {})
+                    .get("verification_status", "unverified")
+                ),
             )
 
             if crews > base_crews or shifts > 1.0 or work_fronts > 1:
@@ -378,6 +447,12 @@ class ConstraintScheduler:
                 crew_desc = f"{base_crews} Standard Gang{'s' if base_crews > 1 else ''} (1 Front)"
                 equip_desc = f"{key} standard equipment ({base_crews} sets)"
 
+            description = f"{spec['name']} as per {spec.get('morth_spec', '')}"
+            if str(getattr(self.input, "project_type", "road")) == "road":
+                description = description.replace(
+                    "28m", f"{self.input.formation_width_m:g}m"
+                ).replace("28 m", f"{self.input.formation_width_m:g} m")
+
             activities.append(RoadActivity(
                 activity_id=act_id,
                 wbs_code=spec["wbs_code"],
@@ -385,7 +460,7 @@ class ConstraintScheduler:
                 wbs_level=spec.get("wbs_level", 3),
                 work_package=spec.get("work_package", ""),
                 name=spec["name"],
-                description=f"{spec['name']} as per {spec.get('morth_spec', '')}",
+                description=description,
                 category=spec.get("category", ""),
                 unit=unit,
                 quantity=qty,
@@ -395,7 +470,7 @@ class ConstraintScheduler:
                 equipment_description=equip_desc,
                 duration_days=effort_days,
                 effort_days=effort_days,
-                activity_key=key,
+                activity_key=spec.get("cost_key", key),
                 predecessors=[
                     predecessor for predecessor in spec.get("predecessors", [])
                     if predecessor in self.spec_by_id

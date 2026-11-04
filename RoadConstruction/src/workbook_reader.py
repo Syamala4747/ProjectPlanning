@@ -27,6 +27,7 @@ from typing import Optional, Tuple, Dict, Any, List
 import openpyxl
 
 from .models import ProjectInput, ProjectScheduleResult
+from .workbook_metadata import read_metadata
 
 
 class WorkbookReader:
@@ -53,6 +54,7 @@ class WorkbookReader:
 
         proj_input = self._extract_project_input(wb)
         metadata = self._extract_summary(wb)
+        metadata["workbook_provenance"] = read_metadata(wb)
 
         opt_date = self._extract_optimized_finish_date(wb)
         if opt_date:
@@ -145,6 +147,11 @@ class WorkbookReader:
 
         terrain_raw = str(values.get("Terrain", "")).strip().lower()
         terrain = "hilly" if terrain_raw in ("hilly", "hill", "mountain") else "plain"
+        def nonnegative_int(label):
+            return max(0, int(self._parse_int(values.get(label)) or 0))
+        retaining_walls = max(
+            0.0, float(self._parse_float(values.get("Retaining Walls")) or 0.0)
+        )
 
         title = f"{length_km:g} KM {lanes}-Lane Highway Project"
         return ProjectInput(
@@ -156,6 +163,13 @@ class WorkbookReader:
             lanes=lanes,
             terrain=terrain,
             project_type="road",
+            service_road_sides=nonnegative_int("Service Road Sides"),
+            toll_plazas=nonnegative_int("Toll Plazas"),
+            atms=nonnegative_int("ATMS"),
+            bridges=nonnegative_int("Bridges"),
+            flyovers=nonnegative_int("Flyovers"),
+            underpasses=nonnegative_int("Underpasses"),
+            retaining_walls_sqm=retaining_walls,
         )
 
     def _extract_pipeline_input(self, values: Dict[str, Any],
@@ -293,6 +307,12 @@ class WorkbookReader:
         # parallel fronts, so they must survive the workbook round-trip.
         blocks = int(self._parse_int(
             values.get("Number of Blocks / Towers")) or 1)
+        foundation = str(values.get("Foundation Type", "pile") or "pile").strip().lower()
+        if foundation not in {"pile", "raft", "isolated_footing"}:
+            foundation = "pile"
+        floor_detail = str(
+            values.get("Floor-wise Structural Detail", "No") or "No"
+        ).strip().lower() in {"yes", "true", "1"}
 
         title = f"{bua:,.0f} sqm G+{floors - 1} {btype.title()} Building"
         return ProjectInput(
@@ -309,6 +329,8 @@ class WorkbookReader:
             quality_finish=quality,
             basement=basement,
             number_of_blocks=blocks,
+            foundation_type=foundation,
+            floor_wise_structural_detail=floor_detail,
         )
 
     # ------------------------------------------------------------------ summary
