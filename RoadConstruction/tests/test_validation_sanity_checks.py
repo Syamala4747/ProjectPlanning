@@ -16,6 +16,7 @@ from src.excel_report import ExcelReportGenerator
 from src.models import ProjectInput
 from src.validation_sanity_checks import validate_exported_workbook, validate_schedule_result
 from src.duration_calculator import DurationCalculator
+from src.plan_generator import build_plan
 
 
 PIPELINE_GUIDELINES = ROOT / "project_config" / "pipeline" / "pipeline_guidelines.json"
@@ -126,6 +127,29 @@ def _road_result():
         ROAD_ASSUMPTIONS,
         acceleration=False,
     )
+
+
+def test_road_plan_shows_configured_recipe_materials_per_crew_day():
+    result, _ = _road_result()
+    gsb_activity = next(
+        activity for activity in result.activities
+        if activity.activity_key == "gsb"
+    )
+    plan_activity = next(
+        row for row in build_plan(result)
+        if row.activity_id == gsb_activity.activity_id
+    )
+    aggregate = next(
+        item for item in plan_activity.daily_material_assumptions
+        if item["name"] == "agg_well_graded_cum"
+    )
+
+    assert aggregate["quantity_per_crew_day"] == pytest.approx(
+        1.05 * gsb_activity.productivity_rate
+    )
+    assert aggregate["unit"] == "m3"
+    assert aggregate["verification_status"] == "configured_recipe"
+    assert plan_activity.material_cost > 0
 
 
 def _building_result():

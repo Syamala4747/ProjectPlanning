@@ -1,8 +1,8 @@
 # Generated and audited pipeline assumptions for the 89-activity multi-village scheme.
-# Pricing basis: published direct rates plus configured material wastage,
-# resource idle losses and statutory overhead + contractor profit
-# (rate_build_up_mode: source_plus_oncosts, rate_oncost_basis: statutory).
-# Wastage/idle losses are separate direct-cost lines, matching the road model.
+# Pricing basis: resource-derived planned unit rates using configured crew,
+# equipment, fuel, and statutory on-costs. Since pipeline recipes are not yet
+# configured, material cost falls back to the published rate's material share;
+# this allowance does not imply a physical material quantity.
 # Escalation uses the provisional planning indices below until the contract
 # escalation clause and index source are supplied.
 
@@ -25,9 +25,9 @@ meta:
   - O&M after the defects-liability period
 sources:
   direct_unit_rates_inr: CPWD DSR 2021 (Hyderabad region) + CPHEEO Manual Part-III, escalated to a Nov-2026
-    Hyderabad price basis. Bare direct rates (materials + labour + plant); statutory OH + contractor
-    profit is applied by the source_plus_oncosts build-up; wastage/idle losses
-    are priced separately in the direct-cost build-up.
+    Hyderabad price basis. Bare direct rates (materials + labour + plant); used
+    as the benchmark and for material-share fallback when recipes are absent.
+    Statutory OH + contractor profit are applied to the resource build-up.
   labour_rates_inr_per_day: Minimum Wages Act, Telangana Zone I, Jul-2026 notification x 1.5 loaded
   material_rates_inr: CPWD DSR 2021 + local trade quotations, Nov-2026 Hyderabad
   equipment_hire_inr_per_day: CPWD DSR 2021 equipment schedule, escalated to Nov-2026
@@ -35,6 +35,13 @@ sources:
     output
   escalation: No contract escalation clause available; escalation disabled and estimates priced flat at
     the Nov-2026 base.
+  water_supply_manual:
+    title: CPHEEO Manual on Water Supply and Treatment
+    government_page: https://www.jalshakti-ddws.gov.in/en/cpheeo-manual-water-supply-and-treatment
+    accessible_copy_page: https://www.indiawaterportal.org/drinking-water/manual-water-supply-and-treatment-cpheeo-moud
+    accessible_copy_pdf: https://prod-qt-images.s3.amazonaws.com/indiawaterportal/import/sites/default/files/iwp2/manual_on_water_supply_and_treatment_cpheeo_moud_1999.pdf
+    use: Engineering reference for water-supply pipe materials, laying, testing and commissioning;
+      project activity productivity values remain sourced from pipeline_guidelines.json.
 calendar:
   working_days_per_week: 6
   productive_hours_per_day: 8
@@ -198,7 +205,7 @@ productivity_adjustment_factors:
   note: The calendar applies the monsoon and night factors. Site-specific terrain/soil factors must be
     calibrated from the investigation.
 use_direct_rate_as_planned: false
-rate_build_up_mode: source_plus_oncosts
+rate_build_up_mode: resource_build_up
 rate_oncost_basis: statutory
 work_front_span_km: 5.0
 crew_multiplier_cap: 4
@@ -1125,6 +1132,79 @@ activity_no_material_recipe:
 - ht_lt_cabling
 - dg_set
 - scada_automation
+# Quantities below are physical planning takeoffs only. They are intentionally
+# not added to material_per_unit_pipeline: pipe supply is already embedded in
+# the source laying rate and no project-specific pipe prices or BOQ are loaded.
+daily_material_assumptions:
+  basis: One normal crew working day. Daily output is the configured activity_master
+    productivity_rate in pipeline_guidelines.json (per crew); do not multiply
+    by base_crews or the scheduled crew multiplier.
+  cost_treatment: Memo quantity only; pipe supply cost remains embedded in the direct unit rate.
+  sources:
+    pipe_type_standards:
+      hdpe: IS 4984:2016
+      di: IS 8329:2000
+      ms: IS 3589 and IS 5822
+    method: CPHEEO Manual on Water Supply and Treatment; one metre of pipe is required
+      for each metre of pipe-laying output. The daily figures are derived from the
+      project's configured crew productivity, not copied from a published production table.
+  activities:
+    hdpe_laying_small:
+    - material: HDPE pipe, 63-110 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    hdpe_laying_medium:
+    - material: HDPE pipe, 125-200 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    hdpe_laying_large:
+    - material: HDPE pipe, 250-280 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    dik7_laying:
+    - material: DI K7 pipe, 200-300 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    dik9_laying_small_med:
+    - material: DI K9 pipe, 100-350 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    dik9_laying_large:
+    - material: DI K9 pipe, 400-900 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+    ms_laying:
+    - material: MS pipe, 900-1200 mm
+      quantity_per_output_unit: 1.0
+      output_unit: Mtr
+      material_unit: Mtr
+      verification_status: provisional_quantity_only
+  pending_design_material_takeoffs:
+    bedding_surround_backfill:
+      required_inputs: Pipe outside diameter, trench width/depth, specified bedding and
+        surround thickness, and whether excavated soil is reusable.
+    pipe_joints_fittings_valves:
+      required_inputs: Pipe class/manufacturer joint details, fittings/valve schedule,
+        and gasket/bolt supply inclusions.
+    chambers_thrust_blocks_encasement:
+      required_inputs: Approved standard drawings or BOQ quantities, concrete grade,
+        reinforcement and formwork details.
+    disinfection:
+      required_inputs: Commissioning water volume and approved disinfectant dose.
+    treatment_and_storage_facilities:
+      required_inputs: Facility drawings/BOQ and approved civil and E&M specifications.
 wastage:
   cement: 0.03
   steel: 0.03
@@ -1163,9 +1243,9 @@ cost_breakdown_shares:
   material_share: 0.5
   equipment_share: 0.2
   fuel_share: 0.1
-# Category-level split of the published direct rate. Used only by the
-# `source_plus_oncosts` build-up to decide which share carries material
-# wastage versus labour/plant/fuel idle losses. Each row sums to 1.0.
+# Category-level split of the published direct rate. Used by the resource
+# build-up for material-share fallback and for estimating wastage where no
+# recipes exist. Each row sums to 1.0.
 cost_breakdown_shares_by_category:
   Site Preparation:
     material_share: 0.05
@@ -1300,7 +1380,7 @@ duration_and_cost_calculation:
   labour_cost: sum(crew_trade_count * labour_rate_per_day) * activity_duration_working_days
   equipment_cost: sum(equipment_hire_rate_per_day * equipment_units) * equipment_duration_days
   fuel_cost: equipment_hours_per_day * fuel_consumption_lph * equipment_units * diesel_rate * operating_days
-  material_cost: 'included in the published bare direct rate; planned rate adds statutory OH/profit and wastage is a separate direct-cost line (rate_build_up_mode: source_plus_oncosts)'
+  material_cost: 'recipe-priced when a recipe exists; otherwise estimated from the published rate material share; physical material quantities require recipes (rate_build_up_mode: resource_build_up)'
   calendar_rule: ProjectCalendar converts effort days to calendar days (6-day week, 14 holidays/year,
     monsoon factor).
   productivity_source: Pipeline Activity Master productivity_rate / base_crews.

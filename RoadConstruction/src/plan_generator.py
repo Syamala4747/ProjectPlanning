@@ -6,6 +6,55 @@ from datetime import date
 from typing import Any, Dict, List
 
 
+def _material_unit(material_key: str, binding: Dict[str, Any]) -> str | None:
+    configured_unit = binding.get("unit")
+    if configured_unit:
+        return str(configured_unit)
+    if material_key.endswith("_lump"):
+        return None
+    if material_key == "delineator_set_km":
+        return "set"
+    suffix_units = (
+        ("_per_metre", "m"),
+        ("_metre", "m"),
+        ("_litre", "L"),
+        ("_thousand", "per 1,000"),
+        ("_cum", "m3"),
+        ("_sqm", "m2"),
+        ("_kg", "kg"),
+        ("_no", "No."),
+        ("_set", "set"),
+        ("_per_tree", "per tree"),
+        ("_per_cum", "per m3"),
+    )
+    return next(
+        (unit for suffix, unit in suffix_units if material_key.endswith(suffix)),
+        None,
+    )
+
+
+def _resolve_material_recipe(
+    recipes: Dict[str, Any], recipe_name: str
+) -> Dict[str, Any]:
+    seen = set()
+    current = recipe_name
+    while True:
+        if current in seen:
+            raise ValueError(
+                f"Material recipe '{recipe_name}' contains a circular _use reference."
+            )
+        seen.add(current)
+        recipe = recipes.get(current)
+        if recipe is None:
+            raise ValueError(
+                f"Activity references missing material recipe '{current}'."
+            )
+        target = recipe.get("_use") if isinstance(recipe, dict) else None
+        if not target:
+            return recipe
+        current = str(target)
+
+
 @dataclass
 class PlanActivity:
     activity_id: str
@@ -20,6 +69,9 @@ class PlanActivity:
     productivity: float
     crew_multiplier: int
     status: str
+    source_unit_rate: float
+    planning_variation_pct: float
+    planned_unit_rate: float
     labour_cost: float
     equipment_cost: float
     fuel_cost: float
@@ -31,6 +83,8 @@ class PlanActivity:
     labour: List[Dict[str, Any]] = field(default_factory=list)
     equipment: List[Dict[str, Any]] = field(default_factory=list)
     materials: List[Dict[str, Any]] = field(default_factory=list)
+    daily_material_assumptions: List[Dict[str, Any]] = field(default_factory=list)
+    unitemized_rate_material_cost: float = 0.0
 
 
 def build_plan(result: Any) -> List[PlanActivity]:
@@ -52,6 +106,13 @@ def build_plan(result: Any) -> List[PlanActivity]:
     equipment_fuel_rates = assumptions.get("fuel_consumption_lph", {}) or {}
     labour_rates = assumptions.get("labour_rates_inr_per_day", {}) or {}
     material_bindings = assumptions.get("material_bindings", {}) or {}
+    daily_material_config = assumptions.get("daily_material_assumptions", {}) or {}
+    daily_material_by_activity = daily_material_config.get("activities", {}) or {}
+    recipes = {}
+    recipes.update(assumptions.get("material_per_unit_pipeline", {}) or {})
+    recipes.update(assumptions.get("material_per_unit", {}) or {})
+    recipes.update(assumptions.get("material_per_unit_road", {}) or {})
+    activity_recipe_by_key = assumptions.get("activity_material_recipe", {}) or {}
 
     for activity in list(getattr(result, "activities", []) or []):
         cost = activity.cost
@@ -63,6 +124,16 @@ def build_plan(result: Any) -> List[PlanActivity]:
         equipment_cost = float(cost.direct_equipment or 0.0)
         fuel_cost = float(cost.direct_fuel or 0.0)
         material_cost = float(cost.direct_material or cost.bottom_up_material_cost or 0.0)
+        material_lines = list(getattr(cost, "material_lines", []) or [])
+        unitemized_rate_material_cost = 0.0
+        if (
+            assumptions.get("rate_build_up_mode")
+            in ("source_plus_oncosts", "resource_build_up")
+            and not material_lines
+            and material_cost > 0
+        ):
+            unitemized_rate_material_cost = material_cost
+            material_cost = 0.0
         component_total = labour_cost + equipment_cost + fuel_cost + material_cost
         other_cost = max(0.0, float(cost.direct_cost or 0.0) - component_total)
 
@@ -182,7 +253,7 @@ def build_plan(result: Any) -> List[PlanActivity]:
             fuel_quantity = fuel_cost / fuel_rate if fuel_rate else fuel_quantity
 
         materials = []
-        for line in list(getattr(cost, "material_lines", []) or []):
+        for line in material_lines:
             materials.append({
                 "name": line.get("material", "Configured material"),
                 "quantity": float(line.get("issued_qty", 0.0) or 0.0),
@@ -201,6 +272,74 @@ def build_plan(result: Any) -> List[PlanActivity]:
                 "total_cost": material_cost,
             })
 
+        daily_material_assumptions = []
+        daily_material_specs = daily_material_by_activity.get(
+            activity.activity_key, []
+        ) or []
+        if daily_material_specs:
+            daily_output = float(activity.productivity_rate or 0.0)
+            if daily_output <= 0:
+                raise ValueError(
+                    f"daily_material_assumptions for '{activity.activity_key}' "
+                    "requires a positive activity productivity_rate."
+                )
+            for item in daily_material_specs:
+                per_output_unit = float(item["quantity_per_output_unit"])
+                if per_output_unit < 0:
+                    raise ValueError(
+                        f"daily_material_assumptions for '{activity.activity_key}' "
+                        "cannot contain a negative quantity_per_output_unit."
+                    )
+                daily_material_assumptions.append({
+                    "name": item["material"],
+                    "quantity_per_crew_day": per_output_unit * daily_output,
+                    "unit": item["material_unit"],
+                    "output_unit": item["output_unit"],
+                    "cost_treatment": daily_material_config.get(
+                        "cost_treatment", "Memo quantity only."
+                    ),
+                    "verification_status": item.get(
+                        "verification_status", "provisional"
+                    ),
+                })
+        else:
+            activity_recipe = activity_recipe_by_key.get(activity.activity_key)
+            if activity_recipe:
+                recipe_name = str(activity_recipe.get("recipe") or "")
+                if not recipe_name:
+                    raise ValueError(
+                        f"activity_material_recipe for '{activity.activity_key}' "
+                        "does not specify a recipe."
+                    )
+                recipe = _resolve_material_recipe(recipes, recipe_name)
+                per_output = float(activity_recipe.get("per_output", 1.0) or 1.0)
+                daily_output = float(activity.productivity_rate or 0.0)
+                if daily_output <= 0:
+                    raise ValueError(
+                        f"Activity '{activity.activity_key}' has a material recipe "
+                        "but no positive productivity_rate for its daily takeoff."
+                    )
+                for material_key, recipe_quantity in recipe.items():
+                    if str(material_key).startswith("_"):
+                        continue
+                    binding = material_bindings.get(material_key, {}) or {}
+                    unit = _material_unit(str(material_key), binding)
+                    if unit is None:
+                        continue
+                    daily_material_assumptions.append({
+                        "name": str(material_key),
+                        "quantity_per_crew_day": (
+                            float(recipe_quantity) * per_output * daily_output
+                        ),
+                        "unit": unit,
+                        "output_unit": activity.unit,
+                        "cost_treatment": (
+                            "Informational only; this recipe is already priced in "
+                            "the planned rate. Daily quantity excludes material wastage."
+                        ),
+                        "verification_status": "configured_recipe",
+                    })
+
         rows.append(PlanActivity(
             activity_id=activity.activity_id,
             activity_name=activity.name,
@@ -214,6 +353,9 @@ def build_plan(result: Any) -> List[PlanActivity]:
             productivity=float(activity.productivity_rate or 0.0),
             crew_multiplier=crews,
             status="Active" if active else "Out of scope",
+            source_unit_rate=float(cost.morth_direct_unit_rate or 0.0),
+            planning_variation_pct=float(cost.planning_variation_pct or 0.0),
+            planned_unit_rate=float(cost.planned_unit_rate or 0.0),
             labour_cost=labour_cost,
             equipment_cost=equipment_cost,
             fuel_cost=fuel_cost,
@@ -225,5 +367,7 @@ def build_plan(result: Any) -> List[PlanActivity]:
             labour=labour,
             equipment=equipment,
             materials=materials,
+            daily_material_assumptions=daily_material_assumptions,
+            unitemized_rate_material_cost=unitemized_rate_material_cost,
         ))
     return rows

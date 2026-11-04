@@ -85,10 +85,12 @@ building_parameters:
   curtain_wall_factor_premium: 0.10
 
 # CPWD DSR direct rates are BARE rates (material + labour + plant). The
-# planned rate is built up by adding wastage, resource idle losses and the
-# statutory OH/profit slab, exactly as for pipeline.
+# planned rate uses first-principles material recipes plus crew, equipment and
+# fuel build-up, then applies the statutory OH/profit slab, like road. Where a
+# recipe is absent, material cost falls back to the published rate's material
+# share without implying a physical material quantity.
 use_direct_rate_as_planned: false
-rate_build_up_mode: source_plus_oncosts
+rate_build_up_mode: resource_build_up
 rate_oncost_basis: statutory
 
 # Parallelism control
@@ -427,7 +429,7 @@ crew_profile_by_activity_key:
 # =============================================================================
 # These are BARE CPWD/DSR rates: material + labour + plant at the source
 # price level. Wastage, idle losses and statutory OH/profit are added by the
-# engine via rate_build_up_mode: source_plus_oncosts + statutory.
+# engine via rate_build_up_mode: resource_build_up + statutory.
 # Units must match building_guidelines.json exactly.
 direct_unit_rates_inr:
   site_setting_out: 200          # survey, boundary hoarding and signage: Rs 200/sqm plot
@@ -512,10 +514,8 @@ material_per_unit:
     primer_litre: 0.12
     putty_kg: 0.80
 
-# Recipes are retained for a future first-principles / recipe-mode build-up.
-# The active pricing mode is source_plus_oncosts, so these recipes do not
-# alter the planned rate today; they are mapped to the 40-key catalogue so a
-# later switch to rate_build_up_mode: recipes is not silently zero-cost.
+# Recipes price material inputs in the resource-derived planned rates; unmapped
+# activities use the configured source material share as a non-physical estimate.
 activity_material_recipe:
   pile_caps:
     recipe: rcc_m25

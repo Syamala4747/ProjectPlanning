@@ -239,6 +239,10 @@ def validate_schedule_result(
             _validate_source_plus_oncost_rate(
                 activity, assumptions, report, tolerance_inr, overhead_pct
             )
+        elif assumptions and assumptions.get("rate_build_up_mode") == "resource_build_up":
+            _validate_resource_build_up_rate(
+                activity, assumptions, report, tolerance_inr, overhead_pct
+            )
 
     # Project-level checks.
     max_finish = max(a.ef for a in activities)
@@ -503,6 +507,9 @@ def _validate_plan_calculations(
             continue
 
         cost = activity.cost
+        source_material_cost = float(
+            cost.direct_material or cost.bottom_up_material_cost or 0.0
+        )
         checks = (
             ("quantity", row.quantity, float(activity.quantity or 0.0), 0.1),
             ("duration", row.duration_days, int(activity.duration_days or 0), 0),
@@ -513,9 +520,28 @@ def _validate_plan_calculations(
             (
                 "material cost",
                 row.material_cost,
-                float(cost.direct_material or cost.bottom_up_material_cost or 0.0),
+                source_material_cost - row.unitemized_rate_material_cost,
                 tolerance_inr,
             ),
+            (
+                "unitemized source-rate material allowance",
+                row.unitemized_rate_material_cost,
+                source_material_cost
+                if (
+                    (getattr(result, "assumptions_snapshot", {}) or {}).get(
+                        "rate_build_up_mode"
+                    ) in ("source_plus_oncosts", "resource_build_up")
+                    and not cost.material_lines
+                )
+                else 0.0,
+                tolerance_inr,
+            ),
+            ("source unit rate", row.source_unit_rate,
+             float(cost.morth_direct_unit_rate or 0.0), tolerance_inr),
+            ("planned unit rate", row.planned_unit_rate,
+             float(cost.planned_unit_rate or 0.0), tolerance_inr),
+            ("planning variation", row.planning_variation_pct,
+             float(cost.planning_variation_pct or 0.0), 0.0001),
             ("execution cost", row.total_execution_cost, float(cost.direct_cost or 0.0), tolerance_inr),
         )
         for label, actual, expected, tolerance in checks:
@@ -633,6 +659,188 @@ def _validate_source_plus_oncost_rate(
             "UNIT_RATE_BUILDUP_MISMATCH",
             f"Planned rate {activity.cost.planned_unit_rate:.4f} does not match "
             f"independent source-plus-oncosts planned rate {expected:.4f}.",
+            activity.activity_id,
+        )
+
+
+def _validate_resource_build_up_rate(
+    activity: Any,
+    assumptions: dict,
+    report: ValidationReport,
+    tolerance_inr: float,
+    overhead_pct: float,
+) -> None:
+    """Independently reconcile a resource-derived planned unit rate."""
+    activity_key = activity.activity_key
+    rates = assumptions.get("direct_unit_rates_inr") or {}
+    source = rates.get(activity_key)
+    if isinstance(source, dict):
+        source = source.get("value")
+    if source is None:
+        report.add("ERROR", "RATE_SOURCE_MISSING", "Source rate is missing.", activity.activity_id)
+        return
+    source = float(source)
+    if assumptions.get("use_direct_rate_as_planned", False):
+        if not _near(activity.cost.planned_unit_rate, source, tolerance_inr):
+            report.add(
+                "ERROR", "UNIT_RATE_BUILDUP_MISMATCH",
+                f"Direct-rate override produced {activity.cost.planned_unit_rate:.4f}; "
+                f"source rate is {source:.4f}.", activity.activity_id,
+            )
+        if abs(float(activity.cost.planning_variation_pct or 0.0)) > 0.0001:
+            report.add(
+                "ERROR", "PLANNING_VARIATION_MISMATCH",
+                "Direct-rate override must have zero planning variation.",
+                activity.activity_id,
+            )
+        return
+
+    spec = next(
+        (item for item in assumptions.get("activity_master", []) or []
+         if item.get("key") == activity_key),
+        None,
+    )
+    if not spec:
+        report.add("ERROR", "RATE_ACTIVITY_MASTER_MISSING",
+                   "Activity master data is missing for the planned rate.", activity.activity_id)
+        return
+    productivity = float(spec.get("productivity_rate") or 0.0)
+    base_crews = int(spec.get("base_crews") or 0)
+    if productivity <= 0 or base_crews <= 0:
+        report.add("ERROR", "RATE_PRODUCTIVITY_MISSING",
+                   "Positive productivity and base crews are required for the planned rate.",
+                   activity.activity_id)
+        return
+
+    category = spec.get("category")
+    shares = (assumptions.get("cost_breakdown_shares_by_category") or {}).get(
+        category, assumptions.get("cost_breakdown_shares") or {}
+    )
+    material_share = float(shares.get("material_share", 0.0) or 0.0)
+    material_per_unit = 0.0
+    recipe_spec = (assumptions.get("activity_material_recipe") or {}).get(activity_key)
+    if recipe_spec:
+        recipes = {}
+        for key in ("material_per_unit_pipeline", "material_per_unit",
+                    "material_per_unit_road"):
+            recipes.update(assumptions.get(key, {}) or {})
+        recipe_name = str(recipe_spec.get("recipe") or "")
+        seen = set()
+        while recipe_name:
+            if recipe_name in seen or recipe_name not in recipes:
+                report.add("ERROR", "RATE_RECIPE_INVALID",
+                           f"Material recipe '{recipe_name}' is missing or circular.",
+                           activity.activity_id)
+                return
+            seen.add(recipe_name)
+            recipe = recipes[recipe_name]
+            alias = recipe.get("_use") if isinstance(recipe, dict) else None
+            if not alias:
+                break
+            recipe_name = str(alias)
+        bindings = assumptions.get("material_bindings") or {}
+        material_rates = assumptions.get("material_rates_inr") or {}
+        mix = float(recipe_spec.get("per_output", 1.0) or 1.0)
+        for material, per_output in recipe.items():
+            if str(material).startswith("_"):
+                continue
+            binding = bindings.get(material)
+            if not binding or binding.get("rate") not in material_rates:
+                report.add("ERROR", "RATE_RECIPE_BINDING_MISSING",
+                           f"Material '{material}' has no usable rate binding.",
+                           activity.activity_id)
+                return
+            divisor = float(binding.get("divisor", 1) or 1)
+            if divisor <= 0:
+                report.add("ERROR", "RATE_RECIPE_DIVISOR_INVALID",
+                           f"Material '{material}' has an invalid rate divisor.",
+                           activity.activity_id)
+                return
+            material_per_unit += (
+                float(per_output) * mix / divisor
+                * float(material_rates[binding["rate"]])
+            )
+    else:
+        material_per_unit = source * material_share
+
+    profile = (assumptions.get("crew_profile_by_activity_key") or {}).get(
+        activity_key, ""
+    )
+    crew_items = (assumptions.get("crew_composition") or {}).get(profile, []) or []
+    labour_rates = assumptions.get("labour_rates_inr_per_day") or {}
+    labour_per_day = sum(
+        float(item.get("count", 0) or 0)
+        * float(labour_rates.get(item.get("trade"), 0.0) or 0.0)
+        for item in crew_items
+    )
+
+    equipment = (assumptions.get("equipment_per_activity") or {}).get(profile, []) or []
+    equipment_rates = assumptions.get("equipment_hire_inr_per_day") or {}
+    major_plant = set(assumptions.get("major_plant") or [])
+    major_rate = sum(
+        float(equipment_rates.get(name, 0.0) or 0.0)
+        for name in equipment if name in major_plant
+    )
+    mobile_rate = sum(
+        float(equipment_rates.get(name, 0.0) or 0.0)
+        for name in equipment if name not in major_plant
+    )
+    major_sets = min(base_crews, max(
+        1, int(assumptions.get("major_plant_max_units", 0) or 0)
+    ))
+    plant_per_unit = (
+        mobile_rate + major_rate * major_sets / base_crews
+    ) / productivity
+
+    fuel_rates = assumptions.get("fuel_consumption_lph") or {}
+    fuel_lph = sum(float(fuel_rates.get(name, 0.0) or 0.0) for name in equipment)
+    calendar = assumptions.get("calendar") or {}
+    diesel = float((assumptions.get("material_rates_inr") or {}).get(
+        "diesel_litre", 0.0
+    ) or 0.0)
+    fuel_per_unit = (
+        fuel_lph * float(calendar.get("equipment_hours_per_day", 8.0) or 8.0)
+        * diesel / productivity
+    )
+    bare_rate = material_per_unit + labour_per_day / productivity + plant_per_unit + fuel_per_unit
+
+    oncost_basis = str(assumptions.get("rate_oncost_basis", "sdb") or "sdb")
+    if oncost_basis == "statutory":
+        profit = float((assumptions.get("statutory_and_overheads") or {}).get(
+            "profit_pct", 10.0
+        ))
+        oncost = (1 + overhead_pct / 100) * (1 + profit / 100)
+    elif oncost_basis in ("none", "off"):
+        oncost = 1.0
+    else:
+        sdb = assumptions.get("sdb_rate_oncost") or {}
+        group = (
+            "structures"
+            if category in set(sdb.get("structure_categories", []) or ["Structures"])
+            else "road"
+        )
+        pct = sdb.get(group) or {}
+        oh = float(pct.get("overhead_pct", 8.0))
+        profit = float(pct.get("contractor_profit_pct", 10.0))
+        oncost = (1 + oh / 100) * (1 + profit / 100)
+
+    expected = round(bare_rate * oncost, 4)
+    variation = (bare_rate * oncost - source) / source * 100 if source else 0.0
+    if abs(float(activity.cost.planned_unit_rate) - expected) > max(
+        tolerance_inr, abs(expected) * 1e-5
+    ):
+        report.add(
+            "ERROR", "UNIT_RATE_BUILDUP_MISMATCH",
+            f"Planned rate {activity.cost.planned_unit_rate:.4f} does not match "
+            f"resource-derived rate {expected:.4f}.", activity.activity_id,
+        )
+    if abs(float(activity.cost.planning_variation_pct) - variation) > max(
+        0.0001, abs(variation) * 1e-5
+    ):
+        report.add(
+            "ERROR", "PLANNING_VARIATION_MISMATCH",
+            f"Planning variation {activity.cost.planning_variation_pct:.4f}% does not "
+            f"match the source-rate comparison {variation:.4f}%.",
             activity.activity_id,
         )
 

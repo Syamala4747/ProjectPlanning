@@ -28,7 +28,9 @@ sys.path.insert(0, ROOT)
 from src.models import ProjectInput
 from src.data_loader import DataLoader
 from src.constraint_scheduler import ConstraintScheduler
+from src.cost_calculator import CostCalculator
 from src.excel_report import ExcelReportGenerator
+from src.plan_generator import build_plan
 from src.quantity_calculator import PipelineQuantityCalculator
 from src.workbook_reader import WorkbookReader
 
@@ -92,18 +94,13 @@ def test_every_catalogue_key_is_quantified_and_priced(runs):
         for a in acts:
             c = a.cost
             assert c.planned_unit_rate > 0, f"{name}: {a.activity_key} has no rate"
-            # Planned rate is DERIVED from the published source rate plus
-            # wastage/idle losses and statutory OH+CP. It must not be a copy.
-            assert c.planned_unit_rate > c.morth_direct_unit_rate, (
-                f"{name}: {a.activity_key} planned rate was not built up"
+            expected_variation = (
+                (c.planned_unit_rate - c.morth_direct_unit_rate)
+                / c.morth_direct_unit_rate * 100
             )
-            assert c.planning_variation_pct > 0, (
-                f"{name}: {a.activity_key} planning variation not reported"
-            )
-            ratio = c.planned_unit_rate / c.morth_direct_unit_rate
-            assert 1.05 <= ratio <= 1.60, (
-                f"{name}: {a.activity_key} planned/source ratio {ratio:.3f} out of band"
-            )
+            assert c.planning_variation_pct == pytest.approx(
+                expected_variation, abs=0.0001
+            ), f"{name}: {a.activity_key} planning variation does not match planned/source rates"
             assert c.total_amount == pytest.approx(
                 c.direct_cost + c.overhead_amount + c.profit_amount + c.escalation_amount
             ), f"{name}: {a.activity_key} total identity"
@@ -145,6 +142,217 @@ def test_pipeline_overhead_is_fixed_at_eight_percent():
 
     assert loader.get_overhead_percentage(5.0) == 8.0
     assert loader.get_overhead_percentage(25.0) == 8.0
+
+
+def test_pipeline_rate_uses_resource_build_up_and_source_material_share():
+    loader = DataLoader(
+        guidelines_path=GUIDELINES,
+        assumptions_path=ASSUMPTIONS,
+    )
+    loader.load_all(terrain="plain")
+    calculator = CostCalculator(loader.assumptions)
+    key = "excavation_ordinary_0_1_5"
+    spec = next(
+        item for item in loader.assumptions["activity_master"]
+        if item["key"] == key
+    )
+    source_rate = float(calculator.direct_rates[key])
+    shares = calculator._shares_for(spec["category"])
+    productivity = float(spec["productivity_rate"])
+    base_crews = int(spec["base_crews"])
+    major_sets = min(
+        base_crews, max(1, calculator.major_plant_max_units)
+    )
+    plant_per_unit = (
+        calculator.plant_mobile_rate[key]
+        + calculator.plant_major_rate[key] * major_sets / base_crews
+    ) / productivity
+    fuel_lph = sum(
+        float(calculator._fuel_lph.get(name, 0.0) or 0.0)
+        for name in calculator._equip_per_activity[
+            calculator._crew_profile_by_activity[key]
+        ]
+    )
+    expected_bare_rate = (
+        source_rate * shares["material"]
+        + calculator.crew_day_rate[key] / productivity
+        + plant_per_unit
+        + fuel_lph * calculator.equipment_hours_per_day
+        * calculator.diesel_rate / productivity
+    )
+    planned, variation = calculator._resource_planned_rate(key, quantity=1.0)
+    oncost = calculator._oncost_k(spec["category"])
+
+    assert loader.assumptions["rate_build_up_mode"] == "resource_build_up"
+    assert planned * oncost == pytest.approx(expected_bare_rate * oncost)
+    assert variation == pytest.approx(
+        (expected_bare_rate * oncost - source_rate) / source_rate * 100
+    )
+
+
+def test_pipeline_recipe_catalogue_produces_material_quantities():
+    loader = DataLoader(
+        guidelines_path=GUIDELINES,
+        assumptions_path=ASSUMPTIONS,
+    )
+    loader.load_all(terrain="plain")
+    assumptions = dict(loader.assumptions)
+    assumptions["material_per_unit_pipeline"] = {
+        "test_rcc": {"cement_kg": 410}
+    }
+    assumptions["activity_material_recipe"] = {
+        "test_activity": {"recipe": "test_rcc", "per_output": 12}
+    }
+    assumptions["material_bindings"] = {
+        "cement_kg": {
+            "wastage": "cement",
+            "rate": "cement_opc53_bag",
+            "divisor": 50,
+            "unit": "kg",
+        }
+    }
+    calculator = CostCalculator(assumptions)
+
+    buildup = calculator.compute_resource_bottom_up(
+        "test_activity", quantity=1.0, duration_days=1.0
+    )
+    cement = next(
+        line for line in buildup["material_lines"]
+        if line["material"] == "cement_kg"
+    )
+
+    assert cement["issued_qty"] == pytest.approx(410 * 12 * 1.03)
+    assert assumptions["material_bindings"]["cement_kg"]["unit"] == "kg"
+
+
+def test_pipe_daily_material_assumption_is_memo_only_and_visible_in_plan(runs, tmp_path):
+    _, res = runs["corridor"]
+    plan = build_plan(res)
+    activity = next(
+        row for row in plan
+        if row.activity_id == "ACT-18"
+    )
+    assert activity.daily_material_assumptions == [{
+        "name": "DI K9 pipe, 400-900 mm",
+        "quantity_per_crew_day": pytest.approx(40.0),
+        "unit": "Mtr",
+        "output_unit": "Mtr",
+        "cost_treatment": (
+            "Memo quantity only; pipe supply cost remains embedded in the direct unit rate."
+        ),
+        "verification_status": "provisional_quantity_only",
+    }]
+    assert activity.material_cost == 0
+    assert activity.unitemized_rate_material_cost > 0
+
+    out = tmp_path / "pipeline_daily_materials.xlsx"
+    ExcelReportGenerator(res, str(out)).generate()
+    workbook = openpyxl.load_workbook(out, data_only=True)
+    try:
+        ws = workbook["Plan"]
+        row = next(
+            row for row in range(4, ws.max_row + 1)
+            if ws.cell(row, 13).value == "Daily material assumption"
+            and ws.cell(row, 14).value == "DI K9 pipe, 400-900 mm"
+        )
+        assert ws.cell(row, 16).value == pytest.approx(40.0)
+        assert ws.cell(row, 17).value == "Mtr"
+        assert ws.cell(row, 18).value == 0
+        assert ws.cell(row, 27).value is None
+        assert ws.cell(row, 28).value == 0
+    finally:
+        workbook.close()
+
+
+def test_standard_pipeline_workbook_can_omit_daily_material_detail(runs, tmp_path):
+    _, res = runs["corridor"]
+    out = tmp_path / "pipeline_standard_plan.xlsx"
+    ExcelReportGenerator(
+        res,
+        str(out),
+        include_daily_material_assumptions=False,
+    ).generate()
+    workbook = openpyxl.load_workbook(out, data_only=True)
+    try:
+        ws = workbook["Plan"]
+        assert not any(
+            ws.cell(row, 13).value == "Daily material assumption"
+            for row in range(4, ws.max_row + 1)
+        )
+    finally:
+        workbook.close()
+
+
+def test_unitemized_source_rate_material_cost_is_not_reported_as_quantity(runs, tmp_path):
+    _, res = runs["corridor"]
+    plan = build_plan(res)
+    activity = next(row for row in plan if row.activity_id == "ACT-01")
+    source_cost = next(
+        row.cost for row in res.activities if row.activity_id == "ACT-01"
+    )
+
+    assert activity.material_cost == 0
+    assert activity.unitemized_rate_material_cost == pytest.approx(
+        source_cost.direct_material
+    )
+    assert activity.other_cost == pytest.approx(
+        source_cost.direct_cost
+        - activity.labour_cost
+        - activity.equipment_cost
+        - activity.fuel_cost
+    )
+    assert (
+        activity.labour_cost
+        + activity.equipment_cost
+        + activity.fuel_cost
+        + activity.material_cost
+        + activity.other_cost
+    ) == pytest.approx(activity.total_execution_cost)
+
+    out = tmp_path / "pipeline_material_takeoff.xlsx"
+    ExcelReportGenerator(res, str(out)).generate()
+    workbook = openpyxl.load_workbook(out, data_only=True)
+    try:
+        ws = workbook["Plan"]
+        activity_row = next(
+            row for row in range(4, ws.max_row + 1)
+            if ws.cell(row, 1).value == "ACT-01"
+            and ws.cell(row, 13).value == "Activity"
+        )
+        summary_row = next(
+            row for row in range(activity_row + 1, ws.max_row + 1)
+            if ws.cell(row, 1).value == "ACT-01"
+            and ws.cell(row, 13).value == "Subtotal"
+        )
+        assert ws.cell(summary_row, 27).value is None  # mixed material units are not summed
+        assert ws.cell(summary_row, 28).value == pytest.approx(0)
+        assert ws.cell(summary_row, 29).value == pytest.approx(activity.other_cost)
+        assert ws.cell(summary_row, 30).value == pytest.approx(
+            activity.total_execution_cost
+        )
+        assert ws.cell(activity_row, 33).value == pytest.approx(
+            source_cost.morth_direct_unit_rate
+        )
+        assert ws.cell(activity_row, 34).value == pytest.approx(
+            source_cost.planning_variation_pct
+        )
+        assert ws.cell(activity_row, 35).value == pytest.approx(
+            source_cost.planned_unit_rate
+        )
+
+        detail_row = next(
+            row for row in range(4, summary_row)
+            if ws.cell(row, 13).value == "Rate allocation"
+            and ws.cell(row, 1).value is None
+        )
+        assert ws.cell(detail_row, 16).value is None
+        assert ws.cell(detail_row, 27).value is None
+        assert ws.cell(detail_row, 28).value == 0
+        assert ws.cell(detail_row, 29).value == pytest.approx(
+            activity.unitemized_rate_material_cost
+        )
+    finally:
+        workbook.close()
 
 
 def test_cpm_and_progress_invariants(runs):

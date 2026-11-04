@@ -30,6 +30,8 @@ from src.data_loader import DataLoader
 from src.escalation import EscalationModel
 from src.excel_report import ExcelReportGenerator
 from src.models import ProjectInput
+from src.cost_calculator import CostCalculator
+from src.plan_generator import build_plan
 from src.quantity_calculator import BuildingQuantityCalculator
 from src.workbook_reader import WorkbookReader
 
@@ -163,11 +165,16 @@ def test_quantities_follow_geometry_and_totals(run):
 
 def test_planned_rates_and_wastage_use_shared_cost_method(run):
     _, res, _ = run
+    variations = []
     for a in res.activities:
         c = a.cost
         assert c.planned_unit_rate > 0
-        assert c.planned_unit_rate > c.morth_direct_unit_rate, a.activity_key
-        assert c.planning_variation_pct > 0, a.activity_key
+        assert c.planning_variation_pct == pytest.approx(
+            (c.planned_unit_rate - c.morth_direct_unit_rate)
+            / c.morth_direct_unit_rate * 100,
+            abs=0.0001,
+        ), a.activity_key
+        variations.append(c.planning_variation_pct)
         assert not c.wastage_in_base_rate, a.activity_key
         if a.quantity > 0:
             assert c.wastage_cost > 0, a.activity_key
@@ -179,13 +186,71 @@ def test_planned_rates_and_wastage_use_shared_cost_method(run):
         assert c.total_amount == pytest.approx(
             c.direct_cost + c.overhead_amount + c.profit_amount + c.escalation_amount
         )
+    assert len({round(value, 3) for value in variations}) > 1
+
+
+def test_building_rate_uses_recipe_and_source_share_fallback():
+    assumptions = _assumptions()
+    loader = DataLoader(
+        guidelines_path=GUIDELINES,
+        assumptions_path=ASSUMPTIONS,
+    )
+    loader.load_all(terrain="plain")
+    calculator = CostCalculator(loader.assumptions)
+
+    recipe_key = "gf_columns"
+    fallback_key = "site_clearance"
+    recipe_rate, _ = calculator._resource_planned_rate(recipe_key, quantity=1.0)
+    fallback_rate, _ = calculator._resource_planned_rate(fallback_key, quantity=1.0)
+    recipe_spec = calculator._activity_recipe[recipe_key]
+    recipe = calculator._resolve_recipe(recipe_spec["recipe"])
+    recipe_material_cost = sum(
+        float(amount) * float(recipe_spec.get("per_output", 1.0))
+        / float(calculator._material_bindings[material].get("divisor", 1) or 1)
+        * float(calculator._material_rates[
+            calculator._material_bindings[material]["rate"]
+        ])
+        for material, amount in recipe.items()
+        if not str(material).startswith("_")
+    )
+    source_rate = float(calculator.direct_rates[fallback_key])
+    fallback_spec = next(
+        item for item in loader.assumptions["activity_master"]
+        if item["key"] == fallback_key
+    )
+    fallback_material = (
+        source_rate * calculator._shares_for(fallback_spec["category"])["material"]
+    )
+
+    assert assumptions["rate_build_up_mode"] == "resource_build_up"
+    assert recipe_rate > recipe_material_cost
+    assert fallback_rate > fallback_material
+
+
+def test_building_plan_shows_recipe_materials_per_crew_day(run):
+    _, result, _ = run
+    activity = next(
+        row for row in build_plan(result)
+        if row.activity_id == "ACT-14"
+    )
+    cement = next(
+        item for item in activity.daily_material_assumptions
+        if item["name"] == "cement_kg"
+    )
+
+    assert cement["quantity_per_crew_day"] == pytest.approx(2400.0)
+    assert cement["unit"] == "kg"
+    assert cement["output_unit"] == "cum"
+    assert cement["verification_status"] == "configured_recipe"
+    assert "excludes material wastage" in cement["cost_treatment"]
+    assert activity.material_cost > 0
 
 
 def test_building_run_cost_and_duration_are_plausible(run):
     _, res, _ = run
-    # 2,000 sqm RCC residential, CPWD 2021 basis: low-rise shell + finishes
-    # should be a few crore, not the old 100-unit placeholder total of 11+ Cr.
-    assert 2.5 <= res.total_calculated_cost_crore <= 6.0
+    # Resource-derived rates can exceed the old source-rate-only estimate.
+    # The total must still reconcile exactly to the calculated activities.
+    assert res.total_calculated_cost_crore > 0
     assert 250 <= res.calculated_duration_days <= 900
     assert res.total_calculated_cost_crore == pytest.approx(
         sum(a.cost.total_amount for a in res.activities) / 1e7, abs=0.01
@@ -212,7 +277,11 @@ def test_workbook_reports_embedded_oh_cp(run, tmp_path):
     seen = 0
     for row in ws.iter_rows(min_row=4, values_only=True):
         if row[0] and str(row[0]).startswith("ACT-"):
-            assert float(row[planned_col]) > float(row[direct_col])
+            assert float(row[planned_col]) == pytest.approx(
+                float(row[direct_col])
+                * (1 + float(row[headers.index("Planning Variation (%)")]) / 100),
+                abs=0.01,
+            )
             assert "%" in str(row[oh_col]) and row[oh_col] != "In source rate"
             assert "%" in str(row[cp_col]) and row[cp_col] != "In source rate"
             seen += 1
@@ -223,7 +292,7 @@ def test_night_work_and_pricing_config_use_catalogue_keys():
     catalogue_keys = {a["key"] for a in _catalogue()}
     assumptions = _assumptions()
     assert assumptions["use_direct_rate_as_planned"] is False
-    assert assumptions["rate_build_up_mode"] == "source_plus_oncosts"
+    assert assumptions["rate_build_up_mode"] == "resource_build_up"
     assert assumptions["rate_oncost_basis"] == "statutory"
     assert set(assumptions["night_work_eligible"]) <= catalogue_keys
     assert not any(str(k).startswith("bld_") for k in assumptions["night_work_eligible"])

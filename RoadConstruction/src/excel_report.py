@@ -20,12 +20,18 @@ from .engineer_daily_log import build_daily_log
 from .workbook_metadata import attach_metadata, build_metadata
 
 class ExcelReportGenerator:
-    def __init__(self, result: ProjectScheduleResult, output_path: str = "road_project_schedule.xlsx"):
+    def __init__(
+        self,
+        result: ProjectScheduleResult,
+        output_path: str = "road_project_schedule.xlsx",
+        include_daily_material_assumptions: bool = True,
+    ):
         self.res = result
         self.p_in = result.project_input
         self.opt_acts = result.activities
         self.base_acts = result.baseline_activities if result.baseline_activities else result.activities
         self.output_path = output_path
+        self.include_daily_material_assumptions = include_daily_material_assumptions
         
         # Color Palette - Modern Corporate Navy
         self.c_navy = "1B365D"       # Primary Headers
@@ -119,7 +125,8 @@ class ExcelReportGenerator:
             "Working Days", "Operating Hours/Day", "Total Hours", "Fuel L/hr",
             "Total Fuel Qty", "Labour Cost", "Equipment Cost", "Fuel Cost",
             "Material Qty", "Material Cost", "Other Cost", "Cost (Rs)",
-            "Billed (Rs)", "Status",
+            "Billed (Rs)", "Status", "Source Unit Rate (Rs)",
+            "Planning Variation (%)", "Planned Unit Rate (Rs)",
         ]
         self._create_banner(ws, "ACTIVITY RESOURCE PLAN",
                             "Activity-wise labour, equipment, fuel, material and execution cost plan",
@@ -135,7 +142,11 @@ class ExcelReportGenerator:
                 activity.milestone, activity.planned_start, activity.planned_finish,
                 activity.duration_days, activity.quantity, activity.unit,
                 activity.productivity, activity.crew_multiplier, activity.status,
-                "Activity", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+                "Activity",
+            ] + [""] * 19 + [
+                activity.source_unit_rate,
+                activity.planning_variation_pct,
+                activity.planned_unit_rate,
             ]
             ws.append(summary)
             detail_rows = []
@@ -162,6 +173,24 @@ class ExcelReportGenerator:
                     0, 0, 0, 0, 0, 0, 0, 0, material["quantity"],
                     material["total_cost"], 0, 0,
                 ])
+            for material in (
+                activity.daily_material_assumptions
+                if self.include_daily_material_assumptions
+                else []
+            ):
+                detail_rows.append([
+                    "Daily material assumption", material["name"],
+                    f"Per normal crew-day; {material['cost_treatment']}",
+                    material["quantity_per_crew_day"], material["unit"], 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, "", 0, 0, 0,
+                ])
+            if activity.unitemized_rate_material_cost:
+                detail_rows.append([
+                    "Rate allocation", "Unitemized material allowance",
+                    "Estimated from source material share; physical takeoff is not configured",
+                    "", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, "",
+                    0, activity.unitemized_rate_material_cost, 0,
+                ])
             if not detail_rows:
                 detail_rows.append([
                     "Unavailable", "Resource detail unavailable",
@@ -179,8 +208,8 @@ class ExcelReportGenerator:
                 (24, activity.labour_cost),
                 (25, activity.equipment_cost),
                 (26, activity.fuel_cost),
-                (27, activity.material_cost),
-                (28, activity.other_cost),
+                (28, activity.material_cost),
+                (29, activity.other_cost),
                 (30, activity.total_execution_cost),
             ):
                 ws.cell(subtotal, col, value)
@@ -198,8 +227,8 @@ class ExcelReportGenerator:
             (24, sum(a.labour_cost for a in rows)),
             (25, sum(a.equipment_cost for a in rows)),
             (26, sum(a.fuel_cost for a in rows)),
-            (27, sum(a.material_cost for a in rows)),
-            (28, sum(a.other_cost for a in rows)),
+            (28, sum(a.material_cost for a in rows)),
+            (29, sum(a.other_cost for a in rows)),
             (30, sum(a.total_execution_cost for a in rows)),
         ):
             ws.cell(total_row, col, value)
@@ -219,7 +248,7 @@ class ExcelReportGenerator:
                 ws.cell(row_number, 31, float(cost.total_amount or 0.0) if cost else 0.0)
                 ws.cell(row_number, 32, "OK")
         ws.freeze_panes = "A3"
-        ws.auto_filter.ref = f"A2:AF{ws.max_row}"
+        ws.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{ws.max_row}"
         self._format_resource_sheet(ws, headers)
 
     def _activity_cost(self, activity_id):
@@ -340,6 +369,12 @@ class ExcelReportGenerator:
                 elif isinstance(cell.value, (int, float)) and cell.column >= 12:
                     cell.number_format = '#,##0.00'
         for index, header in enumerate(headers, start=1):
+            if header == "Planning Variation (%)":
+                for row in range(3, ws.max_row + 1):
+                    ws.cell(row, index).number_format = '0.00"%"'
+            elif header in ("Source Unit Rate (Rs)", "Planned Unit Rate (Rs)"):
+                for row in range(3, ws.max_row + 1):
+                    ws.cell(row, index).number_format = '"₹"#,##0.00'
             values = [str(ws.cell(r, index).value or "") for r in range(1, min(ws.max_row, 30) + 1)]
             width = min(32, max(12, max(len(header), *(len(v) for v in values)) + 2))
             ws.column_dimensions[get_column_letter(index)].width = width
@@ -576,15 +611,15 @@ class ExcelReportGenerator:
     def _rate_basis_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Direct Unit Rate (CPHEEO/CPWD source) | Planning Variation (%) | Planned Unit Rate (source + statutory OH/CP) | Separate wastage",
-            "building": "Direct Unit Rate (CPWD DSR source) | Planning Variation (%) | Planned Unit Rate (ALL-IN) | OH & CP (embedded in rate)",
+            "pipeline": "CPHEEO/CPWD source rate | Resource-derived planned rate + statutory OH/CP | Planning variation",
+            "building": "CPWD DSR source rate | Resource-derived planned rate + statutory OH/CP | Planning variation",
         }.get(ptype, "Direct Unit Rate (MoRTH source) | Planning Variation (%) | Planned Unit Rate (ALL-IN incl. on-costs) | OH & CP (embedded in rate)")
 
     def _baseline_cost_subtitle(self) -> str:
         ptype = getattr(self.p_in, "project_type", "road") or "road"
         return {
-            "pipeline": "Standard rate analysis: CPHEEO/CPWD source rate + statutory OH/profit; wastage is a separate direct-cost line (Not forced to equal budget)",
-            "building": "Standard rate analysis based on CPWD DSR 2021 (Not forced to equal budget)",
+            "pipeline": "Resource-derived rate analysis benchmarked against CPHEEO/CPWD rates; wastage is separate (Not forced to equal budget)",
+            "building": "Resource-derived rate analysis benchmarked against CPWD DSR 2021 (Not forced to equal budget)",
         }.get(ptype, "Standard rate analysis based on MoRTH Standard Data Book (Not forced to equal budget)")
 
     def _activities_banner(self) -> str:
@@ -917,11 +952,14 @@ class ExcelReportGenerator:
         blue_font  = Font(name="Calibri", size=10, bold=True, color=self.c_navy)
 
         base_map = {a.activity_id: a for a in self.base_acts}
-        # A planned rate built above the source rate carries a known on-cost
-        # split (statutory OH/CP for pipeline, SDB for road). When the planned
-        # rate equals the source rate the source is used directly and its OH/CP
-        # split is unknown, so the columns say "In source rate" instead of
-        # implying a split that was never applied.
+        assumptions = getattr(self.res, "assumptions_snapshot", {}) or {}
+        oncost_basis = str(assumptions.get("rate_oncost_basis", "sdb") or "sdb")
+        has_embedded_oncost = (
+            not assumptions.get("use_direct_rate_as_planned", False)
+            and oncost_basis not in ("none", "off")
+        )
+        # Show the configured OH/CP percentages even when the derived planned
+        # rate is below the source benchmark or the activity has zero quantity.
 
         for i, opt_act in enumerate(self.opt_acts, 5):
             b_act   = base_map.get(opt_act.activity_id, opt_act)
@@ -939,8 +977,8 @@ class ExcelReportGenerator:
                 morth_r,    # 6 — Direct Unit Rate
                 var_pct,    # 7 — Planning Variation %
                 planned,    # 8 — Planned Unit Rate
-                f"{c.overhead_pct:.1f}%" if planned > morth_r + 1e-9 else "In source rate",
-                f"{c.profit_pct:.1f}%" if planned > morth_r + 1e-9 else "In source rate",
+                f"{c.overhead_pct:.1f}%" if has_embedded_oncost else "In source rate",
+                f"{c.profit_pct:.1f}%" if has_embedded_oncost else "In source rate",
                 opt_act.reference.morth_spec,
             ]
 
@@ -1415,13 +1453,14 @@ class ExcelReportGenerator:
             "idle losses. Planned Direct Cost (col 11) = Base Direct Cost + Wastage."
         )
         ws.cell(row=curr, column=5,
-                value="All costs use the ALL-IN Planned Unit Rate (col 8). For "
-                      "pipeline the planned rate is the published direct rate plus "
-                      "material wastage, resource idle losses and statutory "
-                      "overhead + contractor's profit (OH/CP are embedded and shown "
-                      "as memo amounts in cols 13-14). For road it is the "
-                      "first-principles build-up x the SDB on-cost multiplier "
-                      "(road x1.188 / structures x1.32). "
+                value="All costs use the ALL-IN Planned Unit Rate (col 8). Planned "
+                      "rates use first-principles material recipes plus crew, "
+                      "equipment and fuel per unit, then apply statutory OH/CP "
+                      "for pipeline/building or the SDB multiplier for road. "
+                      "Where pipeline/building recipes are unavailable, material "
+                      "cost uses the configured source material share and is not "
+                      "a physical takeoff. Embedded OH/CP are memo amounts in "
+                      "cols 13-14. "
                       "Base Direct Cost (col 9) = Quantity x Planned Unit Rate. "
                       + wastage_note + " "
                       "Price Escalation (col 12) reflects inflation up to the "
@@ -1920,10 +1959,11 @@ class ExcelReportGenerator:
             getattr(a.cost, "wastage_in_base_rate", False) for a in self.opt_acts
         )
         rate_basis_text = (
-            "The planned rate is the bare source/resource rate plus the configured "
-            "overhead and contractor-profit on-costs. Wastage is calculated from "
-            "the configured material/resource allowances as a separate direct-cost "
-            "line for road, pipeline and building. "
+            "The planned rate is derived from recipes, crew, plant and fuel per "
+            "unit, then includes the configured OH/CP on-costs. Pipeline/building "
+            "use the source material share when a recipe is unavailable; this "
+            "fallback is not a physical takeoff. Wastage remains a separate "
+            "direct-cost line. "
         )
         if embedded_wastage:
             wastage_text = (

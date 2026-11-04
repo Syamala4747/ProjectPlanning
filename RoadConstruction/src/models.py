@@ -247,7 +247,7 @@ class ActivityCostBreakdown:
     direct_cost: float = 0.0
     direct_unit_rate: float = 0.0       # planned (resource-derived) rate used for cost
     morth_direct_unit_rate: float = 0.0 # original MoRTH source rate, never modified
-    planning_variation_pct: float = 0.0 # derived = (planned all-in rate - source rate) / source rate x 100 (reporting only; both sides all-in, so the gap shows the build-up uplift)
+    planning_variation_pct: float = 0.0 # derived = (planned all-in rate - published source rate) / source rate x 100
     overhead_pct: float = 10.0
     overhead_amount: float = 0.0
     # Memo-only amounts when OH/CP are embedded in the planned rate. These are

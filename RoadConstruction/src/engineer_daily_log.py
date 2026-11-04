@@ -68,7 +68,7 @@ def build_daily_log(result: Any, plan: List[PlanActivity] | None = None) -> List
             materials = "; ".join(
                 f"{m['name']}: {m['quantity'] * share:.3f} {m['unit']}"
                 for m in available_materials
-            ) or "Material detail unavailable in assumptions"
+            ) or "No quantified material takeoff; source-rate allowance is unitemized"
             records.append({
                 "date": d,
                 "activity_id": row.activity_id,
