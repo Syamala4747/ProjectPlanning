@@ -9,6 +9,16 @@ Run commands from:
 cd C:\Users\syama\JAVA\Desktop\road\Roadgit\ProjectPlanning\RoadConstruction
 ```
 
+All generated Excel workbooks are stored in:
+
+```text
+C:\Users\syama\JAVA\Desktop\road\Roadgit\ProjectPlanning\RoadConstruction\output\
+```
+
+When `--output "file.xlsx"` is used, the application writes
+`output\file.xlsx`. The `output` folder is created automatically. An absolute
+path may be supplied when a different location is intentionally required.
+
 Use the project virtual environment directly:
 
 ```powershell
@@ -337,8 +347,8 @@ contain `09_Validation_Checks`.
 - `ERROR`: hard validation failure; investigate before accepting the workbook.
 
 If the requested output workbook is open in Excel, the application writes a
-safe alternative filename such as `_new.xlsx`. Close the workbook and use the
-actual filename printed by the command.
+safe alternative filename such as `_new.xlsx` in the same `output` folder.
+Close the workbook and use the actual filename printed by the command.
 
 To inspect all available options:
 

@@ -34,25 +34,49 @@ from src.validation_sanity_checks import (
     validate_exported_update_workbook,
 )
 
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+_OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
+
+
+def _output_file_path(path: str, default_name: str) -> str:
+    """Keep CLI-generated workbooks in the project output directory."""
+    requested = str(path or "").strip() or default_name
+    if os.path.isabs(requested):
+        return requested
+    normalized = os.path.normpath(requested)
+    if normalized == "output" or normalized.startswith(f"output{os.sep}"):
+        return normalized
+    return os.path.join("output", normalized)
+
+
+def _input_file_path(path: str) -> str:
+    """Resolve a workbook name from the output directory when appropriate."""
+    requested = str(path or "").strip()
+    if os.path.exists(requested) or os.path.isabs(requested):
+        return requested
+    candidate = os.path.join("output", requested)
+    return candidate if os.path.exists(candidate) else requested
+
+
 # Default config paths per project type
 _CONFIG = {
     "road": {
         "guidelines": "project_config/road/road_guidelines.json",
         "assumptions": "project_config/road/road_assumptions.yaml",
-        "output": "road_project_schedule.xlsx",
-        "update_output": "road_project_schedule_updated.xlsx",
+        "output": "output/road_project_schedule.xlsx",
+        "update_output": "output/road_project_schedule_updated.xlsx",
     },
     "pipeline": {
         "guidelines": "project_config/pipeline/pipeline_guidelines.json",
         "assumptions": "project_config/pipeline/pipeline_assumptions.yaml",
-        "output": "pipeline_project_schedule.xlsx",
-        "update_output": "pipeline_project_schedule_updated.xlsx",
+        "output": "output/pipeline_project_schedule.xlsx",
+        "update_output": "output/pipeline_project_schedule_updated.xlsx",
     },
     "building": {
         "guidelines": "project_config/building/building_guidelines.json",
         "assumptions": "project_config/building/building_assumptions.yaml",
-        "output": "building_project_schedule.xlsx",
-        "update_output": "building_project_schedule_updated.xlsx",
+        "output": "output/building_project_schedule.xlsx",
+        "update_output": "output/building_project_schedule_updated.xlsx",
     },
 }
 
@@ -270,8 +294,9 @@ def run_update_plan(args) -> None:
     6. Generates the updated Excel workbook.
     """
     # 1. Read the existing workbook
-    print(f"  [1/6] Reading existing workbook: {args.input}...")
-    reader = WorkbookReader(args.input)
+    input_path = _input_file_path(args.input)
+    print(f"  [1/6] Reading existing workbook: {input_path}...")
+    reader = WorkbookReader(input_path)
     proj_input, metadata = reader.read()
     if reader.warnings:
         for w in reader.warnings:
@@ -374,13 +399,16 @@ def run_update_plan(args) -> None:
         print(f"      Target Date (from re-derived baseline/opt): {target_date}")
 
     update_input = UpdatePlanInput(
-        input_path=args.input,
+        input_path=input_path,
         start_date=proj_input.start_date,
         status_date=status_date,
         actual_progress_pct=float(args.actual_progress),
         target_date=target_date,
         target_progress_pct=float(args.target_progress) if args.target_progress else None,
-        output_path=args.output or _CONFIG.get(ptype, _CONFIG["road"])["update_output"],
+        output_path=_output_file_path(
+            args.output,
+            _CONFIG.get(ptype, _CONFIG["road"])["update_output"],
+        ),
         activity_progress=activity_progress,
         guidelines_path=guidelines_path,
         assumptions_path=assumptions_path,
@@ -437,8 +465,11 @@ def run_update_plan(args) -> None:
     print(f"\n  {result.feasibility_message}")
 
     # 6. Generate the updated Excel report
-    print(f"\n  [5/6] Generating updated Excel report: {args.output}...")
-    reporter = UpdateExcelReportGenerator(result=result, output_path=args.output)
+    print(f"\n  [5/6] Generating updated Excel report: {update_input.output_path}...")
+    reporter = UpdateExcelReportGenerator(
+        result=result,
+        output_path=update_input.output_path,
+    )
     final_file = reporter.generate()
     workbook_validation = validate_exported_update_workbook(final_file, result)
     if workbook_validation.errors:
@@ -477,7 +508,7 @@ def _build_update_plan_parser() -> argparse.ArgumentParser:
     p.add_argument("--target-date", type=str, default="",
                    help="Future date by which the target should be achieved (YYYY-MM-DD).")
     p.add_argument("--target-progress", type=float, default=None)
-    p.add_argument("--output", type=str, default="project_schedule_updated.xlsx")
+    p.add_argument("--output", type=str, default="")
     p.add_argument("--activity-progress", type=str, default=None)
     p.add_argument("--guidelines", type=str, default="",
                    help="Path to guidelines JSON (auto-detected from workbook project_type if omitted)")
@@ -659,7 +690,7 @@ def run_road(args) -> None:
         retaining_walls_sqm=args.retaining_walls_sqm,
     )
     guidelines, assumptions = _auto_config("road", args.guidelines, args.assumptions)
-    output = args.output or _CONFIG["road"]["output"]
+    output = _output_file_path(args.output, _CONFIG["road"]["output"])
     run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
 
 
@@ -718,7 +749,7 @@ def run_pipeline(args) -> None:
         number_of_river_crossings=args.river_crossings,
     )
     guidelines, assumptions = _auto_config("pipeline", args.guidelines, args.assumptions)
-    output = args.output or _CONFIG["pipeline"]["output"]
+    output = _output_file_path(args.output, _CONFIG["pipeline"]["output"])
     run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
 
 
@@ -771,7 +802,7 @@ def run_building(args) -> None:
         floor_wise_structural_detail=args.floor_wise_structural,
     )
     guidelines, assumptions = _auto_config("building", args.guidelines, args.assumptions)
-    output = args.output or _CONFIG["building"]["output"]
+    output = _output_file_path(args.output, _CONFIG["building"]["output"])
     run_project_planning(proj_input, guidelines, assumptions, output, not args.no_accel_cost)
 
 
