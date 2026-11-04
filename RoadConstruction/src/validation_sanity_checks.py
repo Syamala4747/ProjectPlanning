@@ -79,6 +79,7 @@ def validate_schedule_result(
     project_type = str(getattr(result.project_input, "project_type", "road") or "road").lower()
     budget_crore = float(getattr(result.project_input, "budget_crore", 0.0) or 0.0)
     overhead_pct = _validation_overhead_pct(assumptions or {}, budget_crore)
+    _validate_assumption_sources(result, assumptions or {}, report)
     if project_type == "pipeline" and assumptions:
         _validate_pipeline_inputs(result, assumptions, report, tolerance_inr)
         _validate_engineering_sequence(result, report)
@@ -325,6 +326,75 @@ def validate_schedule_result(
             )
 
     return report
+
+
+def _validate_assumption_sources(
+    result: Any,
+    assumptions: dict,
+    report: ValidationReport,
+) -> None:
+    """Verify that scheduled engineering inputs resolve to assumptions."""
+    catalog = {
+        str(item.get("key")): item
+        for item in assumptions.get("activity_master", []) or []
+        if item.get("key")
+    }
+    rates = assumptions.get("direct_unit_rates_inr", {}) or {}
+    if not catalog:
+        report.add(
+            "ERROR",
+            "ASSUMPTION_SOURCE_MISSING",
+            "No activity_master assumptions were loaded for the schedule.",
+        )
+        return
+
+    for activity in list(getattr(result, "activities", []) or []):
+        aid = activity.activity_id
+        key = str(getattr(activity, "activity_key", "") or "")
+        spec = catalog.get(key)
+        if spec is None:
+            report.add(
+                "ERROR",
+                "ASSUMPTION_SOURCE_MISSING",
+                f"Activity key '{key}' has no activity_master assumption.",
+                aid,
+            )
+            continue
+        missing = [
+            field
+            for field in ("productivity_rate", "productivity_unit", "base_crews")
+            if spec.get(field) in (None, "")
+        ]
+        if missing:
+            report.add(
+                "ERROR",
+                "ASSUMPTION_SOURCE_MISSING",
+                f"activity_master[{key}] is missing: {', '.join(missing)}.",
+                aid,
+            )
+        if key not in rates or rates.get(key) in (None, ""):
+            report.add(
+                "ERROR",
+                "ASSUMPTION_RATE_MISSING",
+                f"direct_unit_rates_inr[{key}] is missing.",
+                aid,
+            )
+        else:
+            try:
+                if float(rates[key]) <= 0:
+                    report.add(
+                        "ERROR",
+                        "ASSUMPTION_RATE_INVALID",
+                        f"direct_unit_rates_inr[{key}] must be positive.",
+                        aid,
+                    )
+            except (TypeError, ValueError):
+                report.add(
+                    "ERROR",
+                    "ASSUMPTION_RATE_INVALID",
+                    f"direct_unit_rates_inr[{key}] must be numeric.",
+                    aid,
+                )
 
 
 def _validate_resource_plan_and_daily_log(result: Any, report: ValidationReport) -> None:

@@ -30,9 +30,34 @@ class DurationCalculator:
         self.prod_map: Dict[str, Tuple[float, str, int]] = {}
         for item in assumptions.get("activity_master", []):
             key = item.get("key")
-            rate = float(item.get("productivity_rate", 100.0))
-            unit = str(item.get("productivity_unit", "units/day"))
-            base_crews = int(item.get("base_crews", 1))
+            if not key:
+                raise ValueError(
+                    "assumptions.yaml activity_master contains an entry without "
+                    "a key; every scheduled activity must be traceable."
+                )
+            if item.get("productivity_rate") is None:
+                raise ValueError(
+                    f"assumptions.yaml activity_master[{key}] is missing "
+                    "productivity_rate; no hardcoded productivity fallback is allowed."
+                )
+            if item.get("productivity_unit") in (None, ""):
+                raise ValueError(
+                    f"assumptions.yaml activity_master[{key}] is missing "
+                    "productivity_unit; no implicit unit is allowed."
+                )
+            if item.get("base_crews") is None:
+                raise ValueError(
+                    f"assumptions.yaml activity_master[{key}] is missing "
+                    "base_crews; no implicit crew default is allowed."
+                )
+            rate = float(item["productivity_rate"])
+            unit = str(item["productivity_unit"])
+            base_crews = int(item["base_crews"])
+            if rate <= 0 or base_crews <= 0:
+                raise ValueError(
+                    f"assumptions.yaml activity_master[{key}] must define positive "
+                    f"productivity_rate and base_crews (got {rate}, {base_crews})."
+                )
             self.prod_map[key] = (rate, unit, base_crews)
 
     def effective_shifts(self, shifts: float) -> float:
@@ -57,10 +82,13 @@ class DurationCalculator:
 
         effort_days = ceil(quantity / (prod_rate * crews * effective_shifts))
         """
-        prod_rate, unit_str, default_base_crews = self.prod_map.get(
-            activity_key,
-            (100.0, "units/day", 2 if self.project_length_km >= 15 else 1)
-        )
+        try:
+            prod_rate, unit_str, default_base_crews = self.prod_map[activity_key]
+        except KeyError as exc:
+            raise ValueError(
+                f"Activity '{activity_key}' has no activity_master productivity "
+                "assumption; no hardcoded duration fallback is allowed."
+            ) from exc
 
         if crews is None or crews <= 0:
             crews = default_base_crews

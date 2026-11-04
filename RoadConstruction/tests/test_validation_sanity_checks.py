@@ -15,6 +15,7 @@ from src.constraint_scheduler import ConstraintScheduler
 from src.excel_report import ExcelReportGenerator
 from src.models import ProjectInput
 from src.validation_sanity_checks import validate_exported_workbook, validate_schedule_result
+from src.duration_calculator import DurationCalculator
 
 
 PIPELINE_GUIDELINES = ROOT / "project_config" / "pipeline" / "pipeline_guidelines.json"
@@ -23,6 +24,51 @@ ROAD_GUIDELINES = ROOT / "project_config" / "road" / "road_guidelines.json"
 ROAD_ASSUMPTIONS = ROOT / "project_config" / "road" / "road_assumptions.yaml"
 BUILDING_GUIDELINES = ROOT / "project_config" / "building" / "building_guidelines.json"
 BUILDING_ASSUMPTIONS = ROOT / "project_config" / "building" / "building_assumptions.yaml"
+
+
+def test_missing_productivity_assumption_is_rejected():
+    with pytest.raises(ValueError, match="missing productivity_rate"):
+        DurationCalculator(
+            {"activity_master": [{
+                "key": "earthwork",
+                "productivity_unit": "m3/day",
+                "base_crews": 1,
+            }]},
+            project_length_km=1.0,
+        )
+
+
+def test_loader_marks_missing_rate_as_hard_configuration_error():
+    loader = DataLoader()
+    loader.guidelines = {"data": {"activities": []}}
+    loader.assumptions = {
+        "activity_master": [{
+            "key": "earthwork",
+            "productivity_rate": 10,
+            "productivity_unit": "m3/day",
+            "base_crews": 1,
+        }],
+        "direct_unit_rates_inr": {},
+    }
+    loader.validate()
+    assert any("no fallback rate is allowed" in error for error in loader.errors)
+
+
+def test_hilly_road_uses_guidelines_hilly_catalogue():
+    loader = DataLoader(str(ROAD_GUIDELINES), str(ROAD_ASSUMPTIONS))
+    loader.load_all(terrain="hilly")
+    assert loader.assumptions["selected_terrain"] == "hilly"
+    catalogue = loader.assumptions["activity_master"]
+    assert catalogue
+    excavation = next(item for item in catalogue if item["key"] == "excavation")
+    assert excavation["productivity_rate"] == pytest.approx(413.0)
+
+
+def test_validation_report_checks_assumption_sources(pipeline_result):
+    result, loader = pipeline_result
+    result.activities[0].activity_key = "missing-assumption-key"
+    report = validate_schedule_result(result, loader.assumptions)
+    assert any(issue.code == "ASSUMPTION_SOURCE_MISSING" for issue in report.errors)
 
 
 def _run_project(project, guidelines_path, assumptions_path, *, acceleration=True):

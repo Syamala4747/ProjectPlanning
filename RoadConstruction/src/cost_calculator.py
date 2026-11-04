@@ -58,6 +58,13 @@ class CostCalculator:
         # No hand-typed rate or variation table exists in this model.
 
         shares = assumptions.get("cost_breakdown_shares", {})
+        required_share_keys = ("labour_share", "material_share", "equipment_share", "fuel_share")
+        missing_shares = [key for key in required_share_keys if key not in shares]
+        if missing_shares:
+            raise ValueError(
+                "assumptions.yaml cost_breakdown_shares is missing: "
+                + ", ".join(missing_shares)
+            )
         self.labour_share   = float(shares.get("labour_share",   0.18))
         self.material_share = float(shares.get("material_share", 0.54))
         self.equipment_share= float(shares.get("equipment_share",0.18))
@@ -86,6 +93,18 @@ class CostCalculator:
             }
 
         crashing = assumptions.get("crashing_factors", {})
+        required_crash_keys = (
+            "equipment_mobilization_pct",
+            "shift_overtime_premium_pct",
+            "supervision_per_front_pct",
+            "site_congestion_factor_pct",
+        )
+        missing_crash = [key for key in required_crash_keys if key not in crashing]
+        if missing_crash:
+            raise ValueError(
+                "assumptions.yaml crashing_factors is missing: "
+                + ", ".join(missing_crash)
+            )
         self.mob_pct         = float(crashing.get("equipment_mobilization_pct",  0.03))
         self.shift_prem_pct  = float(crashing.get("shift_overtime_premium_pct",  0.15))
         self.supervision_pct = float(crashing.get("supervision_per_front_pct",   0.02))
@@ -244,10 +263,28 @@ class CostCalculator:
                 )
 
         # Diesel rate + machine hours per day, for the fuel bottom-up.
-        self.diesel_rate = float(self._material_rates.get("diesel_litre", 0.0) or 0.0)
+        if self._material_rates.get("diesel_litre") in (None, ""):
+            raise ValueError(
+                "assumptions.yaml material_rates_inr.diesel_litre is required; "
+                "fuel cost cannot use an implicit zero rate."
+            )
+        self.diesel_rate = float(self._material_rates["diesel_litre"])
+        if self.diesel_rate <= 0:
+            raise ValueError(
+                "assumptions.yaml material_rates_inr.diesel_litre must be positive."
+            )
         self._fuel_lph = assumptions.get("fuel_consumption_lph", {}) or {}
         work = assumptions.get("calendar", {}) or {}
-        self.equipment_hours_per_day = float(work.get("equipment_hours_per_day", 9) or 9)
+        if work.get("equipment_hours_per_day") in (None, ""):
+            raise ValueError(
+                "assumptions.yaml calendar.equipment_hours_per_day is required; "
+                "equipment cost cannot use an implicit duration."
+            )
+        self.equipment_hours_per_day = float(work["equipment_hours_per_day"])
+        if self.equipment_hours_per_day <= 0:
+            raise ValueError(
+                "assumptions.yaml calendar.equipment_hours_per_day must be positive."
+            )
 
         # Validate the recipe graph once, on load, so a typo fails loudly at
         # startup instead of silently costing an activity at zero material.
@@ -375,8 +412,28 @@ class CostCalculator:
         if quantity <= 0:
             return morth, 0.0
 
-        prod = max(1e-9, float((spec or {}).get("productivity_rate", 100.0) or 100.0))
-        base_crews = max(1, int((spec or {}).get("base_crews", 1) or 1))
+        if spec is None:
+            raise ValueError(
+                f"Activity '{activity_key}' has no activity_master assumption; "
+                "planned rate cannot be calculated."
+            )
+        if spec.get("productivity_rate") in (None, ""):
+            raise ValueError(
+                f"assumptions.yaml activity_master[{activity_key}] is missing "
+                "productivity_rate; no cost-rate fallback is allowed."
+            )
+        if spec.get("base_crews") in (None, ""):
+            raise ValueError(
+                f"assumptions.yaml activity_master[{activity_key}] is missing "
+                "base_crews; no cost-rate fallback is allowed."
+            )
+        prod = float(spec["productivity_rate"])
+        base_crews = int(spec["base_crews"])
+        if prod <= 0 or base_crews <= 0:
+            raise ValueError(
+                f"assumptions.yaml activity_master[{activity_key}] must define "
+                f"positive productivity_rate and base_crews (got {prod}, {base_crews})."
+            )
 
         # Materials — theoretical per unit of output (before wastage).
         mat_pu = 0.0

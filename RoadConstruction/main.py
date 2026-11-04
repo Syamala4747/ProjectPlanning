@@ -123,6 +123,13 @@ def run_project_planning(
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=project_input.terrain)
     print("    ✔ Guidelines & assumptions loaded successfully.")
+    if loader.errors:
+        for error in loader.errors:
+            print(f"      ✖ {error}")
+        raise ValueError(
+            "Required engineering assumptions are missing or invalid; "
+            "workbook generation stopped."
+        )
     if loader.warnings:
         print("    ⚠ DATA-INTEGRITY WARNINGS:")
         for w in loader.warnings:
@@ -295,6 +302,13 @@ def run_update_plan(args) -> None:
         ptype, getattr(args, "guidelines", "") or "", getattr(args, "assumptions", "") or "")
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=proj_input.terrain)
+    if loader.errors:
+        for error in loader.errors:
+            print(f"      - CONFIGURATION ERROR: {error}")
+        raise ValueError(
+            "Required engineering assumptions are missing or invalid; "
+            "update-plan stopped."
+        )
     freshness = freshness_warnings(
         metadata.get("workbook_provenance", {}),
         proj_input,

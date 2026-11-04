@@ -174,8 +174,8 @@ class ConstraintScheduler:
         self.corridor_fronts = 1
         self.baseline_fronts = 1
         self.max_multiplier = 1
-        # Keys whose project-type calculator does not cover the current catalog.
-        # Pipeline raises instead of falling back; road/building record a warning.
+        # Retained as an audit surface for callers/tests; missing quantities
+        # now raise before this set can contain a fallback entry.
         self._quantity_fallbacks = set()
         self.levels: Dict[str, List[Tuple[int, float]]] = {}
 
@@ -375,23 +375,12 @@ class ConstraintScheduler:
             work_fronts = max(1, crews // base_crews)
 
             if key not in self.quantities:
-                ptype = str(getattr(self.input, "project_type", "road") or "road").lower()
-                if ptype == "pipeline":
-                    raise ValueError(
-                        f"Quantity calculator produced no quantity for activity key "
-                        f"'{key}'. A silent fallback would misprice the activity. "
-                        f"Add an explicit formula in the quantity calculator or remove "
-                        f"the activity from the guideline catalog."
-                    )
-                # Road/building catalogs are outside the pipeline audit scope.
-                # Keep their legacy behaviour but record a visible warning
-                # instead of silently pricing the activity as 100 units.
-                self._quantity_fallbacks.add(f"{act_id}/{key}")
-                qty_info = {
-                    "quantity": 100.0,
-                    "unit": spec.get("unit", "units"),
-                    "formula": "Legacy 100-unit fallback (missing quantity formula)",
-                }
+                raise ValueError(
+                    f"Quantity calculator produced no quantity for activity key "
+                    f"'{key}'. Add an explicit quantity formula backed by the "
+                    "selected project assumptions or remove the activity from the "
+                    "guideline catalogue; no hardcoded quantity fallback is allowed."
+                )
             else:
                 qty_info = self.quantities[key]
             qty = qty_info["quantity"]
@@ -1000,15 +989,6 @@ class ConstraintScheduler:
 
         warnings = list(violations)
         gates = list(gates)
-        if self._quantity_fallbacks:
-            keys = sorted(self._quantity_fallbacks)
-            shown = ", ".join(keys[:5])
-            more = f" (+{len(keys) - 5} more)" if len(keys) > 5 else ""
-            gates.append(
-                f"{len(keys)} activity key(s) have no quantity formula for the "
-                f"current catalog: {shown}{more}. The legacy 100-unit fallback "
-                f"was used, so this project type's quantities are placeholders."
-            )
         mono = self._monsoon_exposure(acts)
         if mono:
             gates.append(mono)

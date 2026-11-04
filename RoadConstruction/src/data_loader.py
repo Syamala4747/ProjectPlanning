@@ -16,6 +16,7 @@ class DataLoader:
         # Data-integrity problems found at load time. Surfaced by main.py so a
         # broken assumption is never silently accepted.
         self.warnings: List[str] = []
+        self.errors: List[str] = []
 
     def load_all(self, terrain: str = "plain") -> bool:
         """Loads guidelines and assumptions files, then validates cross-references."""
@@ -39,11 +40,19 @@ class DataLoader:
         )
 
         if selected == "hilly":
-            hilly = self.assumptions.get("hilly_terrain_standards") or {}
+            # Hilly road productivity standards are part of the road
+            # guidelines JSON. Accept an assumptions copy only for backward
+            # compatibility, but never substitute plain-terrain productivity.
+            hilly = (
+                self.guidelines.get("hilly_terrain_standards")
+                or self.assumptions.get("hilly_terrain_standards")
+                or {}
+            )
             catalog = hilly.get("activity_master") or []
             if not catalog:
                 raise ValueError(
-                    "Hilly terrain was requested, but road_assumptions.yaml has no "
+                    "Hilly terrain was requested, but the selected guidelines or "
+                    "assumptions file has no "
                     "hilly_terrain_standards.activity_master catalog."
                 )
             plain_by_key = {
@@ -84,6 +93,7 @@ class DataLoader:
         for pipeline/building it checks that direct_unit_rates_inr keys exist.
         """
         problems: List[str] = []
+        hard_errors: List[str] = []
 
         acts = (((self.guidelines or {}).get("data") or {})
                 .get("activities") or [])
@@ -102,6 +112,47 @@ class DataLoader:
                 unresolvable.append(f"{spec.get('id', key)} -> '{item}'")
             if key not in rates:
                 unpriced.append(key)
+                hard_errors.append(
+                    f"direct_unit_rates_inr has no rate for {key}; "
+                    "no fallback rate is allowed."
+                )
+            if spec.get("productivity_rate") is None:
+                message = (
+                    f"activity_master[{key}] is missing productivity_rate; "
+                    "duration must come from an explicit assumption."
+                )
+                problems.append(message)
+                hard_errors.append(message)
+            if spec.get("productivity_unit") in (None, ""):
+                message = (
+                    f"activity_master[{key}] is missing productivity_unit; "
+                    "duration must come from an explicit assumption."
+                )
+                problems.append(message)
+                hard_errors.append(message)
+            if spec.get("base_crews") is None:
+                message = (
+                    f"activity_master[{key}] is missing base_crews; "
+                    "resource sizing must come from an explicit assumption."
+                )
+                problems.append(message)
+                hard_errors.append(message)
+            if key in rates:
+                try:
+                    if float(rates[key]) <= 0:
+                        message = (
+                            f"direct_unit_rates_inr[{key}] must be positive; "
+                            "no fallback rate is allowed."
+                        )
+                        problems.append(message)
+                        hard_errors.append(message)
+                except (TypeError, ValueError):
+                    message = (
+                        f"direct_unit_rates_inr[{key}] is not numeric; "
+                        "no fallback rate is allowed."
+                    )
+                    problems.append(message)
+                    hard_errors.append(message)
 
         if unresolvable:
             problems.append(
@@ -204,6 +255,7 @@ class DataLoader:
                 f"recipes, crew day rates, plant hire, fuel lph). Remove the "
                 f"stale tables to keep the file honest.")
 
+        self.errors = list(dict.fromkeys(hard_errors))
         return problems
 
     def load_assumptions(self) -> Dict[str, Any]:

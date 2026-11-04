@@ -403,6 +403,9 @@ class ExcelReportGenerator:
             ("WORKBOOK_SCURVE_PROGRESS_MISMATCH", "Workbook S-curve progress reconciles"),
             ("WORKBOOK_SCURVE_COST_MISMATCH", "Workbook S-curve costs reconcile"),
             ("SCHEDULER_SANITY", "Scheduler planning-risk warnings"),
+            ("ASSUMPTION_SOURCE_MISSING", "Scheduled values resolve to activity assumptions"),
+            ("ASSUMPTION_RATE_MISSING", "Scheduled activity rates exist in assumptions"),
+            ("ASSUMPTION_RATE_INVALID", "Scheduled activity rates are valid"),
         ]
         for row in range(4, 8):
             for col in range(1, 3):
