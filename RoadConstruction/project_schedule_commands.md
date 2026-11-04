@@ -358,3 +358,24 @@ To inspect all available options:
 & ".\.venv-pipeline\Scripts\python.exe" main.py building --help
 & ".\.venv-pipeline\Scripts\python.exe" main.py update-plan --help
 ```
+
+## 7. Independent verification utilities
+
+These are audit tools, not normal schedule-generation steps:
+
+```powershell
+& ".\.venv-pipeline\Scripts\python.exe" -m src.audit_calculations
+& ".\.venv-pipeline\Scripts\python.exe" -m src.verify
+```
+
+`src.audit_calculations` independently recomputes representative quantities,
+resource day rates, planned rates, duration, CPM identities, and cost-building
+values from the raw road assumptions. It is designed to detect a calculation
+bug that could be hidden if the audit reused the same model helper.
+
+`src.verify` is a broader correctness gate. It checks assumption coverage and
+source-of-truth markers, solves a reference road scenario, checks model
+invariants, and audits selected reference workbooks in `output\`. A failed
+check returns a non-zero process exit code. These utilities currently audit
+the road reference model; they do not replace the project-specific validation
+sheet for pipeline or building workbooks.

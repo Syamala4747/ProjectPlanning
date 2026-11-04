@@ -7,13 +7,13 @@ compares against what the model produced. Deliberately does NOT call the
 model's own helpers for the expected values - it re-derives them from the raw
 YAML so a bug in a shared helper cannot hide itself.
 
-Run:  python audit_calculations.py
+Run:  python -m src.audit_calculations
 """
 import sys, io, os, math, yaml
 from datetime import date
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-_ROOT = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 os.chdir(_ROOT)
 
@@ -33,7 +33,11 @@ def chk(label, ok, detail=""):
 def near(a, b, tol): return abs(a - b) <= tol
 
 # ---------------------------------------------------------------- raw YAML
-loader = DataLoader(guidelines_path="road_guidelines.json", assumptions_path="road_assumptions.yaml")
+road_config = os.path.join(_ROOT, "project_config", "road")
+loader = DataLoader(
+    guidelines_path=os.path.join(road_config, "road_guidelines.json"),
+    assumptions_path=os.path.join(road_config, "road_assumptions.yaml"),
+)
 loader.load_all()
 A = loader.assumptions
 cc = CostCalculator(A, 8.0, 10.0)
@@ -66,18 +70,24 @@ for f in ("carriageway_width_m", "formation_width_m", "median_width_m",
 print(); print("=" * 80); print("2. QUANTITIES - recomputed from geometry"); print("=" * 80)
 qc = QuantityCalculator(ProjectInput(title="t", length_km=25.0, duration_days=800,
                                      budget_crore=1000.0, lanes=LANES), A)
+road_qc = qc._calc
 L  = 25.0 * 1000.0
-FW = qc.formation_width_m; CW = qc.carriageway_width_m
-SW, GW, WW, MW = qc.subgrade_width_m, qc.gsb_width_m, qc.wmm_width_m, qc.median_width_m
-kmf = (25.0 / qc.ref_corridor_km) * (LANES / 4.0)
+FW = road_qc.formation_width_m; CW = road_qc.carriageway_width_m
+SW, GW, WW, MW = (
+    road_qc.subgrade_width_m,
+    road_qc.gsb_width_m,
+    road_qc.wmm_width_m,
+    road_qc.median_width_m,
+)
+kmf = (25.0 / road_qc.ref_corridor_km) * (LANES / 4.0)
 
 expect = {
     "site_clearance":   (L * FW / 10000.0, "ha"),
-    "excavation":       (L * FW * qc.excavation_depth_m * qc.excavation_cut_ratio, "cum"),
-    "embankment":       (L * FW * qc.embankment_height_m * qc.embankment_fill_ratio, "cum"),
-    "subgrade":         (L * SW * qc.subgrade_thickness_m, "cum"),
-    "gsb":              (L * GW * qc.gsb_thickness_m, "cum"),
-    "wmm":              (L * WW * qc.wmm_thickness_m, "cum"),
+    "excavation":       (L * FW * road_qc.excavation_depth_m * road_qc.excavation_cut_ratio, "cum"),
+    "embankment":       (L * FW * road_qc.embankment_height_m * road_qc.embankment_fill_ratio, "cum"),
+    "subgrade":         (L * SW * road_qc.subgrade_thickness_m, "cum"),
+    "gsb":              (L * GW * road_qc.gsb_thickness_m, "cum"),
+    "wmm":              (L * WW * road_qc.wmm_thickness_m, "cum"),
     "dbm":              (L * CW, "sqm"),
     "bc":               (L * CW, "sqm"),
     "drainage":         (L * 2.0, "m"),
@@ -88,7 +98,11 @@ for k, (v, unit) in expect.items():
         f"model {got:,.2f}")
 # dimensional sanity
 chk("excavation qty consistent with formation area",
-    near(acts["excavation"].quantity / L, FW * qc.excavation_depth_m * qc.excavation_cut_ratio, 1e-6))
+    near(
+        acts["excavation"].quantity / L,
+        FW * road_qc.excavation_depth_m * road_qc.excavation_cut_ratio,
+        1e-6,
+    ))
 chk("subgrade volume = area x thickness",
     near(acts["subgrade"].quantity, L * SW * 0.50, max(1.0, acts["subgrade"].quantity * 1e-6)))
 

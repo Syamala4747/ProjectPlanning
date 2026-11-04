@@ -2,8 +2,8 @@
 """
 verify.py - automated correctness gate for the road construction planner.
 
-Run:  python verify.py            (audits the three reference workbooks)
-      python verify.py --no-run   (audit existing workbooks only, do not re-run)
+Run:  python -m src.verify            (audits the three reference workbooks)
+      python -m src.verify --no-run   (audit existing workbooks only, do not re-run)
 
 This gate exists because every real defect found during development was caught
 by an invariant, not by reading the report. It checks three layers:
@@ -22,7 +22,7 @@ from datetime import date
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
@@ -49,10 +49,13 @@ def main():
     from src.data_loader import DataLoader
     from src.cost_calculator import CostCalculator
 
-    with open("road_assumptions.yaml", encoding="utf-8") as f:
+    road_config = os.path.join(ROOT, "project_config", "road")
+    with open(os.path.join(road_config, "road_assumptions.yaml"), encoding="utf-8") as f:
         a = yaml.safe_load(f)
-    loader = DataLoader(guidelines_path="road_guidelines.json",
-                        assumptions_path="road_assumptions.yaml")
+    loader = DataLoader(
+        guidelines_path=os.path.join(road_config, "road_guidelines.json"),
+        assumptions_path=os.path.join(road_config, "road_assumptions.yaml"),
+    )
     loader.load_all()
     cc = CostCalculator(loader.assumptions, 8.0, 10.0)
 
@@ -79,7 +82,7 @@ def main():
     # top-level `productivity:` block is reference documentation under its own
     # descriptive keys, so it cannot be mirrored value-for-value; what we can
     # and must verify is that it says so, so nobody edits it expecting a change.
-    with open("road_assumptions.yaml", encoding="utf-8") as f:
+    with open(os.path.join(road_config, "road_assumptions.yaml"), encoding="utf-8") as f:
         raw = f.read()
     prod_block = a.get("productivity") or {}
     if prod_block:
@@ -170,7 +173,11 @@ def main():
     print("C. WORKBOOKS")
     print("=" * 78)
 
-    for fn in ("report_251.xlsx", "verify.xlsx", "report_251_noaccel.xlsx"):
+    for fn in (
+        os.path.join("output", "report_251.xlsx"),
+        os.path.join("output", "verify.xlsx"),
+        os.path.join("output", "report_251_noaccel.xlsx"),
+    ):
         # the generator falls back to <stem>_new.xlsx when the target is open in
         # Excel, so accept either and audit the freshest that exists
         path = fn if os.path.exists(fn) else fn.replace(".xlsx", "_new.xlsx")
