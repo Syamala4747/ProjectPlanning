@@ -17,6 +17,7 @@ Sheets:
   08_Target_Feasibility   — feasibility verdict and resource changes
 """
 import os
+from types import SimpleNamespace
 from datetime import date, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -29,6 +30,9 @@ from openpyxl.chart.axis import ChartLines
 from .models import (
     UpdatePlanResult, RoadActivity, ActivityActualStatus,
 )
+from .plan_generator import build_plan
+from .engineer_daily_log import build_daily_log
+from .excel_report import ExcelReportGenerator
 
 
 class UpdateExcelReportGenerator:
@@ -95,12 +99,14 @@ class UpdateExcelReportGenerator:
 
         self._build_summary(wb)
         self._build_baseline_schedule(wb)
+        self._build_assumptions(wb)
         self._build_actual_progress(wb)
         self._build_activity_status(wb)
         self._build_revised_cpm(wb)
         self._build_revised_cost(wb)
         self._build_scurve(wb)
         self._build_feasibility(wb)
+        self._build_revised_resource_sheets(wb)
         self._build_validation(wb)
 
         try:
@@ -113,6 +119,48 @@ class UpdateExcelReportGenerator:
             print(f"\n  Note: '{self.output_path}' was open in Excel. "
                   f"Saved as '{fallback}' instead.")
             return fallback
+
+    def _build_revised_resource_sheets(self, wb):
+        """Export resource data for remaining work, never the old baseline."""
+        view = SimpleNamespace(
+            project_input=self.r.project_input,
+            activities=self.r.revised_activities,
+            baseline_activities=[],
+            assumptions_snapshot=getattr(
+                self.r.baseline_result, "assumptions_snapshot", {}
+            ),
+        )
+        resource_reporter = ExcelReportGenerator(view, "")
+        resource_reporter._build_sheet_plan(wb)
+        resource_reporter._build_sheet_daily_log(wb)
+
+    def _build_assumptions(self, wb):
+        """Keep the update workbook's assumptions in the third sheet."""
+        view = SimpleNamespace(
+            project_input=self.r.project_input,
+            activities=self.r.revised_activities,
+            baseline_activities=[],
+            assumptions_snapshot=getattr(
+                self.r.baseline_result, "assumptions_snapshot", {}
+            ),
+        )
+        ExcelReportGenerator(view, "")._build_sheet_03_assumptions(wb)
+
+    def _format_resource_sheet(self, ws, headers):
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{max(2, ws.max_row)}"
+        for row in ws.iter_rows(min_row=3):
+            for cell in row:
+                cell.border = self.border_thin
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                if isinstance(cell.value, date):
+                    cell.number_format = "yyyy-mm-dd"
+                elif isinstance(cell.value, (int, float)):
+                    cell.number_format = "#,##0.00"
+        for index, header in enumerate(headers, start=1):
+            ws.column_dimensions[get_column_letter(index)].width = min(
+                32, max(12, len(header) + 2)
+            )
 
     def _build_validation(self, wb):
         """Write the same clear PASS/WARNING/ERROR register as new plans."""

@@ -992,4 +992,5 @@ class ConstraintScheduler:
             resources_added_summary=resources_summary,
             optimization_iterations=log,
             optimization_note=note or "",
+            assumptions_snapshot=self.assumptions,
         )

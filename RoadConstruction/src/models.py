@@ -272,6 +272,10 @@ class ActivityCostBreakdown:
     escalation_amount: float = 0.0   # rupees added by escalation to this activity
     escalation_factor: float = 1.0   # blended multiplier applied (1.0 = none)
     escalation_years: float = 0.0    # years from base date to this activity's mid-spend
+    # Detailed material recipe lines used by the resource-plan workbook sheets.
+    # Kept as audit data from the cost engine; report generators must not
+    # reconstruct material quantities independently.
+    material_lines: List[Dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -379,6 +383,9 @@ class ProjectScheduleResult:
     # report labels cite the project-type config instead of hard-coded numbers.
     accel_site_establishment_rate: float = 0.0
     accel_resident_staff_rate: float = 0.0
+    # Loaded project assumptions retained for report-only resource detail.
+    # Calculation logic remains owned by CostCalculator and the scheduler.
+    assumptions_snapshot: Dict[str, Any] = field(default_factory=dict, repr=False)
 
 
 # ======================================================================

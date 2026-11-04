@@ -289,6 +289,7 @@ class TestPreservation:
             "07_Baseline_Cost", "08_Constraint_Optimization", "09_Optimized_CPM",
             "10_Optimized_Cost", "11_Baseline_vs_Optimized", "12_Monthly_Schedule",
             "13_S_Curve", "14_Critical_Path", "15_Validation_Checks",
+            "Plan", "Engineer_DailyLog",
         ]
         assert wb.sheetnames == expected
 
@@ -301,9 +302,11 @@ class TestPreservation:
         assert os.path.exists(BASELINE_FILE)
         wb = load_workbook(UPDATED_FILE)
         expected = [
-            "01_Update_Summary", "02_Baseline_Schedule", "03_Actual_Progress",
+            "01_Update_Summary", "02_Baseline_Schedule", "03_Assumptions",
+            "03_Actual_Progress",
             "04_Activity_Status", "05_Revised_CPM", "06_Revised_Cost",
-            "07_S_Curve_Comparison", "08_Target_Feasibility", "09_Validation_Checks",
+            "07_S_Curve_Comparison", "08_Target_Feasibility", "Plan",
+            "Engineer_DailyLog", "09_Validation_Checks",
         ]
         assert wb.sheetnames == expected
 
@@ -356,7 +359,7 @@ class TestRegression:
     def test_existing_command_workbook_structure(self, baseline_workbook):
         """The existing command still produces the complete workbook."""
         wb = load_workbook(baseline_workbook)
-        assert len(wb.sheetnames) == 15
+        assert len(wb.sheetnames) == 17
 
     def test_main_help_still_works(self):
         """The main CLI still runs the existing command without 'update-plan'."""

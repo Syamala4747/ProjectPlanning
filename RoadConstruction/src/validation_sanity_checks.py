@@ -86,6 +86,8 @@ def validate_schedule_result(
     _validate_resource_allocation(result, assumptions, report)
     _validate_escalation(result, assumptions, report)
     _validate_cycles(result, report)
+    _validate_plan_calculations(result, report, tolerance_inr)
+    _validate_resource_plan_and_daily_log(result, report)
 
     # Quantity, productivity, duration, and CPM invariants.
     for activity in activities:
@@ -316,6 +318,179 @@ def validate_schedule_result(
             )
 
     return report
+
+
+def _validate_resource_plan_and_daily_log(result: Any, report: ValidationReport) -> None:
+    """Validate the report-facing Plan and Engineer_DailyLog data."""
+    from .engineer_daily_log import build_daily_log
+    from .plan_generator import build_plan
+
+    plan = build_plan(result)
+    activities = {
+        activity.activity_id: activity
+        for activity in list(getattr(result, "activities", []) or [])
+    }
+    if {row.activity_id for row in plan} != set(activities):
+        report.add("ERROR", "PLAN_ACTIVITY_COVERAGE",
+                   "Plan must contain exactly one activity header for every scheduled activity.")
+
+    log = build_daily_log(result, plan)
+    seen = set()
+    by_activity = {}
+    activity_days = {}
+    project_days = {}
+    for row in log:
+        key = (row.activity_id, row.date)
+        if key in seen:
+            report.add("ERROR", "DAILY_LOG_DUPLICATE",
+                       f"Duplicate activity/date record: {row.activity_id} {row.date}.",
+                       row.activity_id)
+        seen.add(key)
+        if row.date not in project_days:
+            project_days[row.date] = row.day_number
+        if project_days[row.date] != row.day_number:
+            report.add("ERROR", "DAILY_LOG_PROJECT_DAY",
+                       "All activities on a date must share the same project day.",
+                       row.activity_id)
+        activity_days.setdefault(row.activity_id, []).append(
+            (row.activity_working_day, row.date)
+        )
+        if row.activity_id not in activities:
+            report.add("ERROR", "DAILY_LOG_UNKNOWN_ACTIVITY",
+                       f"Daily log references unknown activity {row.activity_id}.",
+                       row.activity_id)
+        if row.quantity < -0.05 or row.total_cost < -0.05:
+            report.add("ERROR", "DAILY_LOG_NEGATIVE_VALUE",
+                       "Daily quantity and cost must not be negative.", row.activity_id)
+        by_activity.setdefault(row.activity_id, {"quantity": 0.0, "cost": 0.0})
+        by_activity[row.activity_id]["quantity"] += row.quantity
+        by_activity[row.activity_id]["cost"] += row.total_cost
+
+    for activity_id, entries in activity_days.items():
+        ordered = sorted(entries, key=lambda item: item[1])
+        expected_days = list(range(1, len(ordered) + 1))
+        if [item[0] for item in ordered] != expected_days:
+            report.add("ERROR", "DAILY_LOG_ACTIVITY_DAY",
+                       "Activity working-day numbers must start at 1 and be sequential.",
+                       activity_id)
+
+    for row in plan:
+        actual = by_activity.get(row.activity_id, {"quantity": 0.0, "cost": 0.0})
+        if row.status == "Active":
+            if not _near(actual["quantity"], row.quantity, 0.1):
+                report.add("ERROR", "DAILY_LOG_QUANTITY_RECONCILIATION",
+                           f"Daily quantity {actual['quantity']:.3f} does not match "
+                           f"Plan quantity {row.quantity:.3f}.", row.activity_id)
+            if not _near(actual["cost"], row.total_execution_cost, 1.0):
+                report.add("ERROR", "DAILY_LOG_COST_RECONCILIATION",
+                           f"Daily cost {actual['cost']:.2f} does not match "
+                           f"Plan execution cost {row.total_execution_cost:.2f}.",
+                           row.activity_id)
+        elif actual["quantity"] > 0.1:
+            report.add("ERROR", "ZERO_SCOPE_DAILY_CONSUMPTION",
+                       "Out-of-scope activities must not generate daily consumption.",
+                       row.activity_id)
+
+    previous = 0.0
+    for row in sorted(log, key=lambda item: (item.date, item.activity_id)):
+        if row.cumulative_cost + 1.0 < previous:
+            report.add("ERROR", "DAILY_LOG_CUMULATIVE_COST",
+                       "Cumulative cost must not decrease.", row.activity_id)
+        previous = max(previous, row.cumulative_cost)
+        activity = activities.get(row.activity_id)
+        if activity and activity.planned_start and activity.planned_finish:
+            if not (activity.planned_start <= row.date <= activity.planned_finish):
+                report.add("ERROR", "DAILY_LOG_OUTSIDE_ACTIVITY_DATES",
+                           "Daily record falls outside its activity dates.",
+                           row.activity_id)
+
+
+def _validate_plan_calculations(
+    result: Any,
+    report: ValidationReport,
+    tolerance_inr: float,
+) -> None:
+    """Reconcile report-facing Plan values with the original cost calculation."""
+    from .plan_generator import build_plan
+
+    source = {
+        activity.activity_id: activity
+        for activity in list(getattr(result, "activities", []) or [])
+    }
+    for row in build_plan(result):
+        activity = source.get(row.activity_id)
+        if activity is None:
+            report.add("ERROR", "PLAN_UNKNOWN_ACTIVITY",
+                       "Plan contains an activity absent from the original calculation.",
+                       row.activity_id)
+            continue
+
+        cost = activity.cost
+        checks = (
+            ("quantity", row.quantity, float(activity.quantity or 0.0), 0.1),
+            ("duration", row.duration_days, int(activity.duration_days or 0), 0),
+            ("crew", row.crew_multiplier, max(1, int(activity.crews or activity.base_crews or 1)), 0),
+            ("labour cost", row.labour_cost, float(cost.direct_labour or 0.0), tolerance_inr),
+            ("equipment cost", row.equipment_cost, float(cost.direct_equipment or 0.0), tolerance_inr),
+            ("fuel cost", row.fuel_cost, float(cost.direct_fuel or 0.0), tolerance_inr),
+            (
+                "material cost",
+                row.material_cost,
+                float(cost.direct_material or cost.bottom_up_material_cost or 0.0),
+                tolerance_inr,
+            ),
+            ("execution cost", row.total_execution_cost, float(cost.direct_cost or 0.0), tolerance_inr),
+        )
+        for label, actual, expected, tolerance in checks:
+            if not _near(actual, expected, max(tolerance, 0.05)):
+                report.add(
+                    "ERROR",
+                    "PLAN_ORIGINAL_CALCULATION_MISMATCH",
+                    f"Plan {label} {float(actual):.2f} does not match "
+                    f"original calculation {float(expected):.2f}.",
+                    row.activity_id,
+                )
+
+        component_total = (
+            row.labour_cost + row.equipment_cost
+            + row.fuel_cost + row.material_cost + row.other_cost
+        )
+        if not _near(component_total, row.total_execution_cost, tolerance_inr):
+            report.add(
+                "ERROR",
+                "PLAN_COMPONENT_TOTAL_MISMATCH",
+                f"Plan resource components total {component_total:.2f}, but "
+                f"execution cost is {row.total_execution_cost:.2f}.",
+                row.activity_id,
+            )
+
+        detail_labour = sum(float(item.get("total_cost", 0.0) or 0.0) for item in row.labour)
+        detail_equipment = sum(float(item.get("total_cost", 0.0) or 0.0) for item in row.equipment)
+        detail_fuel = sum(float(item.get("fuel_cost", 0.0) or 0.0) for item in row.equipment)
+        detail_material = sum(float(item.get("total_cost", 0.0) or 0.0) for item in row.materials)
+        detail_checks = [("labour", detail_labour, row.labour_cost)]
+        if any(item.get("name") != "Unavailable in project assumptions" for item in row.equipment):
+            detail_checks.extend((
+                ("equipment", detail_equipment, row.equipment_cost),
+                ("fuel", detail_fuel, row.fuel_cost),
+            ))
+        material_lines_total = sum(
+            float(line.get("cost", 0.0) or 0.0)
+            for line in list(getattr(cost, "material_lines", []) or [])
+        )
+        if row.materials and material_lines_total:
+            # Material detail is issued quantity including wastage; the
+            # original direct-material component excludes that separate loss.
+            detail_checks.append(("material", detail_material, material_lines_total))
+        for label, detail, summary in detail_checks:
+            if not _near(detail, summary, tolerance_inr):
+                report.add(
+                    "ERROR",
+                    "PLAN_DETAIL_TOTAL_MISMATCH",
+                    f"Plan {label} detail total {detail:.2f} does not match "
+                    f"the activity summary {summary:.2f}.",
+                    row.activity_id,
+                )
 
 
 def _validate_pipeline_inputs(result: Any, assumptions: dict, report: ValidationReport, tol: float) -> None:
@@ -556,11 +731,20 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
     required = {
         "01_Project_Summary", "02_Project_Inputs", "05_Activities",
         "09_Optimized_CPM", "10_Optimized_Cost", "12_Monthly_Schedule",
-        "13_S_Curve", "15_Validation_Checks",
+        "13_S_Curve", "15_Validation_Checks", "Plan", "Engineer_DailyLog",
     }
     missing = sorted(required - set(workbook.sheetnames))
     if missing:
         report.add("ERROR", "WORKBOOK_SHEETS_MISSING", f"Missing required sheets: {missing}.")
+    else:
+        expected_plan_rows = len(getattr(result, "activities", []) or [])
+        if workbook["Plan"].max_row < expected_plan_rows + 2:
+            report.add("ERROR", "WORKBOOK_PLAN_EMPTY",
+                       "Plan sheet does not contain all scheduled activity rows.")
+        if workbook["Engineer_DailyLog"].max_row < 2:
+            report.add("ERROR", "WORKBOOK_DAILY_LOG_EMPTY",
+                       "Engineer_DailyLog does not contain planned execution rows.")
+        _validate_exported_plan_calculations(workbook["Plan"], result, report)
 
     validation = workbook["15_Validation_Checks"] if "15_Validation_Checks" in workbook.sheetnames else None
     if validation is not None:
@@ -602,8 +786,85 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
     return report
 
 
+def _validate_exported_plan_calculations(
+    sheet: Any,
+    result: Any,
+    report: ValidationReport,
+) -> None:
+    """Check the persisted Plan activity rows and totals against source costs."""
+    from .plan_generator import build_plan
+
+    expected = {row.activity_id: row for row in build_plan(result)}
+    seen = set()
+    project_execution = 0.0
+    project_billed = 0.0
+    for values in sheet.iter_rows(min_row=3, values_only=True):
+        activity_id = values[0] if values else None
+        row_type = values[12] if len(values) > 12 else None
+        if row_type == "Activity" and isinstance(activity_id, str):
+            row = expected.get(activity_id)
+            if row is None:
+                report.add("ERROR", "WORKBOOK_PLAN_UNKNOWN_ACTIVITY",
+                           f"Plan contains unknown activity {activity_id}.", activity_id)
+                continue
+            seen.add(activity_id)
+            checks = (
+                ("quantity", values[7], row.quantity, 0.1),
+                ("duration", values[6], row.duration_days, 0),
+                ("crew", values[10], row.crew_multiplier, 0),
+            )
+            for label, actual, source, tolerance in checks:
+                if actual is None or not _near(actual, source, max(tolerance, 0.05)):
+                    report.add(
+                        "ERROR",
+                        "WORKBOOK_PLAN_INPUT_MISMATCH",
+                        f"Plan {label} does not match the generated Plan data.",
+                        activity_id,
+                    )
+        elif row_type == "Subtotal" and isinstance(activity_id, str):
+            row = expected.get(activity_id)
+            if row is None:
+                continue
+            execution = float(values[29] or 0.0)
+            billed = float(values[30] or 0.0)
+            project_execution += execution
+            project_billed += billed
+            if not _near(execution, row.total_execution_cost, 1.0):
+                report.add("ERROR", "WORKBOOK_PLAN_EXECUTION_MISMATCH",
+                           "Plan subtotal does not match the original direct cost.",
+                           activity_id)
+            source_activity = next(
+                (item for item in result.activities if item.activity_id == activity_id),
+                None,
+            )
+            if source_activity is not None and not _near(
+                billed, float(source_activity.cost.total_amount or 0.0), 1.0
+            ):
+                report.add("ERROR", "WORKBOOK_PLAN_BILLED_MISMATCH",
+                           "Plan billed subtotal does not match the original total cost.",
+                           activity_id)
+
+    if seen != set(expected):
+        report.add("ERROR", "WORKBOOK_PLAN_ACTIVITY_SET_MISMATCH",
+                   "Persisted Plan activity rows differ from the generated Plan.")
+
+    for values in sheet.iter_rows(min_row=3, values_only=True):
+        if values and values[0] == "PROJECT TOTALS":
+            execution = float(values[29] or 0.0)
+            billed = float(values[30] or 0.0)
+            if not _near(execution, project_execution, 1.0):
+                report.add("ERROR", "WORKBOOK_PLAN_PROJECT_EXECUTION_MISMATCH",
+                           "Plan project execution total does not equal activity subtotals.")
+            if not _near(billed, project_billed, 1.0):
+                report.add("ERROR", "WORKBOOK_PLAN_PROJECT_BILLED_MISMATCH",
+                           "Plan project billed total does not equal activity subtotals.")
+            break
+
+
 def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> ValidationReport:
         """Validate an update-plan result and its remaining-work cost model."""
+        from types import SimpleNamespace
+
         report = ValidationReport()
         revised = list(getattr(result, "revised_activities", []) or [])
         statuses = list(getattr(result, "activity_status", []) or [])
@@ -712,6 +973,14 @@ def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> V
             report.add("ERROR", "UPDATE_NEGATIVE_DELAY", "Projected delay cannot be negative.")
         for warning in getattr(result, "warnings", []) or []:
             report.add("WARNING", "UPDATE_PLANNING_WARNING", str(warning))
+        revised_view = SimpleNamespace(
+            project_input=getattr(result, "project_input", None),
+            activities=revised,
+            assumptions_snapshot=assumptions or getattr(
+                baseline, "assumptions_snapshot", {}
+            ) or {},
+        )
+        _validate_resource_plan_and_daily_log(revised_view, report)
         return report
 
 
@@ -724,11 +993,19 @@ def validate_exported_update_workbook(path: str, result: Any) -> ValidationRepor
         required = {
             "01_Update_Summary", "02_Baseline_Schedule", "03_Actual_Progress",
             "04_Activity_Status", "05_Revised_CPM", "06_Revised_Cost",
-            "07_S_Curve_Comparison", "08_Target_Feasibility", "09_Validation_Checks",
+            "07_S_Curve_Comparison", "08_Target_Feasibility", "Plan",
+            "Engineer_DailyLog", "09_Validation_Checks",
         }
         missing = sorted(required - set(workbook.sheetnames))
         if missing:
             report.add("ERROR", "UPDATE_WORKBOOK_SHEETS_MISSING", f"Missing update sheets: {missing}.")
+        else:
+            if workbook["Plan"].max_row < 2:
+                report.add("ERROR", "UPDATE_WORKBOOK_PLAN_EMPTY",
+                           "Updated Plan sheet does not contain revised work.")
+            if workbook["Engineer_DailyLog"].max_row < 2:
+                report.add("ERROR", "UPDATE_WORKBOOK_DAILY_LOG_EMPTY",
+                           "Updated Engineer_DailyLog does not contain revised work.")
         sheet = workbook["09_Validation_Checks"] if "09_Validation_Checks" in workbook.sheetnames else None
         expected = getattr(getattr(result, "validation_report", None), "status", "NOT RUN")
         if sheet is not None:

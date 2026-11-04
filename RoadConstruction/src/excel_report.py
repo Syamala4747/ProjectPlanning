@@ -5,6 +5,7 @@ BASELINE (normal resources) and OPTIMIZED (constraint-based schedule satisfying 
 featuring an active hierarchical Work Breakdown Structure (WBS) engine.
 """
 import os
+import json
 from typing import List, Dict, Any
 from datetime import date, timedelta
 import openpyxl
@@ -14,6 +15,8 @@ from openpyxl.chart import LineChart, Reference
 
 from .models import ProjectScheduleResult, RoadActivity, MonthlyProgressItem
 from .wbs_generator import WBSGenerator, WBSNode
+from .plan_generator import build_plan
+from .engineer_daily_log import build_daily_log
 
 class ExcelReportGenerator:
     def __init__(self, result: ProjectScheduleResult, output_path: str = "road_project_schedule.xlsx"):
@@ -85,6 +88,8 @@ class ExcelReportGenerator:
         self._build_sheet_13_scurve(wb)
         self._build_sheet_14_critical_path(wb)
         self._build_sheet_15_validation(wb)
+        self._build_sheet_plan(wb)
+        self._build_sheet_daily_log(wb)
 
         try:
             wb.save(self.output_path)
@@ -95,6 +100,241 @@ class ExcelReportGenerator:
             wb.save(fallback_path)
             print(f"\n⚠️  Note: '{self.output_path}' was open in Excel. Saved as '{fallback_path}' instead.")
             return fallback_path
+
+    def _build_sheet_plan(self, wb):
+        ws = wb.create_sheet(title="Plan")
+        rows = build_plan(self.res)
+        headers = [
+            "Activity ID", "Activity", "Phase", "Milestone", "Start", "Finish",
+            "Duration (wd)", "Quantity", "Unit", "Productivity", "Crew", "Status",
+            "Type", "Item", "Detail", "Qty/Count", "Unit", "Rate",
+            "Working Days", "Operating Hours/Day", "Total Hours", "Fuel L/hr",
+            "Total Fuel Qty", "Labour Cost", "Equipment Cost", "Fuel Cost",
+            "Material Qty", "Material Cost", "Other Cost", "Cost (Rs)",
+            "Billed (Rs)", "Status",
+        ]
+        self._create_banner(ws, "ACTIVITY RESOURCE PLAN",
+                            "Activity-wise labour, equipment, fuel, material and execution cost plan",
+                            len(headers))
+        ws.append(headers)
+        for cell in ws[2]:
+            cell.font = self.font_header
+            cell.fill = self.fill_accent
+            cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        for activity in rows:
+            summary = [
+                activity.activity_id, activity.activity_name, activity.phase,
+                activity.milestone, activity.planned_start, activity.planned_finish,
+                activity.duration_days, activity.quantity, activity.unit,
+                activity.productivity, activity.crew_multiplier, activity.status,
+                "Activity", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
+            ]
+            ws.append(summary)
+            detail_rows = []
+            for labour in activity.labour:
+                detail_rows.append([
+                    "Labour", labour["category"], "Configured trade",
+                    labour["workers"], "workers", labour["daily_rate"],
+                    labour["working_days"], 0, 0, 0, 0, labour["total_cost"],
+                    0, 0, 0, 0, 0, 0,
+                ])
+            for equipment in activity.equipment:
+                detail_rows.append([
+                    "Equipment", equipment["name"], "Configured equipment",
+                    equipment["units"], "units", equipment["hire_rate"],
+                    activity.duration_days, equipment["operating_hours"],
+                    equipment["total_hours"], equipment["fuel_rate_lph"],
+                    equipment["fuel_consumption"], 0, equipment["total_cost"],
+                    equipment["fuel_cost"], 0, 0, 0, 0,
+                ])
+            for material in activity.materials:
+                detail_rows.append([
+                    "Material", material["name"], "Issued quantity including wastage",
+                    material["quantity"], material["unit"], material["unit_rate"],
+                    0, 0, 0, 0, 0, 0, 0, 0, material["quantity"],
+                    material["total_cost"], 0, 0,
+                ])
+            if not detail_rows:
+                detail_rows.append([
+                    "Unavailable", "Resource detail unavailable",
+                    "No configured resource recipe", 0, "", 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0,
+                ])
+            for detail in detail_rows:
+                ws.append([""] * 12 + detail)
+            subtotal = ws.max_row + 1
+            ws.cell(subtotal, 1, activity.activity_id)
+            ws.cell(subtotal, 2, activity.activity_name)
+            ws.cell(subtotal, 13, "Subtotal")
+            ws.cell(subtotal, 14, "Activity execution cost")
+            for col, value in (
+                (24, activity.labour_cost),
+                (25, activity.equipment_cost),
+                (26, activity.fuel_cost),
+                (27, activity.material_cost),
+                (28, activity.other_cost),
+                (30, activity.total_execution_cost),
+            ):
+                ws.cell(subtotal, col, value)
+                ws.cell(subtotal, col).font = self.font_bold
+            for cell in ws[subtotal]:
+                cell.fill = self.fill_card
+                cell.border = self.border_thin
+            ws.cell(subtotal, 31, activity.total_execution_cost
+                    + float(getattr(self._activity_cost(activity.activity_id),
+                                   "escalation_amount", 0.0) or 0.0))
+            ws.cell(subtotal, 32, "OK")
+        total_row = ws.max_row + 2
+        ws.cell(total_row, 1, "PROJECT TOTALS").font = self.font_bold
+        for col, value in (
+            (24, sum(a.labour_cost for a in rows)),
+            (25, sum(a.equipment_cost for a in rows)),
+            (26, sum(a.fuel_cost for a in rows)),
+            (27, sum(a.material_cost for a in rows)),
+            (28, sum(a.other_cost for a in rows)),
+            (30, sum(a.total_execution_cost for a in rows)),
+        ):
+            ws.cell(total_row, col, value)
+            ws.cell(total_row, col).font = self.font_bold
+        ws.cell(total_row, 31, sum(
+            a.total_execution_cost
+            + float(getattr(self._activity_cost(a.activity_id),
+                            "escalation_amount", 0.0) or 0.0)
+            for a in rows
+        ))
+        ws.cell(total_row, 32, "OK")
+        for row_number in range(3, total_row + 1):
+            if ws.cell(row_number, 13).value == "Activity":
+                activity_id = ws.cell(row_number, 1).value
+                cost = next((a.cost for a in self.opt_acts
+                             if a.activity_id == activity_id), None)
+                ws.cell(row_number, 31, float(cost.total_amount or 0.0) if cost else 0.0)
+                ws.cell(row_number, 32, "OK")
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A2:AF{ws.max_row}"
+        self._format_resource_sheet(ws, headers)
+
+    def _activity_cost(self, activity_id):
+        return next(
+            (activity.cost for activity in self.opt_acts
+             if activity.activity_id == activity_id),
+            None,
+        )
+
+    def _build_resource_assumptions_sheet(self, wb):
+        ws = wb.create_sheet(title="Assumptions")
+        assumptions = getattr(self.res, "assumptions_snapshot", {}) or {}
+        self._create_banner(
+            ws,
+            "ASSUMPTIONS USED BY PLAN",
+            "Labour, equipment, fuel, material and calendar inputs used by this project",
+            4,
+        )
+        row = 4
+        sections = [
+            ("Labour rates (Rs/person/day)",
+             assumptions.get("labour_rates_inr_per_day", {}) or {}),
+            ("Equipment hire rates (Rs/day)",
+             assumptions.get("equipment_hire_inr_per_day", {}) or {}),
+            ("Fuel consumption (L/hour)",
+             assumptions.get("fuel_consumption_lph", {}) or {}),
+            ("Material rates",
+             assumptions.get("material_rates_inr", {}) or {}),
+        ]
+        for title, values in sections:
+            ws.cell(row, 1, title).font = self.font_bold
+            row += 1
+            for column, value in enumerate(
+                ("Assumption", "Value", "Unit", "Source / Note"), 1
+            ):
+                cell = ws.cell(row, column, value)
+                cell.font = self.font_header
+                cell.fill = self.fill_accent
+            row += 1
+            for key, value in values.items():
+                ws.cell(row, 1, key)
+                display_value = (
+                    json.dumps(value, ensure_ascii=True)
+                    if isinstance(value, (list, dict))
+                    else value
+                )
+                ws.cell(row, 2, display_value)
+                ws.cell(row, 3, "configured")
+                ws.cell(row, 4, "Project assumptions YAML")
+                for cell in ws[row][:4]:
+                    cell.border = self.border_thin
+                row += 1
+            row += 1
+        calendar = assumptions.get("calendar", {}) or {}
+        ws.cell(row, 1, "Calendar and productivity assumptions").font = self.font_bold
+        row += 1
+        for key in (
+            "working_days_per_week", "equipment_hours_per_day",
+            "monsoon_productivity_factor", "monsoon_months",
+            "night_shift_productivity_factor",
+        ):
+            ws.cell(row, 1, key)
+            value = calendar.get(key, "not configured")
+            ws.cell(
+                row, 2,
+                json.dumps(value, ensure_ascii=True)
+                if isinstance(value, (list, dict)) else value,
+            )
+            ws.cell(row, 4, "Project assumptions YAML")
+            row += 1
+        ws.freeze_panes = "A5"
+        ws.auto_filter.ref = f"A4:D{max(4, row - 1)}"
+        for column, width in {"A": 34, "B": 22, "C": 16, "D": 32}.items():
+            ws.column_dimensions[column].width = width
+
+    def _build_sheet_daily_log(self, wb):
+        ws = wb.create_sheet(title="Engineer_DailyLog")
+        rows = build_daily_log(self.res)
+        headers = [
+            "Project Day", "Activity Working Day", "Date", "Weekday", "Activity ID", "Activity Name", "Phase",
+            "Daily Planned Quantity", "Unit", "Crew on Board", "Equipment on Site",
+            "Materials Consumed", "Labour Cost", "Equipment Cost",
+            "Fuel Consumption", "Fuel Cost", "Material Cost", "Other Cost",
+            "Total Daily Cost", "Cumulative Cost",
+        ]
+        self._create_banner(ws, "ENGINEER DAILY LOG",
+                            "Planned day-wise execution; values are not actual field consumption",
+                            len(headers))
+        ws.append(headers)
+        for cell in ws[2]:
+            cell.font = self.font_header
+            cell.fill = self.fill_accent
+            cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        for row in rows:
+            ws.append([
+                row.day_number, row.activity_working_day, row.date, row.weekday,
+                row.activity_id, row.activity_name, row.phase, row.quantity, row.unit, row.crew,
+                row.equipment, row.materials, row.labour_cost, row.equipment_cost,
+                row.fuel_consumption, row.fuel_cost, row.material_cost, row.other_cost,
+                row.total_cost, row.cumulative_cost,
+            ])
+        ws.freeze_panes = "A3"
+        ws.auto_filter.ref = f"A2:S{max(2, ws.max_row)}"
+        self._format_resource_sheet(ws, headers)
+
+    def _format_resource_sheet(self, ws, headers):
+        for row in ws.iter_rows(min_row=3):
+            for cell in row:
+                cell.border = self.border_thin
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        for cell in ws["A"]:
+            if cell.row > 2 and cell.value in ("PROJECT TOTALS",):
+                cell.fill = self.fill_card
+        for row in ws.iter_rows(min_row=3):
+            for cell in row:
+                if isinstance(cell.value, date):
+                    cell.number_format = "yyyy-mm-dd"
+                elif isinstance(cell.value, (int, float)) and cell.column >= 12:
+                    cell.number_format = '#,##0.00'
+        for index, header in enumerate(headers, start=1):
+            values = [str(ws.cell(r, index).value or "") for r in range(1, min(ws.max_row, 30) + 1)]
+            width = min(32, max(12, max(len(header), *(len(v) for v in values)) + 2))
+            ws.column_dimensions[get_column_letter(index)].width = width
 
     def _build_sheet_15_validation(self, wb):
         """Write the structured validation and sanity-check result."""
@@ -708,6 +948,71 @@ class ExcelReportGenerator:
 
             ws.row_dimensions[i].height = 20
 
+        row = ws.max_row + 2
+        assumptions = getattr(self.res, "assumptions_snapshot", {}) or {}
+        ws.cell(row, 1, "RESOURCE RATES AND CALENDAR ASSUMPTIONS USED BY PLAN")
+        ws.cell(row, 1).font = Font(size=11, bold=True, color=self.c_navy)
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=11)
+        row += 1
+        for title, values in (
+            ("Labour rates (Rs/person/day)",
+             assumptions.get("labour_rates_inr_per_day", {}) or {}),
+            ("Equipment hire rates (Rs/day)",
+             assumptions.get("equipment_hire_inr_per_day", {}) or {}),
+            ("Fuel consumption (L/hour)",
+             assumptions.get("fuel_consumption_lph", {}) or {}),
+            ("Material rates",
+             assumptions.get("material_rates_inr", {}) or {}),
+        ):
+            ws.cell(row, 1, title).font = self.font_bold
+            row += 1
+            for column, value in enumerate(
+                ("Assumption", "Value", "Unit", "Source / Note"), 1
+            ):
+                cell = ws.cell(row, column, value)
+                cell.font = self.font_header
+                cell.fill = self.fill_accent
+                cell.border = self.border_thin
+            row += 1
+            for key, value in values.items():
+                display_value = (
+                    json.dumps(value, ensure_ascii=True)
+                    if isinstance(value, (list, dict)) else value
+                )
+                ws.cell(row, 1, key)
+                ws.cell(row, 2, display_value)
+                ws.cell(row, 3, "configured")
+                ws.cell(row, 4, "Project assumptions YAML")
+                for cell in ws[row][:4]:
+                    cell.border = self.border_thin
+                row += 1
+            row += 1
+
+        calendar = assumptions.get("calendar", {}) or {}
+        ws.cell(row, 1, "Calendar and productivity assumptions").font = self.font_bold
+        row += 1
+        for key in (
+            "working_days_per_week", "equipment_hours_per_day",
+            "monsoon_productivity_factor", "monsoon_months",
+            "night_shift_productivity_factor",
+        ):
+            value = calendar.get(key, "not configured")
+            ws.cell(row, 1, key)
+            ws.cell(
+                row, 2,
+                json.dumps(value, ensure_ascii=True)
+                if isinstance(value, (list, dict)) else value,
+            )
+            ws.cell(row, 4, "Project assumptions YAML")
+            for cell in ws[row][:4]:
+                cell.border = self.border_thin
+            row += 1
+
+        ws.freeze_panes = "A5"
+        ws.auto_filter.ref = f"A4:K{max(4, ws.max_row)}"
+        ws.column_dimensions["A"].width = max(ws.column_dimensions["A"].width or 0, 34)
+        ws.column_dimensions["B"].width = max(ws.column_dimensions["B"].width or 0, 24)
+        ws.column_dimensions["D"].width = max(ws.column_dimensions["D"].width or 0, 32)
         self._auto_fit_columns(ws)
 
     # -------------------------------------------------------------

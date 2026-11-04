@@ -21,6 +21,8 @@ PIPELINE_GUIDELINES = ROOT / "project_config" / "pipeline" / "pipeline_guideline
 PIPELINE_ASSUMPTIONS = ROOT / "project_config" / "pipeline" / "pipeline_assumptions.yaml"
 ROAD_GUIDELINES = ROOT / "project_config" / "road" / "road_guidelines.json"
 ROAD_ASSUMPTIONS = ROOT / "project_config" / "road" / "road_assumptions.yaml"
+BUILDING_GUIDELINES = ROOT / "project_config" / "building" / "building_guidelines.json"
+BUILDING_ASSUMPTIONS = ROOT / "project_config" / "building" / "building_assumptions.yaml"
 
 
 def _run_project(project, guidelines_path, assumptions_path, *, acceleration=True):
@@ -80,6 +82,24 @@ def _road_result():
     )
 
 
+def _building_result():
+    project = ProjectInput(
+        project_type="building",
+        title="Building validation",
+        length_km=0.0,
+        built_up_area_sqm=2000.0,
+        number_of_floors=4,
+        building_type="residential",
+        construction_type="rcc",
+        quality_finish="standard",
+        number_of_blocks=1,
+        duration_days=540,
+        budget_crore=6.0,
+        start_date=date(2026, 4, 1),
+    )
+    return _run_project(project, BUILDING_GUIDELINES, BUILDING_ASSUMPTIONS)
+
+
 def test_generated_pipeline_passes_validation(pipeline_result):
     result, loader = pipeline_result
     report = validate_schedule_result(result, loader.assumptions)
@@ -124,8 +144,78 @@ def test_exported_workbook_reconciles_with_result(pipeline_result, tmp_path):
     assert report.passed, [issue.message for issue in report.errors]
 
 
+def test_exported_plan_detects_activity_input_tampering(pipeline_result, tmp_path):
+    result, loader = pipeline_result
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "tampered_plan.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+
+    workbook = openpyxl.load_workbook(output)
+    plan = workbook["Plan"]
+    activity_row = next(
+        row for row in range(3, plan.max_row + 1)
+        if plan.cell(row, 13).value == "Activity"
+    )
+    plan.cell(activity_row, 8).value = float(plan.cell(activity_row, 8).value) + 1.0
+    workbook.save(output)
+
+    report = validate_exported_workbook(str(output), result)
+    assert any(issue.code == "WORKBOOK_PLAN_INPUT_MISMATCH" for issue in report.errors)
+
+
 def test_road_validation_accepts_separate_wastage_and_zero_scope_rows():
     result, loader = _road_result()
 
     report = validate_schedule_result(result, loader.assumptions)
     assert report.passed, [issue.message for issue in report.errors]
+
+
+@pytest.mark.parametrize("project_factory", [_road_result, _pipeline_project])
+def test_resource_sheets_are_created_for_project_inputs(project_factory, tmp_path):
+    if project_factory is _pipeline_project:
+        result, loader = _run_project(
+            project_factory(), PIPELINE_GUIDELINES, PIPELINE_ASSUMPTIONS
+        )
+    else:
+        result, loader = project_factory()
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / f"{result.project_input.project_type}_resources.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+    workbook = openpyxl.load_workbook(output, data_only=True)
+    assert {"Plan", "Engineer_DailyLog"} <= set(workbook.sheetnames)
+    assert workbook["Plan"].max_row >= 3
+    assert workbook["Engineer_DailyLog"].max_row >= 2
+
+
+def test_building_resource_sheets_are_created(tmp_path):
+    result, loader = _building_result()
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "building_resources.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+    workbook = openpyxl.load_workbook(output, data_only=True)
+    assert {"Plan", "Engineer_DailyLog"} <= set(workbook.sheetnames)
+
+
+def test_resource_sheets_have_hierarchical_detail_and_day_counters(pipeline_result, tmp_path):
+    result, loader = pipeline_result
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "detailed_resources.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+    workbook = openpyxl.load_workbook(output, data_only=True)
+
+    plan = workbook["Plan"]
+    plan_headers = [cell.value for cell in plan[3]]
+    assert plan_headers[:12] == [
+        "Activity ID", "Activity", "Phase", "Milestone", "Start", "Finish",
+        "Duration (wd)", "Quantity", "Unit", "Productivity", "Crew", "Status",
+    ]
+    assert "Subtotal" in [plan.cell(row, 13).value for row in range(1, plan.max_row + 1)]
+    assert "PROJECT TOTALS" in [plan.cell(row, 1).value for row in range(1, plan.max_row + 1)]
+
+    daily = workbook["Engineer_DailyLog"]
+    headers = [cell.value for cell in daily[3]]
+    assert headers[:7] == [
+        "Project Day", "Activity Working Day", "Date", "Weekday",
+        "Activity ID", "Activity Name", "Phase",
+    ]
+    assert daily.max_column == 20

@@ -1111,4 +1111,5 @@ class CostCalculator:
             escalation_amount        = escalation_amount,
             escalation_factor        = round(esc["factor"], 6),
             escalation_years         = round(esc["years"], 4),
+            material_lines           = list(bottom_up.get("material_lines") or []),
         )
