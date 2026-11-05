@@ -92,6 +92,9 @@ def build_plan(result: Any) -> List[PlanActivity]:
     assumptions = getattr(result, "assumptions_snapshot", {}) or {}
     calendar = assumptions.get("calendar", {}) or {}
     hours_per_day = float(calendar.get("equipment_hours_per_day", 8.0) or 8.0)
+    labour_hours_per_day = float(
+        calendar.get("productive_hours_per_day", hours_per_day) or hours_per_day
+    )
     fuel_rates = assumptions.get("material_rates_inr", {}) or {}
     fuel_rate = float(
         assumptions.get("diesel_rate_inr_per_litre")
@@ -154,6 +157,10 @@ def build_plan(result: Any) -> List[PlanActivity]:
                 "category": trade,
                 "workers": count,
                 "working_days": duration if active else 0,
+                "operating_hours": labour_hours_per_day if active else 0.0,
+                "total_hours": (
+                    count * duration * labour_hours_per_day if active else 0.0
+                ),
                 "daily_rate": float(labour_rates.get(trade, 0.0) or 0.0),
                 "total_cost": labour_cost * share,
             })
@@ -162,6 +169,8 @@ def build_plan(result: Any) -> List[PlanActivity]:
                 "category": "Unavailable in project assumptions",
                 "workers": 0,
                 "working_days": 0,
+                "operating_hours": 0.0,
+                "total_hours": 0.0,
                 "daily_rate": 0.0,
                 "total_cost": 0.0,
             }]
@@ -264,12 +273,64 @@ def build_plan(result: Any) -> List[PlanActivity]:
                 "total_cost": float(line.get("cost", 0.0) or 0.0),
             })
         if not materials and material_cost:
+            # Determine correct label for why lines are unavailable
+            act_key = activity.activity_key
+            no_mat_set = set(assumptions.get("activity_no_material_recipe", []) or [])
+            act_recipe_spec = activity_recipe_by_key.get(act_key)
+            if act_key in no_mat_set:
+                label = (
+                    "No itemised material takeoff — activity is pure labour+plant. "
+                    "Material share (%.1f%%) from rate apportionment: ₹%.0f"
+                    % (assumptions.get("cost_breakdown_shares", {}).get("material_share", 0) * 100,
+                       material_cost)
+                )
+            elif act_recipe_spec:
+                recipe_name = str(act_recipe_spec.get("recipe") or "")
+                recipe_body = recipes.get(recipe_name, {})
+                if isinstance(recipe_body, dict) and "_waste_only" in recipe_body:
+                    ovb = recipe_body["_waste_only"].get("overbreak_pct", 0)
+                    label = (
+                        "No purchasable material — %d%% overbreak cost priced into "
+                        "labour+plant. Material share from rate: ₹%.0f"
+                        % (int(ovb * 100), material_cost)
+                    )
+                else:
+                    label = "Material detail unavailable in assumptions"
+            else:
+                label = "Material detail unavailable in assumptions"
             materials.append({
-                "name": "Material detail unavailable in assumptions",
+                "name": label,
                 "quantity": 0.0,
-                "unit": "not verifiable",
+                "unit": "rate apportionment",
                 "unit_rate": 0.0,
                 "total_cost": material_cost,
+            })
+        if not materials:
+            # Fallback for zero-material-cost activities (pure no-material or _waste_only)
+            act_key = activity.activity_key
+            no_mat_set = set(assumptions.get("activity_no_material_recipe", []) or [])
+            act_recipe_spec = activity_recipe_by_key.get(act_key)
+            if act_key in no_mat_set:
+                label = "No materials consumed — pure labour and plant activity"
+            elif act_recipe_spec:
+                recipe_name = str(act_recipe_spec.get("recipe") or "")
+                recipe_body = recipes.get(recipe_name, {})
+                if isinstance(recipe_body, dict) and "_waste_only" in recipe_body:
+                    ovb = recipe_body["_waste_only"].get("overbreak_pct", 0)
+                    label = (
+                        "No purchasable material — %d%% overbreak allowance "
+                        "priced into labour + plant cost" % int(ovb * 100)
+                    )
+                else:
+                    label = "No material recipe configured"
+            else:
+                label = "No material recipe configured"
+            materials.append({
+                "name": label,
+                "quantity": 0.0,
+                "unit": "—",
+                "unit_rate": 0.0,
+                "total_cost": 0.0,
             })
 
         daily_material_assumptions = []

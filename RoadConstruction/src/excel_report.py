@@ -154,7 +154,8 @@ class ExcelReportGenerator:
                 detail_rows.append([
                     "Labour", labour["category"], "Configured trade",
                     labour["workers"], "workers", labour["daily_rate"],
-                    labour["working_days"], 0, 0, 0, 0, labour["total_cost"],
+                    labour["working_days"], labour["operating_hours"],
+                    labour["total_hours"], 0, 0, labour["total_cost"],
                     0, 0, 0, 0, 0, 0,
                 ])
             for equipment in activity.equipment:

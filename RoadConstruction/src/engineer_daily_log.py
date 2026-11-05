@@ -63,12 +63,17 @@ def build_daily_log(result: Any, plan: List[PlanActivity] | None = None) -> List
             equipment = row.equipment[0]
             available_materials = [
                 m for m in row.materials
-                if m["quantity"] > 0 and m["unit"] != "not verifiable"
+                if m["quantity"] > 0 and m["unit"] not in ("not verifiable", "—", "rate apportionment")
             ]
-            materials = "; ".join(
-                f"{m['name']}: {m['quantity'] * share:.3f} {m['unit']}"
-                for m in available_materials
-            ) or "No quantified material takeoff; source-rate allowance is unitemized"
+            if available_materials:
+                materials = "; ".join(
+                    f"{m['name']}: {m['quantity'] * share:.3f} {m['unit']}"
+                    for m in available_materials
+                )
+            else:
+                # Use the descriptive label from plan_generator
+                fallback = row.materials[0]["name"] if row.materials else "No material takeoff configured"
+                materials = fallback
             records.append({
                 "date": d,
                 "activity_id": row.activity_id,
