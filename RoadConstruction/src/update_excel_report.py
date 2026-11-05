@@ -26,6 +26,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, Reference
 from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.data_source import AxDataSource, StrRef
 
 from .models import (
     UpdatePlanResult, RoadActivity, ActivityActualStatus,
@@ -868,7 +869,7 @@ class UpdateExcelReportGenerator:
         prev_revised = self.r.actual_progress_pct
 
         for i, month_start in enumerate(months):
-            month_label = month_start.strftime("%b %Y")
+            month_label = month_start.strftime("%b\n%Y")
 
             # 1. Baseline Planned
             if month_start in baseline_cum_by_date:
@@ -975,6 +976,11 @@ class UpdateExcelReportGenerator:
                 cell = ws.cell(row=row_idx, column=col_idx, value=val)
                 cell.border = self.border_thin
                 cell.font = self.font_regular
+                cell.alignment = Alignment(
+                    horizontal="center" if col_idx == 1 else "right",
+                    vertical="center",
+                    wrap_text=col_idx == 1,
+                )
                 if col_idx in (2, 3, 4, 5, 6):
                     cell.number_format = "0.0%"
                     cell.alignment = Alignment(horizontal="right")
@@ -1004,40 +1010,61 @@ class UpdateExcelReportGenerator:
                 elif row_idx % 2 == 0:
                     cell.fill = self.fill_zebra
 
-            ws.row_dimensions[row_idx].height = 20
+            ws.row_dimensions[row_idx].height = 30
 
         end_row = start_row + len(months) - 1
 
         # Build LineChart
         chart = LineChart()
-        chart.title = "Project S-Curve: Planned Baseline vs. Actual Progress vs. Revised Forecast (with Delay Tracking)"
+        chart.title = "Project S-Curve: Planned Baseline vs. Actual Progress vs. Revised Forecast"
         chart.style = 13
         chart.y_axis.title = "Cumulative Physical Progress (%)"
         chart.x_axis.title = "Project Timeline (Months)"
         chart.y_axis.scaling.min = 0.0
         chart.y_axis.scaling.max = 1.0
+        chart.y_axis.majorUnit = 0.1
         chart.y_axis.number_format = "0%"
         chart.y_axis.majorGridlines = ChartLines()
+        chart.y_axis.tickLblPos = "low"
+        chart.y_axis.delete = False
+        chart.x_axis.tickLblSkip = 1
+        chart.x_axis.tickMarkSkip = 1
+        chart.x_axis.tickLblPos = "low"
+        chart.x_axis.delete = False
         chart.width = 25
         chart.height = 15
         chart.legend.legendPos = "b"
 
-        max_chart_col = 5 if has_delay else 4
-        data = Reference(ws, min_col=2, min_row=7, max_col=max_chart_col, max_row=end_row)
-        chart.add_data(data, titles_from_data=True)
+        planned_and_actual = Reference(
+            ws, min_col=2, min_row=7, max_col=3, max_row=end_row
+        )
+        chart.add_data(planned_and_actual, titles_from_data=True)
+        revised_forecast = Reference(
+            ws, min_col=6, min_row=7, max_col=6, max_row=end_row
+        )
+        chart.add_data(revised_forecast, titles_from_data=True)
+        chart.series[2].tx = openpyxl.chart.series.SeriesLabel(
+            v="Revised Forecast %"
+        )
         cats = Reference(ws, min_col=1, min_row=start_row, max_row=end_row)
         chart.set_categories(cats)
+        category_ref = StrRef(
+            f=f"'{ws.title}'!$A${start_row}:$A${end_row}"
+        )
+        for series in chart.series:
+            series.cat = AxDataSource(strRef=category_ref)
 
-        # Style series: Navy (Baseline), Purple (Actual), Teal (Revised Target), Red (Delay Period)
-        colors = [self.c_navy, self.c_actual, self.c_revised, self.c_crit_fg]
+        # Plot the total revised forecast as one series, including any delay.
+        colors = [self.c_navy, self.c_actual, self.c_revised]
         for idx, series in enumerate(chart.series):
             if idx < len(colors):
                 series.graphicalProperties.line.solidFill = colors[idx]
-                series.graphicalProperties.line.width = 30000 if idx == 3 else 25000
+                series.graphicalProperties.line.width = 25000
                 series.smooth = True
 
         ws.add_chart(chart, "J4")
         self._auto_fit(ws)
+        ws.column_dimensions["A"].width = 14
 
     def _interp_baseline(self, day: int) -> float:
         """Linear interpolation of baseline cumulative progress at a day ordinal."""

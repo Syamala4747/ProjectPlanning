@@ -491,6 +491,34 @@ class TestSCurveDelayDisplay:
         assert "Total Cumulative Forecast %" in headers
         assert "Schedule Delay Impact" in headers
 
+        chart = ws._charts[0]
+        assert len(chart.series) == 3
+        assert "Planned Baseline" in chart.title.tx.rich.p[0].r[0].t
+        assert "Actual Progress" in chart.title.tx.rich.p[0].r[0].t
+        assert "Revised Forecast" in chart.title.tx.rich.p[0].r[0].t
+        series_columns = [
+            series.val.numRef.f.split("!")[-1][1]
+            for series in chart.series
+        ]
+        assert series_columns == ["B", "C", "F"]
+        assert all(
+            series.cat.strRef.f
+            == "'07_S_Curve_Comparison'!$A$8:$A${}".format(ws.max_row)
+            for series in chart.series
+        )
+        assert chart.series[2].tx.v == "Revised Forecast %"
+        assert chart.y_axis.scaling.min == 0
+        assert chart.y_axis.scaling.max == 1
+        assert chart.y_axis.majorUnit == 0.1
+        assert chart.y_axis.numFmt.formatCode == "0%"
+        assert chart.y_axis.tickLblPos == "low"
+        assert chart.y_axis.delete is False
+        assert chart.x_axis.tickLblSkip == 1
+        assert chart.x_axis.tickLblPos == "low"
+        assert chart.x_axis.delete is False
+        assert "\n" in ws["A8"].value
+        assert "\n" in ws.cell(ws.max_row, 1).value
+
         # If there is a delay, check that delay rows are highlighted in red
         if update_result.projected_delay_days > 0:
             found_red_delay_row = False
