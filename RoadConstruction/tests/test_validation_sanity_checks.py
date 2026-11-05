@@ -14,7 +14,13 @@ from src.data_loader import DataLoader
 from src.constraint_scheduler import ConstraintScheduler
 from src.excel_report import ExcelReportGenerator
 from src.models import ProjectInput
-from src.validation_sanity_checks import validate_exported_workbook, validate_schedule_result
+from src.validation_sanity_checks import (
+    ValidationReport,
+    validate_exported_update_workbook,
+    validate_exported_workbook,
+    validate_schedule_result,
+    validate_update_result,
+)
 from src.duration_calculator import DurationCalculator
 from src.plan_generator import build_plan
 
@@ -190,6 +196,34 @@ def test_validation_detects_missing_predecessor(pipeline_result):
     assert any(issue.code == "MISSING_PREDECESSOR" for issue in report.errors)
 
 
+def test_incomplete_report_never_passes():
+    report = ValidationReport()
+    report.add("INCOMPLETE", "MANDATORY_CHECK_SKIPPED", "Required check was not run.")
+    assert not report.passed
+    assert report.status == "INCOMPLETE"
+
+
+def test_validation_detects_duplicate_activity_id(pipeline_result):
+    result, loader = pipeline_result
+    result.activities.append(result.activities[0])
+    report = validate_schedule_result(result, loader.assumptions)
+    assert any(issue.code == "DUPLICATE_ACTIVITY_ID" for issue in report.errors)
+
+
+def test_validation_reports_unexpected_exception(pipeline_result):
+    result, loader = pipeline_result
+    result.activities[0].quantity = "not-a-number"
+    report = validate_schedule_result(result, loader.assumptions)
+    assert any(issue.code == "VALIDATION_EXCEPTION" for issue in report.errors)
+
+
+def test_validation_detects_negative_monthly_progress(pipeline_result):
+    result, loader = pipeline_result
+    result.monthly_progress[0].period_planned_progress_pct = -0.1
+    report = validate_schedule_result(result, loader.assumptions)
+    assert any(issue.code == "NEGATIVE_PROGRESS" for issue in report.errors)
+
+
 def test_validation_results_are_exported_to_excel(pipeline_result, tmp_path):
     result, loader = pipeline_result
     result.validation_report = validate_schedule_result(result, loader.assumptions)
@@ -231,6 +265,79 @@ def test_exported_plan_detects_activity_input_tampering(pipeline_result, tmp_pat
 
     report = validate_exported_workbook(str(output), result)
     assert any(issue.code == "WORKBOOK_PLAN_INPUT_MISMATCH" for issue in report.errors)
+
+
+def test_exported_plan_requires_project_totals_row(pipeline_result, tmp_path):
+    result, loader = pipeline_result
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "missing_project_totals.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+
+    workbook = openpyxl.load_workbook(output)
+    plan = workbook["Plan"]
+    totals_row = next(
+        row for row in range(3, plan.max_row + 1)
+        if plan.cell(row, 1).value == "PROJECT TOTALS"
+    )
+    plan.delete_rows(totals_row, 1)
+    workbook.save(output)
+
+    report = validate_exported_workbook(str(output), result)
+    assert any(issue.code == "WORKBOOK_PLAN_PROJECT_TOTALS_MISSING" for issue in report.errors)
+
+
+def test_exported_plan_requires_each_subtotal_row(pipeline_result, tmp_path):
+    result, loader = pipeline_result
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "missing_subtotal.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+
+    workbook = openpyxl.load_workbook(output)
+    plan = workbook["Plan"]
+    subtotal_row = next(
+        row for row in range(3, plan.max_row + 1)
+        if plan.cell(row, 13).value == "Subtotal"
+    )
+    plan.delete_rows(subtotal_row, 1)
+    workbook.save(output)
+
+    report = validate_exported_workbook(str(output), result)
+    assert any(issue.code == "WORKBOOK_PLAN_ACTIVITY_SET_MISMATCH" for issue in report.errors)
+
+
+def test_exported_activity_sheet_rejects_duplicate_ids(pipeline_result, tmp_path):
+    result, loader = pipeline_result
+    result.validation_report = validate_schedule_result(result, loader.assumptions)
+    output = tmp_path / "duplicate_activity_id.xlsx"
+    ExcelReportGenerator(result, str(output)).generate()
+
+    workbook = openpyxl.load_workbook(output)
+    activities = workbook["05_Activities"]
+    activity_rows = [
+        row for row in range(2, activities.max_row + 1)
+        if isinstance(activities.cell(row, 3).value, str)
+        and activities.cell(row, 3).value.startswith("ACT-")
+    ]
+    activities.cell(activity_rows[-1], 3).value = activities.cell(activity_rows[0], 3).value
+    workbook.save(output)
+
+    report = validate_exported_workbook(str(output), result)
+    assert any(issue.code == "WORKBOOK_DUPLICATE_ACTIVITY_ID" for issue in report.errors)
+
+
+def test_exported_workbook_open_failure_is_reported(tmp_path):
+    report = validate_exported_workbook(str(tmp_path / "missing.xlsx"), object())
+    assert any(issue.code == "WORKBOOK_OPEN_FAILED" for issue in report.errors)
+
+
+def test_update_validation_requires_baseline():
+    report = validate_update_result(object())
+    assert any(issue.code == "UPDATE_BASELINE_MISSING" for issue in report.errors)
+
+
+def test_exported_update_workbook_open_failure_is_reported(tmp_path):
+    report = validate_exported_update_workbook(str(tmp_path / "missing.xlsx"), object())
+    assert any(issue.code == "UPDATE_WORKBOOK_OPEN_FAILED" for issue in report.errors)
 
 
 def test_road_validation_accepts_separate_wastage_and_zero_scope_rows():

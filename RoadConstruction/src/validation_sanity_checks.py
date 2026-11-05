@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 import math
+from collections import Counter
 from typing import Any, Iterable, List, Optional
 
 
@@ -34,8 +35,12 @@ class ValidationReport:
         return [issue for issue in self.issues if issue.severity == "WARNING"]
 
     @property
+    def incomplete(self) -> List[ValidationIssue]:
+        return [issue for issue in self.issues if issue.severity == "INCOMPLETE"]
+
+    @property
     def passed(self) -> bool:
-        return not self.errors
+        return not self.errors and not self.incomplete
 
     def add(
         self,
@@ -48,14 +53,88 @@ class ValidationReport:
 
     @property
     def status(self) -> str:
-        return "PASS" if self.passed else "FAIL"
+        if self.errors:
+            return "FAIL"
+        if self.incomplete:
+            return "INCOMPLETE"
+        return "PASS"
 
 
 def _near(left: float, right: float, absolute: float = 0.05) -> bool:
     return abs(float(left) - float(right)) <= absolute
 
 
-def validate_schedule_result(
+def _validate_activity_structure(
+    result: Any,
+    activities: List[Any],
+    report: ValidationReport,
+    *,
+    prefix: str = "",
+) -> bool:
+    """Validate the minimum shape required by the activity checks."""
+    if result is None:
+        report.add("ERROR", f"{prefix}RESULT_MISSING", "Validation result is missing.")
+        return False
+    if not hasattr(result, "project_input") or result.project_input is None:
+        report.add("ERROR", f"{prefix}PROJECT_INPUT_MISSING", "Project input is missing.")
+    if not activities:
+        report.add("ERROR", f"{prefix}NO_ACTIVITIES", "The plan contains no activities.")
+        return False
+
+    ids = []
+    structurally_valid = True
+    for index, activity in enumerate(activities):
+        aid = getattr(activity, "activity_id", None)
+        if not isinstance(aid, str) or not aid.strip():
+            report.add(
+                "ERROR",
+                f"{prefix}ACTIVITY_ID_MISSING",
+                f"Activity at index {index} has no valid activity ID.",
+            )
+            structurally_valid = False
+        else:
+            ids.append(aid)
+        for field_name in ("activity_key", "quantity", "productivity_rate", "cost"):
+            if not hasattr(activity, field_name) or getattr(activity, field_name) is None:
+                report.add(
+                    "ERROR",
+                    f"{prefix}ACTIVITY_FIELD_MISSING",
+                    f"Activity {aid or index} is missing required field '{field_name}'.",
+                    aid if isinstance(aid, str) else None,
+                )
+                structurally_valid = False
+        if hasattr(activity, "cost") and getattr(activity, "cost", None) is not None:
+            for field_name in ("planned_unit_rate", "direct_cost", "total_amount"):
+                if not hasattr(activity.cost, field_name):
+                    report.add(
+                        "ERROR",
+                        f"{prefix}COST_FIELD_MISSING",
+                        f"Activity {aid or index} cost is missing '{field_name}'.",
+                        aid if isinstance(aid, str) else None,
+                    )
+                    structurally_valid = False
+
+    for aid, count in Counter(ids).items():
+        if count > 1:
+            report.add(
+                "ERROR",
+                f"{prefix}DUPLICATE_ACTIVITY_ID",
+                f"Activity ID {aid} occurs {count} times.",
+                aid,
+            )
+            structurally_valid = False
+    return structurally_valid
+
+
+def _run_check(report: ValidationReport, code: str, check: Any) -> None:
+    """Report unexpected validator failures instead of allowing a false pass."""
+    try:
+        check()
+    except Exception as exc:
+        report.add("ERROR", code, f"Validation check could not complete: {exc}")
+
+
+def _validate_schedule_result_impl(
     result: Any,
     assumptions: Optional[dict] = None,
     *,
@@ -70,25 +149,50 @@ def validate_schedule_result(
     """
     report = ValidationReport()
     activities = list(getattr(result, "activities", []) or [])
-    by_id = {a.activity_id: a for a in activities}
-
-    if not activities:
-        report.add("ERROR", "NO_ACTIVITIES", "The plan contains no activities.")
+    if not _validate_activity_structure(result, activities, report):
         return report
+    by_id = {a.activity_id: a for a in activities}
 
     project_type = str(getattr(result.project_input, "project_type", "road") or "road").lower()
     budget_crore = float(getattr(result.project_input, "budget_crore", 0.0) or 0.0)
     overhead_pct = _validation_overhead_pct(assumptions or {}, budget_crore)
-    _validate_assumption_sources(result, assumptions or {}, report)
+    _run_check(
+        report, "ASSUMPTION_VALIDATION_EXCEPTION",
+        lambda: _validate_assumption_sources(result, assumptions or {}, report),
+    )
     if project_type == "pipeline" and assumptions:
-        _validate_pipeline_inputs(result, assumptions, report, tolerance_inr)
-        _validate_engineering_sequence(result, report)
-    _validate_activity_catalogue(result, assumptions, report, project_type)
-    _validate_resource_allocation(result, assumptions, report)
-    _validate_escalation(result, assumptions, report)
-    _validate_cycles(result, report)
-    _validate_plan_calculations(result, report, tolerance_inr)
-    _validate_resource_plan_and_daily_log(result, report)
+        _run_check(
+            report, "PIPELINE_INPUT_VALIDATION_EXCEPTION",
+            lambda: _validate_pipeline_inputs(result, assumptions, report, tolerance_inr),
+        )
+        _run_check(
+            report, "ENGINEERING_SEQUENCE_VALIDATION_EXCEPTION",
+            lambda: _validate_engineering_sequence(result, report),
+        )
+    _run_check(
+        report, "ACTIVITY_CATALOGUE_VALIDATION_EXCEPTION",
+        lambda: _validate_activity_catalogue(result, assumptions, report, project_type),
+    )
+    _run_check(
+        report, "RESOURCE_ALLOCATION_VALIDATION_EXCEPTION",
+        lambda: _validate_resource_allocation(result, assumptions, report),
+    )
+    _run_check(
+        report, "ESCALATION_VALIDATION_EXCEPTION",
+        lambda: _validate_escalation(result, assumptions, report),
+    )
+    _run_check(
+        report, "CYCLE_VALIDATION_EXCEPTION",
+        lambda: _validate_cycles(result, report),
+    )
+    _run_check(
+        report, "PLAN_VALIDATION_EXCEPTION",
+        lambda: _validate_plan_calculations(result, report, tolerance_inr),
+    )
+    _run_check(
+        report, "RESOURCE_PLAN_VALIDATION_EXCEPTION",
+        lambda: _validate_resource_plan_and_daily_log(result, report),
+    )
 
     # Quantity, productivity, duration, and CPM invariants.
     for activity in activities:
@@ -300,13 +404,19 @@ def validate_schedule_result(
                 "PROGRESS_NOT_COMPLETE",
                 f"Final cumulative planned progress is {final_progress:.2f}%, not 100%.",
             )
-        for activity in activities:
-            allocated = sum(
-                (float(getattr(item, "period_planned_progress_pct", 0.0) or 0.0)
-                 for item in monthly)
-            )
-            if allocated < 0:
-                report.add("ERROR", "NEGATIVE_PROGRESS", "Progress cannot be negative.", activity.activity_id)
+        previous_cumulative = 0.0
+        for item in monthly:
+            period_progress = float(item.period_planned_progress_pct or 0.0)
+            cumulative_progress = float(item.cumulative_planned_progress_pct or 0.0)
+            if period_progress < 0 or cumulative_progress < 0:
+                report.add("ERROR", "NEGATIVE_PROGRESS", "Progress cannot be negative.")
+            if cumulative_progress + 0.2 < previous_cumulative:
+                report.add(
+                    "ERROR",
+                    "PROGRESS_NOT_MONOTONIC",
+                    "Cumulative planned progress cannot decrease.",
+                )
+            previous_cumulative = cumulative_progress
 
     _validate_calendar(result, calendar, report)
     _validate_optimization(result, report)
@@ -330,6 +440,28 @@ def validate_schedule_result(
             )
 
     return report
+
+
+def validate_schedule_result(
+    result: Any,
+    assumptions: Optional[dict] = None,
+    *,
+    tolerance_inr: float = 0.05,
+    calendar: Optional[Any] = None,
+) -> ValidationReport:
+    """Run schedule validation and report unexpected validator failures."""
+    try:
+        return _validate_schedule_result_impl(
+            result,
+            assumptions,
+            tolerance_inr=tolerance_inr,
+            calendar=calendar,
+        )
+    except Exception as exc:
+        report = ValidationReport()
+        report.add("ERROR", "VALIDATION_EXCEPTION",
+                   f"Schedule validation could not complete: {exc}")
+        return report
 
 
 def _validate_assumption_sources(
@@ -411,7 +543,15 @@ def _validate_resource_plan_and_daily_log(result: Any, report: ValidationReport)
         activity.activity_id: activity
         for activity in list(getattr(result, "activities", []) or [])
     }
-    if {row.activity_id for row in plan} != set(activities):
+    plan_ids = [row.activity_id for row in plan]
+    duplicate_plan_ids = [aid for aid, count in Counter(plan_ids).items() if count > 1]
+    if duplicate_plan_ids:
+        report.add(
+            "ERROR",
+            "PLAN_DUPLICATE_ACTIVITY",
+            f"Plan contains duplicate activity rows: {sorted(duplicate_plan_ids)}.",
+        )
+    if set(plan_ids) != set(activities):
         report.add("ERROR", "PLAN_ACTIVITY_COVERAGE",
                    "Plan must contain exactly one activity header for every scheduled activity.")
 
@@ -471,6 +611,16 @@ def _validate_resource_plan_and_daily_log(result: Any, report: ValidationReport)
             report.add("ERROR", "ZERO_SCOPE_DAILY_CONSUMPTION",
                        "Out-of-scope activities must not generate daily consumption.",
                        row.activity_id)
+
+    active_plan_ids = {
+        row.activity_id for row in plan if row.status == "Active"
+    }
+    if active_plan_ids and not active_plan_ids <= set(activity_days):
+        report.add(
+            "ERROR",
+            "DAILY_LOG_ACTIVITY_COVERAGE",
+            "Daily log is missing records for one or more active plan activities.",
+        )
 
     previous = 0.0
     for row in sorted(log, key=lambda item: (item.date, item.activity_id)):
@@ -1009,7 +1159,7 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
     try:
         import openpyxl
         workbook = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    except (OSError, ValueError, ImportError) as exc:
+    except Exception as exc:
         report.add("ERROR", "WORKBOOK_OPEN_FAILED", f"Could not reopen workbook: {exc}")
         return report
 
@@ -1029,7 +1179,11 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
         if workbook["Engineer_DailyLog"].max_row < 2:
             report.add("ERROR", "WORKBOOK_DAILY_LOG_EMPTY",
                        "Engineer_DailyLog does not contain planned execution rows.")
-        _validate_exported_plan_calculations(workbook["Plan"], result, report)
+        _run_check(
+            report,
+            "WORKBOOK_PLAN_VALIDATION_EXCEPTION",
+            lambda: _validate_exported_plan_calculations(workbook["Plan"], result, report),
+        )
 
     validation = workbook["15_Validation_Checks"] if "15_Validation_Checks" in workbook.sheetnames else None
     if validation is not None:
@@ -1047,10 +1201,21 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
 
     activity_sheet = workbook["05_Activities"] if "05_Activities" in workbook.sheetnames else None
     if activity_sheet is not None:
-        exported_ids = {
+        exported_id_values = [
             row[2] for row in activity_sheet.iter_rows(min_row=2, values_only=True)
             if len(row) > 2 and isinstance(row[2], str) and row[2].startswith("ACT-")
-        }
+        ]
+        exported_ids = set(exported_id_values)
+        duplicate_ids = [
+            activity_id for activity_id, count in Counter(exported_id_values).items()
+            if count > 1
+        ]
+        if duplicate_ids:
+            report.add(
+                "ERROR",
+                "WORKBOOK_DUPLICATE_ACTIVITY_ID",
+                f"Exported activity IDs are duplicated: {sorted(duplicate_ids)}.",
+            )
         expected_ids = {a.activity_id for a in result.activities}
         if exported_ids != expected_ids:
             report.add("ERROR", "WORKBOOK_ACTIVITY_SET_MISMATCH",
@@ -1059,9 +1224,17 @@ def validate_exported_workbook(path: str, result: Any) -> ValidationReport:
     if curve is not None:
         rows = [row for row in curve.iter_rows(min_row=5, values_only=True)
                 if row and row[0] is not None]
-        progress_total = sum(float(row[2] or 0.0) for row in rows)
-        final_cumulative = float(rows[-1][3] or 0.0) if rows else 0.0
-        cost_total = sum(float(row[4] or 0.0) for row in rows)
+        if not rows:
+            report.add("ERROR", "WORKBOOK_SCURVE_EMPTY", "S-curve contains no monthly rows.")
+            return report
+        try:
+            progress_total = sum(float(row[2] or 0.0) for row in rows)
+            final_cumulative = float(rows[-1][3] or 0.0)
+            cost_total = sum(float(row[4] or 0.0) for row in rows)
+        except (TypeError, ValueError, IndexError) as exc:
+            report.add("ERROR", "WORKBOOK_SCURVE_ROW_INVALID",
+                       f"S-curve contains an invalid monthly value: {exc}.")
+            return report
         if abs(progress_total - 1.0) > 0.002 or abs(final_cumulative - 1.0) > 0.002:
             report.add("ERROR", "WORKBOOK_SCURVE_PROGRESS_MISMATCH",
                        "S-curve monthly progress does not reconcile to 100%.")
@@ -1081,12 +1254,16 @@ def _validate_exported_plan_calculations(
 
     expected = {row.activity_id: row for row in build_plan(result)}
     seen = set()
+    activity_row_ids = []
+    subtotal_row_ids = []
     project_execution = 0.0
     project_billed = 0.0
+    project_totals_rows = []
     for values in sheet.iter_rows(min_row=3, values_only=True):
         activity_id = values[0] if values else None
         row_type = values[12] if len(values) > 12 else None
         if row_type == "Activity" and isinstance(activity_id, str):
+            activity_row_ids.append(activity_id)
             row = expected.get(activity_id)
             if row is None:
                 report.add("ERROR", "WORKBOOK_PLAN_UNKNOWN_ACTIVITY",
@@ -1107,8 +1284,14 @@ def _validate_exported_plan_calculations(
                         activity_id,
                     )
         elif row_type == "Subtotal" and isinstance(activity_id, str):
+            subtotal_row_ids.append(activity_id)
             row = expected.get(activity_id)
             if row is None:
+                continue
+            if len(values) <= 30:
+                report.add("ERROR", "WORKBOOK_PLAN_ROW_INCOMPLETE",
+                           "Plan subtotal row is missing required total columns.",
+                           activity_id)
                 continue
             execution = float(values[29] or 0.0)
             billed = float(values[30] or 0.0)
@@ -1129,12 +1312,38 @@ def _validate_exported_plan_calculations(
                            "Plan billed subtotal does not match the original total cost.",
                            activity_id)
 
-    if seen != set(expected):
+    duplicate_activity_rows = [
+        aid for aid, count in Counter(activity_row_ids).items() if count > 1
+    ]
+    duplicate_subtotal_rows = [
+        aid for aid, count in Counter(subtotal_row_ids).items() if count > 1
+    ]
+    if duplicate_activity_rows:
+        report.add("ERROR", "WORKBOOK_PLAN_DUPLICATE_ACTIVITY_ROW",
+                   f"Plan contains duplicate activity rows: {sorted(duplicate_activity_rows)}.")
+    if duplicate_subtotal_rows:
+        report.add("ERROR", "WORKBOOK_PLAN_DUPLICATE_SUBTOTAL",
+                   f"Plan contains duplicate subtotal rows: {sorted(duplicate_subtotal_rows)}.")
+    if set(activity_row_ids) != set(expected) or set(subtotal_row_ids) != set(expected):
         report.add("ERROR", "WORKBOOK_PLAN_ACTIVITY_SET_MISMATCH",
-                   "Persisted Plan activity rows differ from the generated Plan.")
+                   "Persisted Plan activity and subtotal rows differ from the generated Plan.")
 
     for values in sheet.iter_rows(min_row=3, values_only=True):
         if values and values[0] == "PROJECT TOTALS":
+            project_totals_rows.append(values)
+    if len(project_totals_rows) != 1:
+        report.add(
+            "ERROR",
+            "WORKBOOK_PLAN_PROJECT_TOTALS_MISSING" if not project_totals_rows
+            else "WORKBOOK_PLAN_PROJECT_TOTALS_DUPLICATE",
+            "Plan must contain exactly one PROJECT TOTALS row.",
+        )
+    else:
+        values = project_totals_rows[0]
+        if len(values) <= 30:
+            report.add("ERROR", "WORKBOOK_PLAN_TOTAL_ROW_INCOMPLETE",
+                       "PROJECT TOTALS row is missing required total columns.")
+        else:
             execution = float(values[29] or 0.0)
             billed = float(values[30] or 0.0)
             if not _near(execution, project_execution, 1.0):
@@ -1143,25 +1352,88 @@ def _validate_exported_plan_calculations(
             if not _near(billed, project_billed, 1.0):
                 report.add("ERROR", "WORKBOOK_PLAN_PROJECT_BILLED_MISMATCH",
                            "Plan project billed total does not equal activity subtotals.")
-            break
 
 
-def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> ValidationReport:
+def _validate_update_result_impl(result: Any, assumptions: Optional[dict] = None) -> ValidationReport:
         """Validate an update-plan result and its remaining-work cost model."""
         from types import SimpleNamespace
 
         report = ValidationReport()
+        if result is None:
+            report.add("ERROR", "UPDATE_RESULT_MISSING", "Update result is missing.")
+            return report
         revised = list(getattr(result, "revised_activities", []) or [])
         statuses = list(getattr(result, "activity_status", []) or [])
         baseline = getattr(result, "baseline_result", None)
-        if not revised and statuses:
+        if baseline is None:
+            report.add("ERROR", "UPDATE_BASELINE_MISSING", "Update baseline result is missing.")
+            return report
+
+        baseline_activities = list(getattr(baseline, "activities", []) or [])
+        baseline_id_values = [getattr(a, "activity_id", None) for a in baseline_activities]
+        baseline_ids = {aid for aid in baseline_id_values if isinstance(aid, str) and aid}
+        if not baseline_ids:
+            report.add("ERROR", "UPDATE_BASELINE_ACTIVITIES_MISSING",
+                       "Update baseline contains no valid activities.")
+            return report
+        for label, values, code in (
+            ("baseline", baseline_id_values, "UPDATE_DUPLICATE_BASELINE_ID"),
+            ("status", [getattr(s, "activity_id", None) for s in statuses],
+             "UPDATE_DUPLICATE_STATUS_ID"),
+            ("revised", [getattr(a, "activity_id", None) for a in revised],
+             "UPDATE_DUPLICATE_REVISED_ID"),
+        ):
+            duplicates = [
+                aid for aid, count in Counter(values).items()
+                if isinstance(aid, str) and aid and count > 1
+            ]
+            if duplicates:
+                report.add("ERROR", code,
+                           f"Duplicate {label} activity IDs: {sorted(duplicates)}.")
+
+        if not statuses:
+            report.add("ERROR", "UPDATE_STATUSES_MISSING",
+                       "Update contains no activity status rows.")
+        if not revised and statuses and any(
+            str(getattr(status, "status", "")).lower() != "completed"
+            for status in statuses
+        ):
             report.add("ERROR", "UPDATE_NO_REVISED_ACTIVITIES", "Update contains status rows but no revised activities.")
 
-        baseline_ids = {a.activity_id for a in getattr(baseline, "activities", []) or []}
         status_ids = {s.activity_id for s in statuses}
-        if baseline_ids and status_ids != baseline_ids:
+        if status_ids != baseline_ids:
             report.add("ERROR", "UPDATE_ACTIVITY_STATUS_SET_MISMATCH",
                        "Activity status rows do not match the baseline activity set.")
+
+        for status in statuses:
+            if not isinstance(getattr(status, "activity_id", None), str) or not status.activity_id:
+                report.add("ERROR", "UPDATE_STATUS_ID_MISSING",
+                           "Every update status row must have an activity ID.")
+            for field_name in (
+                "actual_completion_pct", "completed_quantity",
+                "remaining_quantity", "original_quantity",
+            ):
+                if not hasattr(status, field_name) or getattr(status, field_name) is None:
+                    report.add("ERROR", "UPDATE_STATUS_FIELD_MISSING",
+                               f"Status row is missing '{field_name}'.",
+                               getattr(status, "activity_id", None))
+
+        revised_structure_invalid = False
+        for activity in revised:
+            aid = getattr(activity, "activity_id", None)
+            for field_name in ("quantity", "duration_days", "es", "ef", "ls", "lf", "cost"):
+                if not hasattr(activity, field_name) or getattr(activity, field_name) is None:
+                    report.add("ERROR", "UPDATE_ACTIVITY_FIELD_MISSING",
+                               f"Revised activity is missing '{field_name}'.", aid)
+                    revised_structure_invalid = True
+            if getattr(activity, "cost", None) is not None:
+                for field_name in ("planned_unit_rate", "direct_cost", "total_amount"):
+                    if not hasattr(activity.cost, field_name):
+                        report.add("ERROR", "UPDATE_COST_FIELD_MISSING",
+                                   f"Revised activity cost is missing '{field_name}'.", aid)
+                        revised_structure_invalid = True
+        if revised_structure_invalid:
+            return report
 
         revised_ids = {a.activity_id for a in revised}
         if not revised_ids <= status_ids:
@@ -1203,7 +1475,11 @@ def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> V
             cost = activity.cost
             expected_direct = (
                 float(activity.quantity or 0.0) * float(cost.planned_unit_rate or 0.0)
-                + float(cost.wastage_cost or 0.0)
+                + (
+                    0.0
+                    if bool(getattr(cost, "wastage_in_base_rate", False))
+                    else float(cost.wastage_cost or 0.0)
+                )
                 + float(cost.crash_total_surcharge or 0.0)
             )
             if not _near(cost.direct_cost, expected_direct, 0.05):
@@ -1265,16 +1541,36 @@ def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> V
                 baseline, "assumptions_snapshot", {}
             ) or {},
         )
-        _validate_resource_plan_and_daily_log(revised_view, report)
+        if revised:
+            _run_check(
+                report,
+                "UPDATE_RESOURCE_PLAN_VALIDATION_EXCEPTION",
+                lambda: _validate_resource_plan_and_daily_log(revised_view, report),
+            )
         return report
+
+
+def validate_update_result(result: Any, assumptions: Optional[dict] = None) -> ValidationReport:
+        """Run update validation and report unexpected validator failures."""
+        try:
+            return _validate_update_result_impl(result, assumptions)
+        except Exception as exc:
+            report = ValidationReport()
+            report.add("ERROR", "UPDATE_VALIDATION_EXCEPTION",
+                       f"Update validation could not complete: {exc}")
+            return report
 
 
 def validate_exported_update_workbook(path: str, result: Any) -> ValidationReport:
         """Validate the update workbook structure and its validation summary."""
-        import openpyxl
-
         report = ValidationReport()
-        workbook = openpyxl.load_workbook(path, data_only=True)
+        try:
+            import openpyxl
+            workbook = openpyxl.load_workbook(path, data_only=True)
+        except Exception as exc:
+            report.add("ERROR", "UPDATE_WORKBOOK_OPEN_FAILED",
+                       f"Could not reopen update workbook: {exc}")
+            return report
         required = {
             "01_Update_Summary", "02_Baseline_Schedule", "03_Actual_Progress",
             "04_Activity_Status", "05_Revised_CPM", "06_Revised_Cost",
@@ -1302,10 +1598,17 @@ def validate_exported_update_workbook(path: str, result: Any) -> ValidationRepor
                            "Workbook error count differs from the in-memory report.")
         revised_sheet = workbook["05_Revised_CPM"] if "05_Revised_CPM" in workbook.sheetnames else None
         if revised_sheet is not None:
-            exported = {
+            exported_values = [
                 row[0] for row in revised_sheet.iter_rows(min_row=5, values_only=True)
                 if row and isinstance(row[0], str) and row[0].startswith("ACT-")
-            }
+            ]
+            exported = set(exported_values)
+            duplicates = [
+                aid for aid, count in Counter(exported_values).items() if count > 1
+            ]
+            if duplicates:
+                report.add("ERROR", "UPDATE_WORKBOOK_DUPLICATE_ACTIVITY_ID",
+                           f"Exported revised activity IDs are duplicated: {sorted(duplicates)}.")
             if exported != {a.activity_id for a in getattr(result, "revised_activities", []) or []}:
                 report.add("ERROR", "UPDATE_WORKBOOK_ACTIVITY_SET_MISMATCH",
                            "Exported revised activity IDs differ from the update result.")
@@ -1314,9 +1617,10 @@ def validate_exported_update_workbook(path: str, result: Any) -> ValidationRepor
 def format_validation_report(report: ValidationReport) -> str:
     """Return a concise human-readable report for CLI output and logs."""
     lines = [
-        f"Validation: {'PASS' if report.passed else 'FAIL'}",
+        f"Validation: {report.status}",
         f"Errors: {len(report.errors)}",
         f"Warnings: {len(report.warnings)}",
+        f"Incomplete: {len(report.incomplete)}",
     ]
     for issue in report.issues:
         suffix = f" [{issue.activity_id}]" if issue.activity_id else ""

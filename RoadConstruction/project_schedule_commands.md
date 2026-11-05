@@ -375,7 +375,7 @@ bug that could be hidden if the audit reused the same model helper.
 
 `src.verify` is a broader correctness gate. It checks assumption coverage and
 source-of-truth markers, solves a reference road scenario, checks model
-invariants, and audits selected reference workbooks in `output\`. A failed
+invariants, and audits the canonical road workbook in `output\`. A failed
 check returns a non-zero process exit code. These utilities currently audit
 the road reference model; they do not replace the project-specific validation
 sheet for pipeline or building workbooks.

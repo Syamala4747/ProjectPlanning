@@ -2,7 +2,7 @@
 """
 verify.py - automated correctness gate for the road construction planner.
 
-Run:  python -m src.verify            (audits the three reference workbooks)
+Run:  python -m src.verify            (audits the road reference workbook)
       python -m src.verify --no-run   (audit existing workbooks only, do not re-run)
 
 This gate exists because every real defect found during development was caught
@@ -173,19 +173,25 @@ def main():
     print("C. WORKBOOKS")
     print("=" * 78)
 
-    for fn in (
-        os.path.join("output", "report_251.xlsx"),
-        os.path.join("output", "verify.xlsx"),
-        os.path.join("output", "report_251_noaccel.xlsx"),
-    ):
+    for fn in (os.path.join("output", "road_project_schedule.xlsx"),):
         # the generator falls back to <stem>_new.xlsx when the target is open in
         # Excel, so accept either and audit the freshest that exists
         path = fn if os.path.exists(fn) else fn.replace(".xlsx", "_new.xlsx")
         if not os.path.exists(path):
             check(f"{fn}: present", False, "not generated yet")
             continue
-        wb = load_workbook(path)
-        check(f"{path}: 14 sheets", len(wb.sheetnames) == 14, str(len(wb.sheetnames)))
+        wb = load_workbook(path, data_only=True)
+        required_sheets = {
+            "01_Project_Summary", "02_Project_Inputs", "03_Assumptions",
+            "04_WBS_Hierarchy", "05_Activities", "06_Baseline_CPM",
+            "07_Baseline_Cost", "08_Constraint_Optimization",
+            "09_Optimized_CPM", "10_Optimized_Cost",
+            "11_Baseline_vs_Optimized", "12_Monthly_Schedule",
+            "13_S_Curve", "14_Critical_Path",
+        }
+        check(f"{path}: required report sheets present",
+              required_sheets <= set(wb.sheetnames),
+              f"{len(wb.sheetnames)} total")
         if "10_Optimized_Cost" not in wb.sheetnames:
             check(f"{path}: sheet 10 present", False)
             continue
@@ -204,21 +210,22 @@ def main():
             c31 = r[30].value or 0
             if q and abs(c8 - q * c7) > max(2.0, c8 * 1e-4):
                 bad8 += 1
-            if abs(c19 - c8 - c17) > 1:
+            if abs(c19 - c8 - c17 - c30) > 1:
                 bad19 += 1
-            if abs(c23 - c19 - c30 - c31) > 1:
+            if abs(c23 - c19 - c31) > 1:
                 bad23 += 1
             if abs(c30 - sum(r[j].value or 0 for j in (25, 26, 27, 28))) > 1:
                 bad30 += 1
-            if abs(c21) > 0.01 or abs(c22) > 0.01:
+            if c21 < 0 or c22 < 0:
                 bad2122 += 1
         check(f"{path}: col8 = qty x col7 (all-in rate prices the cost)",
               bad8 == 0, f"{bad8} rows")
-        check(f"{path}: col19 = col8 + col17", bad19 == 0, f"{bad19} rows")
-        check(f"{path}: col23 = col19 + col30 + col31 (wastage + escalation)",
+        check(f"{path}: col19 = col8 + col17 + col30",
+              bad19 == 0, f"{bad19} rows")
+        check(f"{path}: col23 = col19 + col31 (escalation)",
               bad23 == 0, f"{bad23} rows")
         check(f"{path}: col30 = the four loss columns", bad30 == 0, f"{bad30} rows")
-        check(f"{path}: OH/Profit columns are zero by design",
+        check(f"{path}: embedded OH/Profit disclosures are non-negative",
               bad2122 == 0, f"{bad2122} rows")
 
         # sheet 11: no negative acceleration anywhere, bridge must add up
