@@ -1,0 +1,15 @@
+{
+  "name": "road-construction-push-entities",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Push construction project entities to BluConn API",
+  "scripts": {
+    "push": "node push-entities.mjs",
+    "push:wipe": "node push-entities.mjs --wipe",
+    "push:schema": "node push-entities.mjs --schema-only"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "exceljs": "^4.4.0"
+  }
+}

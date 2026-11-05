@@ -260,6 +260,29 @@ def run_project_planning(
         print(format_validation_report(workbook_validation))
         raise ValueError("Exported workbook validation failed.")
     print(f"    ✔ Excel report generated successfully at: {os.path.abspath(final_file)}")
+
+    # ── [5/5] Entity export: SQLite + JSON ───────────────────────────────────
+    print(f"⏳ [5/5] Exporting entities...")
+    out_dir = os.path.dirname(os.path.abspath(final_file)) or "."
+    try:
+        from scripts.actual_to_entity import build_entities as _build_entities
+        _project_slug = re.sub(r"[^a-z0-9]+", "_",
+                               project_input.title.lower()).strip("_")[:40]
+        _actual_json = os.path.join(out_dir, f"{_project_slug}_actual_data.json")
+        entities = _build_entities(
+            xlsx_path=final_file,
+            project_type=project_input.project_type,
+            seed=42,
+        )
+        with open(_actual_json, "w", encoding="utf-8") as _f:
+            import json as _json
+            _json.dump(entities, _f, indent=2, ensure_ascii=False, default=str)
+        total = sum(len(v) for v in entities.values())
+        print(f"    ✔ {total:,} entity records written to: {os.path.abspath(_actual_json)}")
+        print(f"    → Run: node push-entities.mjs --json={os.path.abspath(_actual_json)}")
+    except Exception as _exc:
+        print(f"    ⚠ Entity export failed (non-fatal): {_exc}")
+
     print("=" * 80)
     print(" ✅ CONSTRAINT-BASED PLANNING COMPLETED SUCCESSFULLY")
     print(f" Output File: {os.path.abspath(final_file)}")
