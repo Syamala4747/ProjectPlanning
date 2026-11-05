@@ -52,3 +52,14 @@ _test_*.xlsx
 # OS files
 .DS_Store
 Thumbs.db
+
+# Environment / credentials — never commit these
+.env
+*.env
+
+# Entity output files (large, regenerated on each run)
+output/upload_templates/
+output/*_actual_data.json
+output/entities/
+output/project_data.db
+node_modules
