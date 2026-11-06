@@ -48,6 +48,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import openpyxl
@@ -304,9 +305,32 @@ def _read_log(wb) -> List[_LogRow]:
 
 def _read_inputs(wb) -> Dict[str, Any]:
     """Read project inputs from Sheet 02."""
-    ws  = wb["02_Project_Inputs"]
-    hr  = _header_row(ws, "Parameter")
     out: Dict[str, Any] = {}
+    if "02_Project_Inputs" not in wb.sheetnames:
+        raw = str(getattr(wb.properties, "keywords", "") or "")
+        prefix = "RoadConstructionMetadata:"
+        if raw.startswith(prefix):
+            try:
+                metadata = json.loads(raw[len(prefix):])
+            except json.JSONDecodeError as exc:
+                raise ValueError("Updated workbook contains invalid project metadata.") from exc
+            summary = metadata.get("input_summary", {})
+            out["Project Length"] = summary.get("length_km", "")
+            out["Maximum Available Budget"] = summary.get("budget_crore", 0)
+            out["Project Start Date"] = summary.get("start_date", "")
+            length = summary.get("length_km")
+            lanes = summary.get("lanes")
+            if length and lanes:
+                out["Project Name"] = f"{length:g} KM {lanes}-Lane Highway Project"
+            out["Terrain"] = summary.get("terrain", "plain")
+        else:
+            raise ValueError(
+                "Workbook has no 02_Project_Inputs sheet or RoadConstruction metadata."
+            )
+        return out
+
+    ws = wb["02_Project_Inputs"]
+    hr = _header_row(ws, "Parameter")
     for rn in range(hr + 1, ws.max_row + 1):
         k = ws.cell(rn, 1).value
         v = ws.cell(rn, 2).value
@@ -324,10 +348,14 @@ def _build_project(plan_rows, inputs, project_type, project_id):
     total_exec    = sum(r.total_cost  for r in plan_rows)
     start  = min((r.start  for r in plan_rows if r.start),  default=date.today())
     finish = max((r.finish for r in plan_rows if r.finish), default=date.today())
+    terrain = str(inputs.get("Terrain", "plain")).strip().lower()
+    if terrain == "plain":
+        terrain = "plains"
     return {
         "projectId":               project_id,
-        "projectName":             str(inputs.get("Project Length", project_id)),
+        "projectName":             str(inputs.get("Project Name", inputs.get("Project Length", project_id))),
         "projectType":             project_type,
+        "terrain":                 terrain,
         "projectStatus":           "In Progress",
         "startDate":               _iso(start),
         "estimatedCompletionDate": _iso(finish),
@@ -430,32 +458,35 @@ def _build_plans(plan_rows, project_id):
 def _build_assets(plan_rows, project_id):
     """One asset per unique equipment name across all plan rows."""
     seen: Dict[str, str] = {}
+    totals: Dict[str, Dict[str, float]] = defaultdict(
+        lambda: {"hours": 0.0, "cost": 0.0}
+    )
     assets = []
-    idx = 1
     _skip = ("Unavailable", "Plant/fuel", "Fuel allow")
     for r in plan_rows:
         for eq in r.equipment_lines:
             name = eq["name"]
             if not name or any(name.startswith(s) for s in _skip):
                 continue
-            if name in seen:
-                continue
-            aid = f"ASSET{str(idx).zfill(4)}"
-            seen[name] = aid
-            idx += 1
-            assets.append({
-                "assetId":                   aid,
-                "projectId":                 project_id,
-                "assetCode":                 aid,
-                "assetName":                 name.replace("_", " ").title(),
-                "equipmentType":             name,
-                "plannedTotalHours":         eq["total_hours"],
-                "actualUtilisationHrsPerDay": 0.0,
-                "hoursLoggedToDate":         0.0,
-                "odometerOpening":           0.0,
-                "odometerClosing":           0.0,
-                "status":                    "Active",
-            })
+            if name not in seen:
+                seen[name] = f"ASSET{str(len(seen) + 1).zfill(4)}"
+            totals[name]["hours"] += eq["total_hours"]
+            totals[name]["cost"] += eq["total_cost"]
+    for name, aid in seen.items():
+        assets.append({
+            "assetId":                   aid,
+            "projectId":                 project_id,
+            "assetCode":                 aid,
+            "assetName":                 name.replace("_", " ").title(),
+            "equipmentType":             name,
+            "plannedTotalHours":         round(totals[name]["hours"], 2),
+            "plannedEquipmentCostINR":   round(totals[name]["cost"], 2),
+            "actualUtilisationHrsPerDay": 0.0,
+            "hoursLoggedToDate":         0.0,
+            "odometerOpening":           0.0,
+            "odometerClosing":           0.0,
+            "status":                    "Active",
+        })
     return assets, seen          # also return name→id map
 
 
@@ -609,18 +640,33 @@ def _build_edl(log_rows, plan_rows, asset_name_to_id, worker_ids,
         pr = plan_map.get(log.activity_id)
         if not pr:
             continue
-        total_w  = max(1, sum(ll["workers"] for ll in pr.labour_lines))
+        labour_lines = [
+            ll for ll in pr.labour_lines
+            if ll["category"] not in _SUP_ROLES
+        ]
+        total_w = max(1, sum(max(1, ll["workers"]) for ll in labour_lines))
         eq_names = [eq["name"] for eq in pr.equipment_lines
                     if not eq["name"].startswith(("Unavailable", "Plant/fuel", "Fuel allow"))]
         date_iso = _iso(log.date)
+        operator_count = sum(
+            min(max(1, ll["workers"]), len(by_role.get(ll["category"], [])))
+            for ll in labour_lines if ll["category"] in _OPR_ROLES
+        )
+        edl_count = sum(
+            min(max(1, ll["workers"]), len(by_role.get(ll["category"], [])))
+            for ll in labour_lines
+        )
+        work_done_assigned = 0.0
+        fuel_assigned = 0.0
+        fuel_cost_assigned = 0.0
+        emitted_edls = 0
+        emitted_operators = 0
 
-        for ll in pr.labour_lines:
+        for ll in labour_lines:
             role = ll["category"]
-            if role in _SUP_ROLES:
-                continue
             workers = max(1, ll["workers"])
             pool    = by_role.get(role, [_emp(role)])
-            share   = ll["workers"] / total_w / max(1, workers)
+            share   = 1 / total_w
 
             for w in range(min(workers, max(1, len(pool)))):
                 emp      = pool[w % len(pool)]
@@ -645,6 +691,23 @@ def _build_edl(log_rows, plan_rows, asset_name_to_id, worker_ids,
                             if sid not in sup_map[key]:
                                 sup_map[key].append(sid)
 
+                work_done = round(log.quantity * share, 8)
+                if emitted_edls == edl_count - 1:
+                    work_done = round(log.quantity - work_done_assigned, 8)
+                work_done_assigned += work_done
+                emitted_edls += 1
+                fuel_litres = 0.0
+                fuel_cost = 0.0
+                if is_opr and operator_count:
+                    fuel_litres = round(log.fuel_consumption / operator_count, 6)
+                    fuel_cost = round(log.fuel_cost / operator_count, 2)
+                    if emitted_operators == operator_count - 1:
+                        fuel_litres = round(log.fuel_consumption - fuel_assigned, 6)
+                        fuel_cost = round(log.fuel_cost - fuel_cost_assigned, 2)
+                    fuel_assigned += fuel_litres
+                    fuel_cost_assigned += fuel_cost
+                    emitted_operators += 1
+
                 edl_list.append({
                     "engineeringDailyLogId": f"EDL{str(edl_idx).zfill(5)}",
                     "projectId":             project_id,
@@ -657,12 +720,12 @@ def _build_edl(log_rows, plan_rows, asset_name_to_id, worker_ids,
                     "dayNumber":             log.project_day,
                     "activityWorkingDay":    log.activity_working_day,
                     "shift":                 "shift-single",
-                    "workDone":              round(_vary(rng, log.quantity * share, 0.03), 4),
+                    "workDone":              work_done,
                     "unit":                  log.unit,
                     "labourCostINR":         round(_vary(rng, log.labour_cost   * share, 0.03), 2),
                     "equipmentCostINR":      round(_vary(rng, log.equipment_cost * share, 0.03), 2) if is_opr else 0.0,
-                    "fuelCostINR":           round(_vary(rng, log.fuel_cost      * share, 0.03), 2) if is_opr else 0.0,
-                    "fuelLitres":            round(_vary(rng, log.fuel_consumption * share, 0.03), 3) if is_opr else 0.0,
+                    "fuelCostINR":           fuel_cost,
+                    "fuelLitres":            fuel_litres,
                     "odometerOpening":       round(odo_o, 1),
                     "odometerClosing":       round(odo_c, 1),
                 })
@@ -688,7 +751,7 @@ def _build_mir(log_rows, plan_rows, mat_id_map, worker_ids, project_id, rng):
             mid = mat_id_map.get(ml["name"])
             if not mid:
                 continue
-            qty = _vary(rng, ml["quantity"] / max(1, pr.duration_days), 0.05)
+            qty = round(_vary(rng, ml["quantity"] / max(1, pr.duration_days), 0.05), 4)
             if qty <= 0:
                 continue
             mir_list.append({
@@ -698,7 +761,7 @@ def _build_mir(log_rows, plan_rows, mat_id_map, worker_ids, project_id, rng):
                 "activityId":  log.activity_id,
                 "date":        date_iso,
                 "materialName": ml["name"].replace("_", " ").title(),
-                "quantity":    round(qty, 4),
+                "quantity":    qty,
                 "unit":        ml["unit"] or "unit",
                 "unitCost":    ml["unit_rate"],
                 "totalCost":   round(qty * ml["unit_rate"], 2),
@@ -708,7 +771,7 @@ def _build_mir(log_rows, plan_rows, mat_id_map, worker_ids, project_id, rng):
             idx += 1
 
         if log.fuel_cost > 0:
-            fuel_qty = _vary(rng, log.fuel_consumption, 0.05)
+            fuel_qty = round(log.fuel_consumption, 3)
             mir_list.append({
                 "materialIssueRequestId": f"MIR{str(idx).zfill(5)}",
                 "projectId":   project_id,
@@ -716,7 +779,7 @@ def _build_mir(log_rows, plan_rows, mat_id_map, worker_ids, project_id, rng):
                 "activityId":  log.activity_id,
                 "date":        date_iso,
                 "materialName": "Diesel",
-                "quantity":    round(fuel_qty, 3),
+                "quantity":    fuel_qty,
                 "unit":        "litre",
                 "unitCost":    100.0,
                 "totalCost":   round(fuel_qty * 100.0, 2),
@@ -744,10 +807,12 @@ def _build_mpr(mir_list, mat_id_map, project_id, rng):
 
     for (mid, cons_date_str), qty in sorted(groups.items()):
         cons_date = date.fromisoformat(cons_date_str)
-        proc_date = cons_date - timedelta(days=rng.randint(5, 6))
-        while proc_date.weekday() == 6:
+        proc_date = cons_date
+        for _ in range(rng.randint(5, 6)):
             proc_date -= timedelta(days=1)
-        proc_qty  = qty * 1.05
+            while proc_date.weekday() == 6:
+                proc_date -= timedelta(days=1)
+        proc_qty  = round(qty, 4)
         rate      = meta.get(mid, {}).get("rate", 100.0)
         mpr_list.append({
             "materialProcurementRequestId": f"MPR{str(idx).zfill(5)}",
@@ -800,7 +865,7 @@ def _build_logistics(mpr_list, mir_list, project_id, rng):
         })
         idx += 1
 
-    for mir in mir_list[:50]:   # sample of outflow logistics
+    for mir in mir_list:
         logi.append({
             "logisticsId":   f"LOG{str(idx).zfill(5)}",
             "projectId":     project_id,
@@ -870,7 +935,7 @@ def _build_transactions(mpr_list, mir_list, project_id):
         if t["transactionType"] == "INFLOW":
             stock[mid] += t["quantity"]
         else:
-            stock[mid] = max(0.0, stock[mid] - t["quantity"])
+            stock[mid] -= t["quantity"]
         t["runningStock"] = round(stock[mid], 4)
 
     return txns
@@ -949,6 +1014,483 @@ def _build_supervisor_updates(log_rows, plan_rows, edl_list, mir_list,
     return sup_list
 
 
+_REFERENCE_ENTITY_KEYS = {
+    "project": "project",
+    "assumption": "assumption",
+    "asset": "asset",
+    "material": "material",
+    "subcontractor": "subcontractor",
+    "boq": "boq",
+    "activity": "activity",
+    "plan": "plan",
+    "supervisor-update": "supervisor_update",
+    "engineering-daily-logs": "engineering_daily_logs",
+    "material-procurement-request": "material_procurement_request",
+    "material-issue-request": "material_issue_request",
+    "material-transaction": "material_transaction",
+    "logistics": "logistics",
+    "store-transaction": "store_transaction",
+    "store-inventory": "store_inventory",
+    "daily-log-summary": "daily_log_summary",
+    "store": "store",
+    "material-request": "material_request",
+    "daily-log": "daily_log",
+}
+
+
+def _reference_default(schema: Dict[str, Any]) -> Any:
+    """Create a JSON-compatible value with the reference schema's declared shape."""
+    if schema.get("enum"):
+        return schema["enum"][0]
+    schema_type = schema.get("type", "string")
+    if isinstance(schema_type, list):
+        schema_type = next((kind for kind in schema_type if kind != "null"), "string")
+    if schema_type == "object":
+        return {
+            key: _reference_default(value)
+            for key, value in schema.get("properties", {}).items()
+        }
+    if schema_type == "array":
+        return []
+    if schema_type == "integer":
+        return 0
+    if schema_type == "number":
+        return 0.0
+    if schema_type == "boolean":
+        return False
+    return ""
+
+
+def _reference_value(value: Any, schema: Dict[str, Any], field_name: str = "") -> Any:
+    """Conform an existing generated value to one reference-schema property."""
+    schema_type = schema.get("type", "string")
+    allowed_types = schema_type if isinstance(schema_type, list) else [schema_type]
+    if value is None:
+        value = _reference_default(schema)
+
+    if "string" in allowed_types and isinstance(value, (dict, list)):
+        value = json.dumps(value, ensure_ascii=False, default=str)
+    if "array" in allowed_types and isinstance(value, dict):
+        if field_name == "machinery":
+            value = [{"assetName": key, "count": count} for key, count in value.items()]
+        elif field_name == "materialsReceived":
+            value = [
+                {"materialName": key, "quantity": quantity, "unit": ""}
+                for key, quantity in value.items()
+            ]
+        else:
+            value = []
+    valid_type = (
+        ("string" in allowed_types and isinstance(value, str))
+        or ("object" in allowed_types and isinstance(value, dict))
+        or ("array" in allowed_types and isinstance(value, list))
+        or ("boolean" in allowed_types and isinstance(value, bool))
+        or ("integer" in allowed_types and isinstance(value, int) and not isinstance(value, bool))
+        or ("number" in allowed_types and isinstance(value, (int, float)) and not isinstance(value, bool))
+    )
+    if not valid_type:
+        if "string" in allowed_types:
+            value = str(value)
+        elif "object" in allowed_types:
+            value = {}
+        elif "array" in allowed_types:
+            value = []
+        elif "boolean" in allowed_types:
+            value = bool(value)
+        elif "integer" in allowed_types:
+            try:
+                value = int(float(value))
+            except (TypeError, ValueError):
+                value = 0
+        elif "number" in allowed_types:
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                value = 0.0
+
+    enum_values = schema.get("enum")
+    if enum_values and value not in enum_values:
+        normalized = str(value).strip().lower()
+        value = next(
+            (option for option in enum_values if str(option).lower() == normalized),
+            enum_values[0],
+        )
+
+    if "object" in allowed_types and isinstance(value, dict):
+        for key, child_schema in schema.get("properties", {}).items():
+            value[key] = _reference_value(value.get(key), child_schema, key)
+    if "array" in allowed_types and isinstance(value, list):
+        item_schema = schema.get("items", {})
+        value = [
+            _reference_value(item, item_schema)
+            if isinstance(item, dict) and item_schema.get("type") == "object"
+            else _reference_value(item, item_schema)
+            for item in value
+        ]
+    return value
+
+
+def _apply_entity_type_reference(entities: Dict[str, List[Dict]]) -> None:
+    """Add and conform all entity properties declared by entityTypes_ref.json."""
+    reference_path = Path(__file__).resolve().parents[1] / "entityTypes_ref.json"
+    with reference_path.open(encoding="utf-8") as reference_file:
+        entity_types = json.load(reference_file)
+
+    assets_by_id = {
+        str(row.get("assetId")): row for row in entities.get("asset", [])
+    }
+    materials_by_id = {
+        str(row.get("materialId")): row for row in entities.get("material", [])
+    }
+    activities_by_boq = {
+        str(row.get("boqId")): row for row in entities.get("activity", [])
+    }
+    logistics_by_request = {}
+    for row in entities.get("logistics", []):
+        for key in ("materialProcurementRequestId", "materialIssueRequestId"):
+            if row.get(key):
+                logistics_by_request[str(row[key])] = row
+
+    for entity_type in entity_types:
+        slug = entity_type["slug"]
+        entity_key = _REFERENCE_ENTITY_KEYS.get(slug)
+        if entity_key is None:
+            raise ValueError(f"Unmapped entity type in entityTypes_ref.json: {slug}")
+        properties = entity_type.get("jsonSchema", {}).get("properties", {})
+        rows = entities.setdefault(entity_key, [])
+
+        for row in rows:
+            if slug == "project":
+                plan_rows = entities.get("plan", [])
+                activities = entities.get("activity", [])
+                edls = entities.get("engineering_daily_logs", [])
+                contract_value = _f(row.get("contractValueINR"))
+                execution_cost = _f(row.get("executionCostINR"))
+                row.update({
+                    "projectCode": row.get("projectCode") or row.get("projectId", ""),
+                    "projectShortCode": row.get("projectShortCode") or
+                        "".join(part[0] for part in str(row.get("projectName", "")).split()).upper(),
+                    "projectType": {
+                        "road": "Highway", "pipeline": "Infrastructure",
+                        "building": "Building",
+                    }.get(str(row.get("projectType", "")).lower(), "Infrastructure"),
+                    "contractType": "Unit Rate",
+                    "contractValue": contract_value,
+                    "awardDate": row.get("startDate", ""),
+                    "plannedStartDate": row.get("startDate", ""),
+                    "plannedCompletionDate": row.get("estimatedCompletionDate", ""),
+                    "totalDurationDays": row.get("durationDays", 0),
+                    "terrain": row.get("terrain", "plains"),
+                    "preConstructionCost": 0.0,
+                    "siteOverheadCost": 0.0,
+                    "executionCost": execution_cost,
+                    "labourCost": sum(_f(item.get("labourCostINR")) for item in plan_rows),
+                    "equipmentCost": sum(_f(item.get("equipmentCostINR")) for item in plan_rows),
+                    "fuelCost": sum(_f(item.get("fuelCostINR")) for item in plan_rows),
+                    "materialCost": sum(_f(item.get("materialCostINR")) for item in plan_rows),
+                    "residualMargin": _f(row.get("residualMarginINR")),
+                    "marginPercent": (
+                        _f(row.get("residualMarginINR")) / contract_value * 100
+                        if contract_value else 0.0
+                    ),
+                    "totalFuel": sum(_f(item.get("fuelLitres")) for item in edls),
+                    "numberOfActivities": len(activities),
+                    "clientName": row.get("clientName", ""),
+                    "contractor": row.get("contractor", ""),
+                    "totalBudget": row.get("budgetINR", 0.0),
+                    "locationDetails": row.get("locationDetails", ""),
+                    "numberOfSites": 1,
+                    "overallPlannedProgress": row.get("overallActualProgress", 0.0),
+                    "lastProgressUpdateDate": row.get("startDate", ""),
+                })
+            elif slug == "assumption":
+                key = str(row.get("parameterKey", ""))
+                raw_value = row.get("parameterValue", "")
+                try:
+                    value = float(str(raw_value).replace(",", "").strip())
+                except (TypeError, ValueError):
+                    value = 0.0
+                row.update({
+                    "assumptionCode": key or row.get("assumptionId", ""),
+                    "category": "Other",
+                    "description": f"{key}: {raw_value}".strip(": "),
+                    "unitValue": value,
+                    "source": row.get("sourceNote", ""),
+                    "effectiveFrom": "",
+                })
+            elif slug == "asset":
+                equipment = str(row.get("equipmentType", row.get("assetName", "")))
+                category = "Other"
+                for words, candidate in (
+                    (("excavator", "dozer", "jcb", "grader", "paver"), "Earth Moving"),
+                    (("crane", "hoist"), "Lifting & Hoisting"),
+                    (("mixer", "concrete"), "Concrete & Masonry"),
+                    (("tipper", "truck", "tanker", "transit"), "Transport & Haulage"),
+                    (("roller", "compactor"), "Compaction"),
+                ):
+                    if any(word in equipment.lower() for word in words):
+                        category = candidate
+                        break
+                hours = _f(row.get("plannedTotalHours"))
+                row.update({
+                    "assetType": row.get("assetName", equipment),
+                    "equipmentCategory": category,
+                    "make": "Unspecified",
+                    "model": row.get("assetName", equipment),
+                    "serialNumber": row.get("assetCode", row.get("assetId", "")),
+                    "yearOfManufacture": 2020,
+                    "fuelType": "Diesel",
+                    "ownership": "Owned",
+                    "status": "In Use",
+                    "capacity": 0.0,
+                    "horsepower": 0.0,
+                    "purchaseCost": 0.0,
+                    "dailyRentalRate": 0.0,
+                    "hourlyRentalRate": (
+                        _f(row.get("plannedEquipmentCostINR")) / hours if hours else 0.0
+                    ),
+                    "idleHoursToDate": 0.0,
+                    "subContractorId": "",
+                    "standardShiftHours": 8.0,
+                    "tankCapacityLiters": 0.0,
+                    "fuelConsumptionRatePerHr": 0.0,
+                    "plannedUtilisationHrsPerDay": 0.0,
+                })
+            elif slug == "material":
+                name = str(row.get("materialName", ""))
+                lowered = name.lower()
+                category = (
+                    "Fuel" if "diesel" in lowered or "fuel" in lowered else
+                    "Bituminous" if "bitumen" in lowered or "asphalt" in lowered else
+                    "Structural" if any(term in lowered for term in
+                                        ("cement", "steel", "aggregate", "sand", "pipe")) else
+                    "Consumables"
+                )
+                row.update({
+                    "materialType": name,
+                    "category": category,
+                    "status": "Available",
+                    "location": "Construction Site Store",
+                    "storeName": "Construction Site Store",
+                    "subCategory": name,
+                    "minimumStockLevel": 0.0,
+                    "wastagePercent": 0.0,
+                })
+            elif slug == "subcontractor":
+                row.update({
+                    "name": row.get("companyName", ""),
+                    "subContractorCode": row.get("subContractorId", ""),
+                    "type": row.get("subContractorType", ""),
+                    "phone": row.get("phone", "0000000000"),
+                    "email": row.get("email", ""),
+                    "labourWages": str(row.get("labourWages", "")),
+                })
+            elif slug == "boq":
+                activity = activities_by_boq.get(str(row.get("boqId")), {})
+                row.update({
+                    "rate": row.get("unitRate", 0.0),
+                    "currency": "INR",
+                    "preparedBy": "System",
+                    "preparedDate": activity.get("plannedStart", ""),
+                    "totalItems": 1,
+                    "status": "Approved",
+                    "scopeDescription": row.get("description", ""),
+                    "amountBilledToDate": row.get("billedAmount", 0.0),
+                    "amountReceivedToDate": row.get("amountReceived", 0.0),
+                    "revisionNumber": 1,
+                })
+            elif slug == "activity":
+                row.update({
+                    "activityCode": row.get("activityId", ""),
+                    "location": "Project Site",
+                    "category": row.get("phase", ""),
+                    "actualCost": row.get("actualCostINR", 0.0),
+                    "baselineStart": row.get("plannedStart", ""),
+                    "baselineEnd": row.get("plannedEnd", ""),
+                    "daysPlanned": row.get("durationDays", 0),
+                    "billedAmount": row.get("billedCostINR", 0.0),
+                    "rate": (
+                        _f(row.get("billedCostINR")) / _f(row.get("quantity"))
+                        if _f(row.get("quantity")) else 0.0
+                    ),
+                    "marginAmount": _f(row.get("billedCostINR")) - _f(row.get("plannedCostINR")),
+                    "isMilestone": bool(row.get("milestone")),
+                    "shortDescription": row.get("activityName", ""),
+                    "workBreakdownStructure": row.get("activityId", ""),
+                })
+            elif slug == "plan":
+                row.update({
+                    "logDate": row.get("plannedStart", ""),
+                    "startDate": row.get("plannedStart", ""),
+                    "endDate": row.get("plannedEnd", ""),
+                    "workforce": json.dumps(row.get("labourDetail", []), ensure_ascii=False),
+                    "assets": json.dumps(row.get("equipmentDetail", []), ensure_ascii=False),
+                    "materials": json.dumps(row.get("materialDetail", []), ensure_ascii=False),
+                    "totalCost": row.get("totalExecutionCostINR", 0.0),
+                    "status": "Draft",
+                })
+            elif slug == "supervisor-update":
+                machinery = row.get("machinery") or {}
+                if isinstance(machinery, dict):
+                    row["machinery"] = [
+                        {
+                            "assetName": assets_by_id.get(str(asset_id), {}).get("assetName", str(asset_id)),
+                            "count": count,
+                        }
+                        for asset_id, count in machinery.items()
+                    ]
+                received = row.get("materialsReceived") or {}
+                if isinstance(received, dict):
+                    row["materialsReceived"] = [
+                        {
+                            "materialName": name,
+                            "quantity": quantity,
+                            "unit": next(
+                                (item.get("unit", "") for item in entities.get("material", [])
+                                 if item.get("materialName") == name),
+                                "",
+                            ),
+                        }
+                        for name, quantity in received.items()
+                    ]
+                row.update({
+                    "supervisorName": "Site Supervisor",
+                    "workDone": f"{row.get('actualProgress', 0)} {row.get('unit', '')}".strip(),
+                })
+            elif slug == "engineering-daily-logs":
+                row.update({
+                    "openingOdometer": row.get("odometerOpening", 0.0),
+                    "closingOdometer": row.get("odometerClosing", 0.0),
+                    "employeeName": row.get("employeeId", ""),
+                    "employee_id": "",
+                    "status": "processing",
+                    "supervisor": "Site Supervisor",
+                })
+            elif slug == "material-procurement-request":
+                material = materials_by_id.get(str(row.get("materialId")), {})
+                logistics = logistics_by_request.get(str(row.get("materialProcurementRequestId")), {})
+                quantity = _f(row.get("quantity"))
+                item_schema = properties.get("materials", {}).get("items", {})
+                material_item = _reference_default(item_schema)
+                material_item.update({
+                    "name": row.get("materialName", material.get("materialName", "")),
+                    "unit": row.get("unit", material.get("unit", "")),
+                    "status": "DELIVERED",
+                    "quantity": quantity,
+                    "deliveredQuantity": quantity,
+                    "pendingQuantity": 0.0,
+                    "inTransitQuantity": 0.0,
+                })
+                transport = {
+                    "name": row.get("vendorName", ""),
+                    "amount": row.get("totalCost", 0.0),
+                    "status": "SELECTED",
+                    "quotedAt": row.get("requestDate", ""),
+                    "phoneNumber": "",
+                    "vehicleType": logistics.get("vehicle", ""),
+                    "tonnageCapacity": 0.0,
+                }
+                vendor = {
+                    "name": row.get("vendorName", ""),
+                    "parameters": {},
+                    "phoneNumber": "",
+                    "languageCode": "",
+                }
+                row.update({
+                    "status": "DELIVERED",
+                    "purpose": "Construction material procurement",
+                    "materials": [material_item],
+                    "requestInfo": {},
+                    "requestors": [],
+                    "approvers": [],
+                    "vendorList": [vendor] if row.get("vendorName") else [],
+                    "cost": row.get("totalCost", 0.0),
+                    "loadedAt": row.get("requestDate", ""),
+                    "deliveredAt": row.get("deliveryDate", ""),
+                    "driverName": logistics.get("driver", ""),
+                    "driverPhone": "",
+                    "retryFlag": False,
+                    "totalDistance": 0.0,
+                    "vehicleNumber": logistics.get("vehicle", ""),
+                    "loadingAddress": logistics.get("sourceAddress", ""),
+                    "unloadingAddress": logistics.get("deliveryAddress", ""),
+                    "materialEntityId": row.get("materialId", ""),
+                    "selectedTransporter": row.get("vendorName", ""),
+                    "selectedTransporterPhone": "",
+                    "transportersDetails": [transport],
+                    "deliveryFailureReason": "",
+                    "store": {},
+                })
+            elif slug == "material-issue-request":
+                row.update({
+                    "status": "approved",
+                    "assetId": "",
+                    "supervisor": "Site Supervisor",
+                })
+            elif slug == "material-transaction":
+                is_inflow = row.get("transactionType") == "INFLOW"
+                row.update({
+                    "requestor": "",
+                    "requestedDate": row.get("date", "") if is_inflow else "",
+                    "issuedDate": "" if is_inflow else row.get("date", ""),
+                    "materialProcurementRequestId": (
+                        row.get("referenceId", "") if is_inflow else ""
+                    ),
+                    "materialIssueRequestId": (
+                        "" if is_inflow else row.get("referenceId", "")
+                    ),
+                })
+            elif slug == "logistics":
+                is_inflow = row.get("movementType") == "INFLOW"
+                reference_id = (
+                    row.get("materialProcurementRequestId") if is_inflow
+                    else row.get("materialIssueRequestId")
+                )
+                row.update({
+                    "status": "Delivered",
+                    "cost": 0.0,
+                    "purpose": "Material receipt" if is_inflow else "Material issue",
+                    "approvers": "[]",
+                    "materials": json.dumps([{
+                        "name": row.get("materialName", ""),
+                        "quantity": row.get("totalQuantity", 0.0),
+                        "unit": row.get("unit", ""),
+                    }], ensure_ascii=False),
+                    "requestors": "[]",
+                    "vendorList": "[]",
+                    "weightUnit": "kg",
+                    "requestInfo": "{}",
+                    "requestNumber": reference_id or "",
+                    "totalDistance": 0.0,
+                    "loadingAddress": row.get("sourceAddress", ""),
+                    "unloadingAddress": row.get("deliveryAddress", ""),
+                    "deliveryTimeline": json.dumps({
+                        "dispatchDate": row.get("dispatchDate", ""),
+                        "deliveryDate": row.get("deliveryDate", ""),
+                    }),
+                    "notDeliveredReason": "",
+                    "selectedTransporter": row.get("transporter", ""),
+                    "selectedTransporterPhone": "",
+                    "transportersDetails": json.dumps([{
+                        "name": row.get("transporter", ""),
+                        "vehicle": row.get("vehicle", ""),
+                        "driver": row.get("driver", ""),
+                    }], ensure_ascii=False),
+                    "tripDetails": json.dumps({
+                        "tripCount": row.get("tripCount", 0),
+                        "vehicle": row.get("vehicle", ""),
+                        "driver": row.get("driver", ""),
+                    }, ensure_ascii=False),
+                })
+
+            for field_name, schema in properties.items():
+                row[field_name] = _reference_value(
+                    row.get(field_name, _reference_default(schema)),
+                    schema,
+                    field_name,
+                )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -971,9 +1513,12 @@ def build_entities(xlsx_path: str,
     log_rows   = _read_log(wb)
     inputs     = _read_inputs(wb)
 
-    project_id = _slug(
-        str(inputs.get("Project Length", "") or inputs.get("title", "project"))
-    )[:60] or "project_001"
+    workbook_stem = Path(xlsx_path).stem
+    inputs.setdefault(
+        "Project Name",
+        re.sub(r"[_-]+", " ", re.sub(r"_\d{8}$", "", workbook_stem)).title(),
+    )
+    project_id = _slug(workbook_stem)[:60] or "project_001"
     r = _rng(project_id, seed)
 
     project    = _build_project(plan_rows, inputs, project_type, project_id)
@@ -992,7 +1537,7 @@ def build_entities(xlsx_path: str,
     txns       = _build_transactions(mpr_list, mir_list, project_id)
     sup_updates= _build_supervisor_updates(log_rows, plan_rows, edl_list, mir_list, project_id, r)
 
-    return {
+    entities = {
         "project":                      [project],
         "assumption":                   assumptions,
         "asset":                        assets,
@@ -1008,6 +1553,9 @@ def build_entities(xlsx_path: str,
         "material_transaction":         txns,
         "supervisor_update":            sup_updates,
     }
+    _apply_entity_type_reference(entities)
+    wb.close()
+    return entities
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -143,7 +143,7 @@ def run_project_planning(
     """
     ptype = project_input.project_type
 
-    print(f"⏳ [1/5] Loading guidelines and assumptions for {ptype.upper()} project...")
+    print(f"⏳ [1/4] Loading guidelines and assumptions for {ptype.upper()} project...")
     loader = DataLoader(guidelines_path=guidelines_path, assumptions_path=assumptions_path)
     loader.load_all(terrain=project_input.terrain)
     print("    ✔ Guidelines & assumptions loaded successfully.")
@@ -162,7 +162,7 @@ def run_project_planning(
     if not enable_acceleration_cost:
         print("    ⚠ --no-accel-cost: time-driven acceleration surcharges are DISABLED.")
 
-    print(f"⏳ [2/5] Running Constraint-Based Optimizer & CPM Calculation...")
+    print(f"⏳ [2/4] Running Constraint-Based Optimizer & CPM Calculation...")
     scheduler = ConstraintScheduler(
         project_input=project_input,
         data_loader=loader,
@@ -219,7 +219,7 @@ def run_project_planning(
         print(f"   • {_line}")
     print("-" * 80)
 
-    print(f"⏳ [3/5] Validating optimized activity precedence network...")
+    print(f"⏳ [3/4] Validating optimized activity precedence network...")
     errors = DependencyManager.validate_network(result.activities)
     if errors:
         for err in errors:
@@ -252,7 +252,7 @@ def run_project_planning(
         for w in result.validation_warnings:
             print(f"    • {w}")
 
-    print(f"\n⏳ [4/5] Generating Excel report: {output_path}...")
+    print(f"\n⏳ [4/4] Generating Excel report: {output_path}...")
     reporter = ExcelReportGenerator(result=result, output_path=output_path)
     final_file = reporter.generate()
     workbook_validation = validate_exported_workbook(final_file, result)
@@ -261,30 +261,8 @@ def run_project_planning(
         raise ValueError("Exported workbook validation failed.")
     print(f"    ✔ Excel report generated successfully at: {os.path.abspath(final_file)}")
 
-    # ── [5/5] Entity export: SQLite + JSON ───────────────────────────────────
-    print(f"⏳ [5/5] Exporting entities...")
-    out_dir = os.path.dirname(os.path.abspath(final_file)) or "."
-    try:
-        from scripts.actual_to_entity import build_entities as _build_entities
-        _project_slug = re.sub(r"[^a-z0-9]+", "_",
-                               project_input.title.lower()).strip("_")[:40]
-        _actual_json = os.path.join(out_dir, f"{_project_slug}_actual_data.json")
-        entities = _build_entities(
-            xlsx_path=final_file,
-            project_type=project_input.project_type,
-            seed=42,
-        )
-        with open(_actual_json, "w", encoding="utf-8") as _f:
-            import json as _json
-            _json.dump(entities, _f, indent=2, ensure_ascii=False, default=str)
-        total = sum(len(v) for v in entities.values())
-        print(f"    ✔ {total:,} entity records written to: {os.path.abspath(_actual_json)}")
-        print(f"    → Run: node push-entities.mjs --json={os.path.abspath(_actual_json)}")
-    except Exception as _exc:
-        print(f"    ⚠ Entity export failed (non-fatal): {_exc}")
-
     print("=" * 80)
-    print(" ✅ CONSTRAINT-BASED PLANNING COMPLETED SUCCESSFULLY")
+    print(" ✅ EXCEL PLAN GENERATED SUCCESSFULLY")
     print(f" Output File: {os.path.abspath(final_file)}")
     print("=" * 80)
 

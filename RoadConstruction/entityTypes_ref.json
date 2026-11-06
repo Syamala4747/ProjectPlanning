@@ -1,0 +1,3153 @@
+[
+  {
+    "id": "et_project_v1",
+    "name": "Project",
+    "slug": "project",
+    "description": "Project master. Parent of BOQ. Seeded for WhatsApp daily-log Correct linking.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": [
+        "boq"
+      ]
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "WORK_ITEM",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Project",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "projectId",
+        "projectCode",
+        "projectName"
+      ],
+      "properties": {
+        "projectId": {
+          "type": "string",
+          "description": "Unique identifier for the project."
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "projectCode": {
+          "type": "string",
+          "description": "Short project code used in forms (e.g. PRJ-DEMO)."
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Human-readable project name."
+        },
+        "projectStatus": {
+          "enum": [
+            "Planning",
+            "Mobilisation",
+            "In Progress",
+            "Suspended",
+            "Completed",
+            "Closed"
+          ],
+          "type": "string",
+          "description": "Lifecycle status."
+        },
+        "locationDetails": {
+          "type": "string"
+        },
+        "terrain": {
+          "enum": [
+            "plains",
+            "rolling",
+            "hilly",
+            "mountainous"
+          ],
+          "type": "string",
+          "title": "Terrain"
+        },
+        "currency": {
+          "type": "string",
+          "title": "Currency"
+        },
+        "fuelCost": {
+          "type": "number",
+          "title": "Fuel Cost"
+        },
+        "awardDate": {
+          "type": "string",
+          "title": "Award Date",
+          "format": "date"
+        },
+        "siteNames": {
+          "type": "string",
+          "title": "Site Names"
+        },
+        "totalFuel": {
+          "type": "number",
+          "title": "Total Fuel"
+        },
+        "contractor": {
+          "type": "string",
+          "title": "Contractor"
+        },
+        "labourCost": {
+          "type": "number",
+          "title": "Labour Cost"
+        },
+        "projectType": {
+          "enum": [
+            "Roads & Highways",
+            "Building",
+            "Dam & Irrigation",
+            "Industrial",
+            "Infrastructure",
+            "Marine",
+            "Tunnel",
+            "Apartment",
+            "Bridge",
+            "Dam",
+            "Data Centre",
+            "Highway",
+            "Hospital",
+            "Railway",
+            "Rural Road",
+            "Shopping Complex"
+          ],
+          "type": "string",
+          "title": "Project Type"
+        },
+        "totalBudget": {
+          "type": "number",
+          "title": "Total Budget"
+        },
+        "contractType": {
+          "enum": [
+            "Lump Sum",
+            "Unit Rate",
+            "Cost Plus",
+            "EPC",
+            "Item Rate",
+            "BOT",
+            "HAM"
+          ],
+          "type": "string",
+          "title": "Contract Type"
+        },
+        "costVariance": {
+          "type": "number",
+          "title": "Cost Variance"
+        },
+        "materialCost": {
+          "type": "number",
+          "title": "Material Cost"
+        },
+        "contractValue": {
+          "type": "number",
+          "title": "Contract Value"
+        },
+        "equipmentCost": {
+          "type": "number",
+          "title": "Equipment Cost"
+        },
+        "executionCost": {
+          "type": "number",
+          "title": "Execution Cost"
+        },
+        "marginPercent": {
+          "type": "number",
+          "title": "Margin Percent"
+        },
+        "numberOfSites": {
+          "type": "number",
+          "title": "Number Of Sites"
+        },
+        "residualMargin": {
+          "type": "number",
+          "title": "Residual Margin"
+        },
+        "plannedStartDate": {
+          "type": "string",
+          "title": "Planned Start Date",
+          "format": "date"
+        },
+        "projectShortCode": {
+          "type": "string",
+          "title": "Project Short Code"
+        },
+        "siteOverheadCost": {
+          "type": "number",
+          "title": "Site Overhead Cost"
+        },
+        "totalDurationDays": {
+          "type": "number",
+          "title": "Total Duration Days"
+        },
+        "numberOfActivities": {
+          "type": "number",
+          "title": "Number Of Activities"
+        },
+        "preConstructionCost": {
+          "type": "number",
+          "title": "Pre Construction Cost"
+        },
+        "scheduleVarianceDays": {
+          "type": "number",
+          "title": "Schedule Variance Days"
+        },
+        "overallActualProgress": {
+          "type": "number",
+          "title": "Overall Actual Progress"
+        },
+        "plannedCompletionDate": {
+          "type": "string",
+          "title": "Planned Completion Date",
+          "format": "date"
+        },
+        "lastProgressUpdateDate": {
+          "type": "string",
+          "title": "Last Progress Update Date",
+          "format": "date"
+        },
+        "overallPlannedProgress": {
+          "type": "number",
+          "title": "Overall Planned Progress"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "projectId",
+      "projectCode",
+      "projectName"
+    ]
+  },
+  {
+    "id": "et_assumption_v1",
+    "name": "Assumption",
+    "slug": "assumption",
+    "description": "Assumption",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "assumptionId",
+        "assumptionCode",
+        "category",
+        "description",
+        "unit",
+        "unitValue"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "title": "Unit",
+          "description": "Unit of measure (e.g., `bag`, `day`, `kg`, `cum`)."
+        },
+        "source": {
+          "type": "string",
+          "title": "Source",
+          "description": "Reference (e.g., `MoRTH SDB 2019`)."
+        },
+        "category": {
+          "enum": [
+            "Labour Rate",
+            "Material Rate",
+            "Equipment Rate",
+            "Fuel Consumption",
+            "Productivity",
+            "Wastage",
+            "Overhead",
+            "Benchmark",
+            "Other"
+          ],
+          "type": "string",
+          "title": "Category",
+          "description": "Type of assumption."
+        },
+        "unitValue": {
+          "type": "number",
+          "title": "Unit Value",
+          "description": "For cost assumptions: Price per unit. For productivity: Output per unit."
+        },
+        "description": {
+          "type": "string",
+          "title": "Description",
+          "description": "Human-readable name (e.g., \"OPC 53 Cement 50kg Bag\")."
+        },
+        "assumptionId": {
+          "type": "string",
+          "title": "Assumption Id",
+          "description": "Unique identifier for the assumption."
+        },
+        "effectiveFrom": {
+          "type": "string",
+          "title": "Effective From",
+          "format": "date",
+          "description": "Validity start date."
+        },
+        "assumptionCode": {
+          "type": "string",
+          "title": "Assumption Code",
+          "description": "Unique key (e.g., `cement_opc53_bag`, `labour_unskilled_per_day`)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "assumptionId"
+    ]
+  },
+  {
+    "id": "et_asset_v1",
+    "name": "Asset",
+    "slug": "asset",
+    "description": "Plant/equipment master. Engineers type Asset ID on dailylog; tool fuzzy-matches when catalog rows exist.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": [
+        "engineering-daily-logs"
+      ]
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Asset",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "assetId",
+        "assetCode",
+        "assetType",
+        "status"
+      ],
+      "properties": {
+        "make": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "Available",
+            "In Use",
+            "Idle",
+            "Under Maintenance",
+            "Breakdown",
+            "Demobilised"
+          ],
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string",
+          "description": "Unique identifier for the asset."
+        },
+        "assetCode": {
+          "type": "string",
+          "description": "Asset code engineers type (e.g. EXC-252)."
+        },
+        "assetType": {
+          "type": "string",
+          "description": "Equipment type label (e.g. Excavator)."
+        },
+        "ownership": {
+          "enum": [
+            "Owned",
+            "Rented",
+            "Hired",
+            "Leased"
+          ],
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Informational project reference (Asset is standalone)."
+        },
+        "equipmentCategory": {
+          "type": "string"
+        },
+        "capacity": {
+          "type": "number",
+          "title": "Capacity"
+        },
+        "fuelType": {
+          "enum": [
+            "Diesel",
+            "Petrol",
+            "Electric",
+            "CNG",
+            "Hybrid"
+          ],
+          "type": "string",
+          "title": "Fuel Type"
+        },
+        "horsepower": {
+          "type": "number",
+          "title": "Horsepower"
+        },
+        "purchaseCost": {
+          "type": "number",
+          "title": "Purchase Cost"
+        },
+        "serialNumber": {
+          "type": "string",
+          "title": "Serial Number"
+        },
+        "dailyRentalRate": {
+          "type": "number",
+          "title": "Daily Rental Rate"
+        },
+        "idleHoursToDate": {
+          "type": "number",
+          "title": "Idle Hours To Date"
+        },
+        "subContractorId": {
+          "type": "string",
+          "title": "Sub Contractor Id",
+          "description": "Optional cross-reference to the SubContractor entity operating, renting, or otherwise responsible for this asset. Not a hierarchy parent — SubContractor is standalone."
+        },
+        "hourlyRentalRate": {
+          "type": "number",
+          "title": "Hourly Rental Rate"
+        },
+        "hoursLoggedToDate": {
+          "type": "number",
+          "title": "Hours Logged To Date"
+        },
+        "yearOfManufacture": {
+          "type": "number",
+          "title": "Year Of Manufacture"
+        },
+        "standardShiftHours": {
+          "type": "number",
+          "title": "Standard Shift Hours"
+        },
+        "tankCapacityLiters": {
+          "type": "number",
+          "title": "Tank Capacity Liters"
+        },
+        "fuelConsumptionRatePerHr": {
+          "type": "number",
+          "title": "Fuel Consumption Rate Per Hr"
+        },
+        "actualUtilisationHrsPerDay": {
+          "type": "number",
+          "title": "Actual Utilisation Hrs Per Day"
+        },
+        "plannedUtilisationHrsPerDay": {
+          "type": "number",
+          "title": "Planned Utilisation Hrs Per Day"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "assetId",
+      "assetCode",
+      "assetType",
+      "status",
+      "projectId"
+    ]
+  },
+  {
+    "id": "et_material_v1",
+    "name": "Material",
+    "slug": "material",
+    "description": "Catalog material master. Stock lives on currentStock/reservedQuantity. WhatsApp issue/procure/transaction children parent here.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": [
+        "material-transaction",
+        "material-issue-request",
+        "material-procurement-request"
+      ]
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Material",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "materialId",
+        "materialCode",
+        "materialType",
+        "category",
+        "unit",
+        "unitCost",
+        "status"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "Available",
+            "Low Stock",
+            "Out of Stock",
+            "Ordered",
+            "Reserved",
+            "Expired",
+            "Rejected"
+          ],
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "Structural",
+            "Non-Structural",
+            "Finishing",
+            "Bituminous",
+            "Hydraulic Fill",
+            "Consumables",
+            "Fuel",
+            "Safety"
+          ],
+          "type": "string"
+        },
+        "location": {
+          "type": "string",
+          "description": "Physical location/address of the store or project site."
+        },
+        "unitCost": {
+          "type": "number"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "storeName": {
+          "type": "string",
+          "description": "Store name where the material is stocked (catalog field on Material â€” no Store entity)."
+        },
+        "materialId": {
+          "type": "string"
+        },
+        "deliveredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "HARD-CODED"
+        },
+        "subCategory": {
+          "type": "string"
+        },
+        "currentStock": {
+          "type": "number"
+        },
+        "materialCode": {
+          "type": "string"
+        },
+        "materialType": {
+          "type": "string",
+          "description": "Display name (e.g. Cement OPC 53)."
+        },
+        "wastagePercent": {
+          "type": "number"
+        },
+        "totalCostToDate": {
+          "type": "number"
+        },
+        "reservedQuantity": {
+          "type": "number",
+          "description": "WhatsApp extension: quantity reserved pending dispatch/delivery."
+        },
+        "minimumStockLevel": {
+          "type": "number"
+        },
+        "notDeliveredReason": {
+          "type": "string",
+          "description": "HARD-CODED"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "materialId",
+      "materialCode",
+      "materialType",
+      "status"
+    ]
+  },
+  {
+    "id": "et_subcontractor_v1",
+    "name": "SubContractor",
+    "slug": "subcontractor",
+    "description": "Optional subcontractor registry cross-referenced from EDL/Asset.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "title": "SubContractor",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "subContractorId",
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "subContractorId": {
+          "type": "string"
+        },
+        "subContractorCode": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "title": "Type",
+          "description": "Roles this subcontractor fulfills: workforce = supplies labour (subContractorId on EDL), material = supplies materials (vendor in Procurement Request), logistics = handles transport."
+        },
+        "status": {
+          "enum": [
+            "Active",
+            "Inactive"
+          ],
+          "type": "string",
+          "title": "Status"
+        },
+        "projectId": {
+          "type": "string",
+          "title": "projectId",
+          "description": "Project this subcontractor is engaged on."
+        },
+        "labourWages": {
+          "type": "string",
+          "title": "Labour Wages",
+          "description": "Labour wage rate per day."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "subContractorId",
+      "subContractorCode",
+      "name"
+    ]
+  },
+  {
+    "id": "et_boq_v1",
+    "name": "BOQ",
+    "slug": "boq",
+    "description": "Bill of Quantities header. Child of Project; parent of Activity.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "project"
+      ],
+      "allowedChildSlugs": [
+        "activity"
+      ]
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "WORK_ITEM",
+    "jsonSchema": {
+      "type": "object",
+      "title": "BOQ",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "boqId",
+        "boqCode",
+        "projectId"
+      ],
+      "properties": {
+        "rate": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "boqId": {
+          "type": "string",
+          "description": "Unique identifier for the BOQ."
+        },
+        "phase": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "Draft",
+            "Submitted",
+            "Under Review",
+            "Approved",
+            "Rejected",
+            "Superseded"
+          ],
+          "type": "string"
+        },
+        "boqCode": {
+          "type": "string",
+          "description": "BOQ code supervisors type on Correct (e.g. BOQ-01)."
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "milestone": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Parent Project business id (also stored as hierarchy parentId)."
+        },
+        "scopeDescription": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string",
+          "title": "Currency"
+        },
+        "preparedBy": {
+          "type": "string",
+          "title": "Prepared By"
+        },
+        "totalItems": {
+          "type": "number",
+          "title": "Total Items"
+        },
+        "totalAmount": {
+          "type": "number",
+          "title": "Total Amount"
+        },
+        "preparedDate": {
+          "type": "string",
+          "title": "Prepared Date",
+          "format": "date"
+        },
+        "revisionNumber": {
+          "type": "number",
+          "title": "Revision Number"
+        },
+        "amountBilledToDate": {
+          "type": "number",
+          "title": "Amount Billed To Date"
+        },
+        "amountReceivedToDate": {
+          "type": "number",
+          "title": "Amount Received To Date"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "boqId",
+      "boqCode",
+      "status",
+      "projectId"
+    ]
+  },
+  {
+    "id": "et_activity_v1",
+    "name": "Activity",
+    "slug": "activity",
+    "description": "Work breakdown activity. Child of BOQ; parent of Supervisor Update.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "boq"
+      ],
+      "allowedChildSlugs": [
+        "plan",
+        "supervisor-update"
+      ]
+    },
+    "appliesToLevel": "ACTIVITY",
+    "category": "WORK_ITEM",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Activity",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "activityId",
+        "activityCode",
+        "activityName",
+        "boqId"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string"
+        },
+        "boqId": {
+          "type": "string",
+          "description": "Parent BOQ business id (also stored as hierarchy parentId)."
+        },
+        "phase": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "confirmed (HARD-CODED)"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Informational Project reference."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Unique identifier for the activity."
+        },
+        "pendingLink": {
+          "type": "string",
+          "description": "pendingLink (HARD-CODED)"
+        },
+        "activityCode": {
+          "type": "string",
+          "description": "Activity code supervisors type on Correct (e.g. ACT-EXCAVATION)."
+        },
+        "activityName": {
+          "type": "string",
+          "description": "Human-readable activity name."
+        },
+        "shortDescription": {
+          "type": "string"
+        },
+        "rate": {
+          "type": "number",
+          "title": "Rate"
+        },
+        "category": {
+          "type": "string",
+          "title": "Category"
+        },
+        "actualEnd": {
+          "type": "string",
+          "title": "Actual End"
+        },
+        "milestone": {
+          "type": "string",
+          "title": "Milestone"
+        },
+        "actualCost": {
+          "type": "number",
+          "title": "Actual Cost"
+        },
+        "actualStart": {
+          "type": "string",
+          "title": "Actual Start"
+        },
+        "baselineEnd": {
+          "type": "string",
+          "title": "Baseline End",
+          "format": "date-time"
+        },
+        "daysPlanned": {
+          "type": "number",
+          "title": "Days Planned"
+        },
+        "earnedValue": {
+          "type": "number",
+          "title": "Earned Value"
+        },
+        "isMilestone": {
+          "type": "boolean",
+          "title": "Is Milestone"
+        },
+        "billedAmount": {
+          "type": "number",
+          "title": "Billed Amount"
+        },
+        "marginAmount": {
+          "type": "number",
+          "title": "Margin Amount"
+        },
+        "baselineStart": {
+          "type": "string",
+          "title": "Baseline Start",
+          "format": "date-time"
+        },
+        "crewMultiplier": {
+          "type": "number",
+          "title": "Crew Multiplier"
+        },
+        "percentageComplete": {
+          "type": "number",
+          "title": "Percentage Complete"
+        },
+        "workBreakdownStructure": {
+          "type": "string",
+          "title": "Work Breakdown Structure"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "activityId",
+      "activityCode",
+      "activityName",
+      "boqId",
+      "projectId"
+    ]
+  },
+  {
+    "id": "et_plan_v1",
+    "name": "Plan",
+    "slug": "plan",
+    "description": "Plan",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "activity"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "ACTIVITY",
+    "category": "WORK_ITEM",
+    "jsonSchema": {
+      "type": "object",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "planId",
+        "activityId",
+        "logDate",
+        "startDate",
+        "endDate",
+        "workforce",
+        "status",
+        "assets",
+        "materials",
+        "totalCost"
+      ],
+      "properties": {
+        "assets": {
+          "type": "string",
+          "title": "Assets"
+        },
+        "planId": {
+          "type": "string",
+          "title": "Plan Id",
+          "description": "Unique identifier for the plan."
+        },
+        "status": {
+          "enum": [
+            "Draft",
+            "Under Review",
+            "Approved",
+            "In Progress",
+            "Completed",
+            "Cancelled"
+          ],
+          "type": "string",
+          "title": "Status"
+        },
+        "endDate": {
+          "type": "string",
+          "title": "End Date",
+          "format": "date"
+        },
+        "logDate": {
+          "type": "string",
+          "title": "Log Date",
+          "format": "date"
+        },
+        "materials": {
+          "type": "string",
+          "title": "Materials"
+        },
+        "projectId": {
+          "type": "string",
+          "title": "Project Id",
+          "description": "Informational grandparent (Project) reference — not the hierarchy parentId."
+        },
+        "startDate": {
+          "type": "string",
+          "title": "Start Date",
+          "format": "date"
+        },
+        "totalCost": {
+          "type": "number",
+          "title": "Total Cost"
+        },
+        "workforce": {
+          "type": "string",
+          "title": "Workforce"
+        },
+        "activityId": {
+          "type": "string",
+          "title": "Activity Id",
+          "description": "Parent Activity reference (parentId)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "planId"
+    ]
+  },
+  {
+    "id": "et_supervisor_update_v1",
+    "name": "Supervisor Update",
+    "slug": "supervisor-update",
+    "description": "Catalog supervisor_update (child of Activity). Created on logsummary Correct.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "activity"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "ACTIVITY",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Supervisor Update",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "supervisorUpdateId",
+        "date",
+        "activityId",
+        "supervisorName"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "boqId": {
+          "type": "string"
+        },
+        "remarks": {
+          "type": "string"
+        },
+        "manpower": {
+          "type": "object",
+          "properties": {
+            "skilled": {
+              "type": "integer"
+            },
+            "unskilled": {
+              "type": "integer"
+            }
+          }
+        },
+        "workDone": {
+          "type": "string"
+        },
+        "machinery": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "assetName": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "activityId": {
+          "type": "string"
+        },
+        "supervisorName": {
+          "type": "string"
+        },
+        "materialsReceived": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unit": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "number"
+              },
+              "materialName": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "supervisorUpdateId": {
+          "type": "string"
+        },
+        "engineeringDailyLogIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "materialIssueRequestIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "supervisorUpdateId",
+      "projectId",
+      "boqId",
+      "activityId",
+      "supervisorName",
+      "date"
+    ]
+  },
+  {
+    "id": "et_engineering_daily_logs_v1",
+    "name": "Engineering Daily Logs",
+    "slug": "engineering-daily-logs",
+    "description": "Catalog EDL (child of Asset) extended with WhatsApp DPR workflow fields.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "asset"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Engineering Daily Logs",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "engineeringDailyLogId",
+        "assetId",
+        "openingOdometer",
+        "closingOdometer",
+        "workDone",
+        "supervisor",
+        "date"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "shift": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "processing",
+            "approved",
+            "rejected"
+          ],
+          "type": "string",
+          "description": "Catalog lifecycle. processing = draft or awaiting supervisor; approved / rejected are terminal."
+        },
+        "assetId": {
+          "type": "string",
+          "description": "Parent Asset business id / code."
+        },
+        "activity": {
+          "type": "string"
+        },
+        "engineer": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "matchScore": {
+              "type": "number"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "requestedName": {
+              "type": "string"
+            }
+          }
+        },
+        "workDone": {
+          "type": "string"
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project id resolved from the asset at submission time."
+        },
+        "activityId": {
+          "type": "string"
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Engineer employee id (business id) at submission time."
+        },
+        "supervisor": {
+          "type": "string",
+          "description": "Supervisor name (catalog field)."
+        },
+        "cancelledAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "employee_id": {
+          "type": "string",
+          "description": "Engineer UUID at submission time."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "employeeName": {
+          "type": "string",
+          "description": "Engineer name at submission time."
+        },
+        "employeeRole": {
+          "type": "string",
+          "description": "Engineer designation/role at submission time."
+        },
+        "assetEntityId": {
+          "type": "string"
+        },
+        "odometerUsage": {
+          "type": "number",
+          "description": "WhatsApp: closing - opening."
+        },
+        "subcontractor": {
+          "type": "string"
+        },
+        "decidedByPhone": {
+          "type": "string"
+        },
+        "closingOdometer": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "openingOdometer": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "subContractorId": {
+          "type": "string"
+        },
+        "supervisorPhone": {
+          "type": "string",
+          "description": "WhatsApp routing helper; resolved from employee match."
+        },
+        "sentForApprovalAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "supervisorEmployeeId": {
+          "type": "string",
+          "description": "Matched supervisor employee id for routing."
+        },
+        "engineeringDailyLogId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "engineeringDailyLogId",
+      "assetId",
+      "activityId",
+      "supervisor",
+      "subContractorId",
+      "date",
+      "whatsappStatus"
+    ]
+  },
+  {
+    "id": "et_material_procurement_request_v1",
+    "name": "Material Procurement Request",
+    "slug": "material-procurement-request",
+    "description": "Catalog MPR (child of Material) with WhatsApp RFQ/vendor/dispatch fields retained.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": true,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "material"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "MATERIAL",
+    "category": "LOGISTICS",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Material Procurement Request",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "materialProcurementRequestId",
+        "materialId",
+        "status",
+        "purpose",
+        "materials",
+        "requestNumber",
+        "requestInfo",
+        "projectId"
+      ],
+      "properties": {
+        "cost": {
+          "type": "number",
+          "description": "Selected quotation cost when a vendor is chosen."
+        },
+        "store": {
+          "type": "object",
+          "properties": {
+            "entityId": {
+              "type": "string"
+            },
+            "storeCode": {
+              "type": "string"
+            },
+            "storeName": {
+              "type": "string"
+            }
+          },
+          "description": "Link to the account's active store (from store-issue package)."
+        },
+        "status": {
+          "enum": [
+            "PENDING_APPROVAL",
+            "APPROVED",
+            "REJECTED",
+            "VENDOR_SELECTED",
+            "AWAITING_DISPATCH",
+            "DISPATCHED",
+            "DELIVERED",
+            "DELIVERY_FAILED",
+            "CANCELLED"
+          ],
+          "type": "string",
+          "description": "Lifecycle status including quotation, dispatch, and delivery."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Business purpose of the procurement request."
+        },
+        "loadedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the vendor marked Loaded."
+        },
+        "approvers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "approvedAt": {
+                "type": "string"
+              },
+              "employeeId": {
+                "type": "string"
+              },
+              "rejectedAt": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "quantity"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "grade": {
+                "type": "string"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "length": {
+                "type": "number"
+              },
+              "status": {
+                "type": "string"
+              },
+              "weight": {
+                "type": "number"
+              },
+              "quantity": {
+                "type": "number"
+              },
+              "quotations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "quotedAt": {
+                      "type": "string"
+                    },
+                    "vendorName": {
+                      "type": "string"
+                    },
+                    "vehicleType": {
+                      "type": "string"
+                    },
+                    "vendorPhone": {
+                      "type": "string"
+                    },
+                    "tonnageCapacity": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "weightUnit": {
+                "type": "string"
+              },
+              "dimensionUnit": {
+                "type": "string"
+              },
+              "pendingQuantity": {
+                "type": "number"
+              },
+              "deliveredQuantity": {
+                "type": "number"
+              },
+              "inTransitQuantity": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "Line items in the RFQ, each with its own quotations[]."
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "retryFlag": {
+          "type": "boolean",
+          "description": "True while a re-negotiation quotation round is active."
+        },
+        "driverName": {
+          "type": "string",
+          "description": "Driver name provided by the selected vendor."
+        },
+        "materialId": {
+          "type": "string",
+          "description": "Parent Material business id (primary line)."
+        },
+        "requestors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "employeeId"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "department": {
+                "type": "string"
+              },
+              "employeeId": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string",
+                "pattern": "^[+]?[0-9]{10,15}$"
+              }
+            }
+          }
+        },
+        "vendorList": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "parameters": {
+                "type": "object"
+              },
+              "phoneNumber": {
+                "type": "string"
+              },
+              "languageCode": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Vendors invited to quote (phone + language + template parameters)."
+        },
+        "deliveredAt": {
+          "type": "string",
+          "description": "ISO timestamp when Store Head tapped Received."
+        },
+        "driverPhone": {
+          "type": "string",
+          "description": "Driver phone provided by the selected vendor."
+        },
+        "logisticsId": {
+          "type": "string"
+        },
+        "requestInfo": {
+          "type": "object",
+          "required": [
+            "requestedAt",
+            "requiredDate"
+          ],
+          "properties": {
+            "requestedAt": {
+              "type": "string",
+              "description": "ISO timestamp when the request was submitted."
+            },
+            "requiredDate": {
+              "type": "string",
+              "description": "Required-by date as YYYY-MM-DD."
+            }
+          }
+        },
+        "requestNumber": {
+          "type": "string",
+          "description": "Human-readable request number (e.g. PR-AB2608xxxxx)."
+        },
+        "totalDistance": {
+          "type": "number",
+          "description": "Distance in km between loading and unloading pincodes when calculable."
+        },
+        "vehicleNumber": {
+          "type": "string",
+          "description": "Vehicle number provided by the selected vendor."
+        },
+        "loadingAddress": {
+          "type": "string",
+          "description": "Pickup / loading address (ideally with pincode)."
+        },
+        "deliveryTimeline": {
+          "type": "object",
+          "properties": {
+            "firstLoadAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "lastDeliveryAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "description": "Delivery timeline (HARD-CODED injected for migration)"
+        },
+        "materialEntityId": {
+          "type": "string",
+          "description": "Parent material entity id for first line / primary material."
+        },
+        "unloadingAddress": {
+          "type": "string",
+          "description": "Delivery / unloading address. Defaults from active store location when blank at create."
+        },
+        "selectedTransporter": {
+          "type": "string",
+          "description": "Display name of the selected vendor."
+        },
+        "transportersDetails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "status": {
+                "type": "string"
+              },
+              "quotedAt": {
+                "type": "string"
+              },
+              "phoneNumber": {
+                "type": "string"
+              },
+              "vehicleType": {
+                "type": "string"
+              },
+              "tonnageCapacity": {
+                "type": "number"
+              }
+            }
+          },
+          "description": "Runtime vendor quotation rollup used by comparison list tools."
+        },
+        "deliveryFailureReason": {
+          "type": "string",
+          "description": "Optional note when Store Head taps Not Received."
+        },
+        "selectedTransporterPhone": {
+          "type": "string",
+          "description": "Phone of the selected vendor."
+        },
+        "materialProcurementRequestId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "materialProcurementRequestId",
+      "materialId",
+      "requestNumber",
+      "status",
+      "purpose",
+      "projectId"
+    ]
+  },
+  {
+    "id": "et_material_issue_request_v1",
+    "name": "Material Issue Request",
+    "slug": "material-issue-request",
+    "description": "Catalog MIR (child of Material) extended with WhatsApp store/dispatch workflow fields.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "material"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Material Issue Request",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "materialIssueRequestId",
+        "materialId",
+        "personRequested",
+        "quantity",
+        "supervisor",
+        "date"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "store": {
+          "type": "object",
+          "properties": {
+            "entityId": {
+              "type": "string"
+            },
+            "storeCode": {
+              "type": "string"
+            },
+            "storeName": {
+              "type": "string"
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "DRAFT",
+            "PENDING_STORE_APPROVAL",
+            "RESERVED_AWAITING_DISPATCH",
+            "VEHICLE_ASSIGNED",
+            "DISPATCHED",
+            "DELIVERED",
+            "CANCELLED",
+            "REJECTED_OUT_OF_STOCK",
+            "AWAITING_REJECT_REASON",
+            "REJECTED",
+            "AWAITING_FAILURE_REASON",
+            "DELIVERY_FAILED",
+            "processing",
+            "approved",
+            "rejected"
+          ],
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "vehicle": {
+          "type": "object",
+          "properties": {
+            "driverName": {
+              "type": "string"
+            },
+            "driverPhone": {
+              "type": "string"
+            },
+            "vehicleNumber": {
+              "type": "string"
+            }
+          }
+        },
+        "failedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "material": {
+          "type": "string",
+          "description": "Display material name."
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requestor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "matchScore": {
+              "type": "number"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "requestedName": {
+              "type": "string"
+            }
+          }
+        },
+        "storeHead": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "matchScore": {
+              "type": "number"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "requestedName": {
+              "type": "string"
+            }
+          }
+        },
+        "storeName": {
+          "type": "string",
+          "description": "Display name of the store (from Material.storeName at request time)."
+        },
+        "activityId": {
+          "type": "string"
+        },
+        "materialId": {
+          "type": "string"
+        },
+        "rejectedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reservedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "supervisor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "employeeId": {
+                  "type": "string"
+                },
+                "matchScore": {
+                  "type": "number"
+                },
+                "phoneNumber": {
+                  "type": "string"
+                },
+                "requestedName": {
+                  "type": "string"
+                }
+              }
+            }
+          ],
+          "description": "Catalog string; WhatsApp may use Store Head name."
+        },
+        "cancelledAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deliveredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "dispatchHead": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "matchScore": {
+              "type": "number"
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "requestedName": {
+              "type": "string"
+            }
+          }
+        },
+        "dispatchedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requiredDate": {
+          "type": "string"
+        },
+        "failureReason": {
+          "type": "string"
+        },
+        "requestNumber": {
+          "type": "string"
+        },
+        "sentToStoreAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "whatsappStatus": {
+          "enum": [
+            "DRAFT",
+            "PENDING_STORE_APPROVAL",
+            "RESERVED_AWAITING_DISPATCH",
+            "VEHICLE_ASSIGNED",
+            "DISPATCHED",
+            "DELIVERED",
+            "CANCELLED",
+            "REJECTED_OUT_OF_STOCK",
+            "AWAITING_REJECT_REASON",
+            "REJECTED",
+            "AWAITING_FAILURE_REASON",
+            "DELIVERY_FAILED",
+            "processing",
+            "approved",
+            "rejected"
+          ],
+          "type": "string"
+        },
+        "personRequested": {
+          "type": "string"
+        },
+        "rejectionReason": {
+          "type": "string"
+        },
+        "deliveryLocation": {
+          "type": "string"
+        },
+        "materialEntityId": {
+          "type": "string"
+        },
+        "vehicleAssignedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "availableAtRequest": {
+          "type": "number"
+        },
+        "materialIssueRequestId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string",
+          "title": "projectId",
+          "description": "Project this issue request belongs to."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "materialIssueRequestId",
+      "materialId",
+      "activityId",
+      "supervisor",
+      "requestNumber",
+      "whatsappStatus",
+      "status"
+    ]
+  },
+  {
+    "id": "et_material_transaction_v1",
+    "name": "Material Transaction",
+    "slug": "material-transaction",
+    "description": "Catalog material_transaction (child of Material). Replaces store-transaction for WhatsApp ledger writes.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "material"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Material Transaction",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "materialTransactionId",
+        "materialId",
+        "quantity",
+        "transactionType",
+        "date",
+        "projectId"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "description": "status (HARD-CODED)"
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "requestor": {
+          "type": "string"
+        },
+        "issuedDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "materialId": {
+          "type": "string"
+        },
+        "deliveredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "deliveredAt (HARD-CODED)"
+        },
+        "requestedDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "whatsappStatus": {
+          "type": "string",
+          "description": "whatsappStatus (HARD-CODED)"
+        },
+        "transactionData": {
+          "type": "object",
+          "description": "Transaction data (HARD-CODED)"
+        },
+        "transactionType": {
+          "enum": [
+            "INFLOW",
+            "OUTFLOW"
+          ],
+          "type": "string"
+        },
+        "materialTransactionId": {
+          "type": "string"
+        },
+        "materialIssueRequestId": {
+          "type": "string"
+        },
+        "materialProcurementRequestId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "materialTransactionId",
+      "materialId",
+      "materialIssueRequestId",
+      "materialProcurementRequestId",
+      "transactionType",
+      "projectId"
+    ]
+  },
+  {
+    "id": "et_logistics_v1",
+    "name": "Logistics",
+    "slug": "logistics",
+    "description": "Logistics",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "LOGISTICS",
+    "jsonSchema": {
+      "type": "object",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "logisticsId",
+        "status",
+        "projectId"
+      ],
+      "properties": {
+        "cost": {
+          "type": "number",
+          "title": "Cost"
+        },
+        "status": {
+          "enum": [
+            "Planned",
+            "In Transit",
+            "Partially Delivered",
+            "Delivered",
+            "Cancelled"
+          ],
+          "type": "string",
+          "title": "Status"
+        },
+        "purpose": {
+          "type": "string",
+          "title": "Purpose"
+        },
+        "approvers": {
+          "type": "string",
+          "title": "Approvers"
+        },
+        "materials": {
+          "type": "string",
+          "title": "Materials"
+        },
+        "projectId": {
+          "type": "string",
+          "title": "Project Id",
+          "description": "Informational project reference."
+        },
+        "requestors": {
+          "type": "string",
+          "title": "Requestors"
+        },
+        "vendorList": {
+          "type": "string",
+          "title": "Vendor List"
+        },
+        "weightUnit": {
+          "type": "string",
+          "title": "Weight Unit"
+        },
+        "logisticsId": {
+          "type": "string",
+          "title": "Logistics Id",
+          "description": "Unique identifier for logistics."
+        },
+        "requestInfo": {
+          "type": "string",
+          "title": "Request Info",
+          "properties": {
+            "requestedAt": {
+              "type": "string",
+              "title": "Requested At",
+              "format": "date-time"
+            },
+            "requiredDate": {
+              "type": "string",
+              "title": "Required Date",
+              "format": "date"
+            }
+          }
+        },
+        "tripDetails": {
+          "type": "string",
+          "title": "Trip Details"
+        },
+        "requestNumber": {
+          "type": "string",
+          "title": "Request Number"
+        },
+        "totalDistance": {
+          "type": "number",
+          "title": "Total Distance"
+        },
+        "loadingAddress": {
+          "type": "string",
+          "title": "Loading Address"
+        },
+        "deliveryTimeline": {
+          "type": "string",
+          "title": "Delivery Timeline",
+          "properties": {
+            "firstLoadAt": {
+              "type": "string",
+              "title": "First Load At",
+              "format": "date-time"
+            },
+            "lastDeliveryAt": {
+              "type": "string",
+              "title": "Last Delivery At",
+              "format": "date-time"
+            }
+          }
+        },
+        "unloadingAddress": {
+          "type": "string",
+          "title": "Unloading Address"
+        },
+        "notDeliveredReason": {
+          "type": "string",
+          "title": "Not Delivered Reason"
+        },
+        "selectedTransporter": {
+          "type": "string",
+          "title": "Selected Transporter",
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "amount": {
+              "type": "number",
+              "title": "Amount"
+            },
+            "address": {
+              "type": "string",
+              "title": "Address"
+            },
+            "tonnage": {
+              "type": "number",
+              "title": "Tonnage"
+            },
+            "selectedAt": {
+              "type": "string",
+              "title": "Selected At",
+              "format": "date-time"
+            },
+            "selectedBy": {
+              "type": "string",
+              "title": "Selected By"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "title": "Phone Number"
+            },
+            "vehicleType": {
+              "type": "string",
+              "title": "Vehicle Type"
+            }
+          }
+        },
+        "transportersDetails": {
+          "type": "string",
+          "title": "Transporters Details"
+        },
+        "materialIssueRequestId": {
+          "type": "string",
+          "title": "Material Issue Request Id",
+          "description": "Optional cross-reference to a Material Issue Request — not a hierarchy parent."
+        },
+        "selectedTransporterPhone": {
+          "type": "string",
+          "title": "Selected Transporter Phone"
+        },
+        "materialProcurementRequestId": {
+          "type": "string",
+          "title": "Material Procurement Request Id",
+          "description": "Optional cross-reference to a Material Procurement Request — not a hierarchy parent."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "logisticsId"
+    ]
+  },
+  {
+    "id": "et_store_transaction_v1",
+    "name": "Store Transaction",
+    "slug": "store-transaction",
+    "description": "Ledger row for every inflow or outflow against a store-inventory row. Parent is always the inventory entity. materialRequestId is a cross-reference, not a hierarchy parent.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "store-inventory"
+      ],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "MATERIAL",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Store Transaction",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "transactionType",
+        "quantity",
+        "date",
+        "materialRequestId"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "Transaction date (YYYY-MM-DD)."
+        },
+        "notes": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity moved in this transaction."
+        },
+        "requestor": {
+          "type": "string",
+          "description": "Name of the person who requested the material."
+        },
+        "transactionType": {
+          "enum": [
+            "INFLOW",
+            "OUTFLOW"
+          ],
+          "type": "string",
+          "description": "INFLOW for receipts, OUTFLOW for issues / deliveries."
+        },
+        "materialRequestId": {
+          "type": "string",
+          "description": "Cross-reference to the originating material-request entity id."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "transactionType",
+      "materialRequestId",
+      "date"
+    ]
+  },
+  {
+    "id": "et_store_inventory_v1",
+    "name": "Store Inventory",
+    "slug": "store-inventory",
+    "description": "One inventory row per material per store. availableQuantity = quantity - reservedQuantity is computed in tool code and never stored.",
+    "parentMode": "RESTRICTED",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [
+        "store"
+      ],
+      "allowedChildSlugs": [
+        "store-transaction"
+      ]
+    },
+    "appliesToLevel": "MATERIAL",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Store Inventory",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "material",
+        "unit",
+        "quantity",
+        "reservedQuantity"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure (bag, MT, cum, Nos, litre, etc.)."
+        },
+        "material": {
+          "enum": [
+            "Cement OPC 53",
+            "Sand",
+            "Aggregate 20mm",
+            "Aggregate 40mm",
+            "TMT Bar Fe500",
+            "DI Pipe",
+            "HDPE Pipe",
+            "Bitumen VG30",
+            "Diesel",
+            "Binding Wire",
+            "Bricks",
+            "Ready Mix Concrete"
+          ],
+          "type": "string",
+          "description": "Material name from the shared materials enum."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "On-hand quantity including any reserved amount."
+        },
+        "lastUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reservedQuantity": {
+          "type": "number",
+          "description": "Quantity reserved for in-flight approved requests that are not yet delivered."
+        },
+        "minimumStockLevel": {
+          "type": "number",
+          "description": "Optional low-stock threshold."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "material",
+      "unit"
+    ]
+  },
+  {
+    "id": "et_daily_log_summary_v1",
+    "name": "Daily Log Summary",
+    "slug": "daily-log-summary",
+    "description": "End-of-day rollup of engineers DPRs plus same-day material issue requests for one supervisor. Confirm accepts Work Done + Materials as-is. Link BOQ asks for BOQ/Activity, shows a preview, then Confirm stores supervisor_update under Activity.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "ACTIVITY",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Daily Log Summary",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "status",
+        "summaryDate",
+        "supervisor",
+        "logIds",
+        "entries",
+        "summaryText"
+      ],
+      "properties": {
+        "boqId": {
+          "type": "string",
+          "description": "Resolved BOQ business id after Correct."
+        },
+        "logIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entity ids of the daily-log rows included in this summary."
+        },
+        "status": {
+          "enum": [
+            "PENDING_CONFIRM",
+            "AWAITING_CORRECTION",
+            "PENDING_LINK_CONFIRM",
+            "CONFIRMED",
+            "CORRECTED"
+          ],
+          "type": "string",
+          "description": "PENDING_CONFIRM when dispatched; AWAITING_CORRECTION after Link BOQ; PENDING_LINK_CONFIRM after BOQ/Activity form preview; then CONFIRMED or CORRECTED."
+        },
+        "boqCode": {
+          "type": "string",
+          "description": "BOQ code typed / matched on Correct."
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "engineerName",
+              "assetId",
+              "workDone",
+              "status"
+            ],
+            "properties": {
+              "logId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "assetId": {
+                "type": "string"
+              },
+              "workDone": {
+                "type": "string"
+              },
+              "engineerName": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "One row per included daily log, used to rebuild the human-readable summary."
+        },
+        "remarks": {
+          "type": "string"
+        },
+        "manpower": {
+          "type": "object",
+          "properties": {
+            "skilled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unskilled": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "machinery": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "assetName",
+              "count"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "assetName": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Informational Project id from BOQ/Activity ancestry."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Resolved Activity business id after Correct."
+        },
+        "supervisor": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$"
+            }
+          },
+          "description": "The supervisor who owns this team summary."
+        },
+        "pendingLink": {
+          "type": "object",
+          "properties": {
+            "previewBody": {
+              "type": "string"
+            },
+            "activityEntityId": {
+              "type": "string"
+            },
+            "correctionDetail": {
+              "type": "string"
+            },
+            "confirmedWorkDone": {
+              "type": "string"
+            },
+            "supervisorUpdateData": {
+              "type": "object"
+            }
+          },
+          "description": "Draft BOQ/Activity link payload awaiting final Confirm (PENDING_LINK_CONFIRM)."
+        },
+        "summaryDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The calendar day (YYYY-MM-DD, IST) this summary covers."
+        },
+        "summaryText": {
+          "type": "string",
+          "description": "Built rollup of Work Done lines plus Materials Requested for the day. Used as confirmedWorkDone when the supervisor clicks Confirm."
+        },
+        "activityCode": {
+          "type": "string",
+          "description": "Activity code typed / matched on Correct."
+        },
+        "activityName": {
+          "type": "string",
+          "description": "Activity display name after Correct."
+        },
+        "dispatchedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decidedByPhone": {
+          "type": "string"
+        },
+        "activityEntityId": {
+          "type": "string",
+          "description": "Resolved Activity entity id (parent of supervisor-update)."
+        },
+        "confirmedWorkDone": {
+          "type": "string",
+          "description": "Final recorded summary text after Confirm (copy of summaryText) or Correct (supervisor Work Done). Includes Work Done context."
+        },
+        "confirmedMaterials": {
+          "type": "array",
+          "description": "Snapshot of materialsRequested stored when the supervisor confirms."
+        },
+        "materialsRequested": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "unit": {
+                "type": "string"
+              },
+              "source": {
+                "enum": [
+                  "STORE",
+                  "PROCUREMENT"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "material": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "number"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "requestNumber": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Same-day material_issue_request line items included in the summary (no procurement)."
+        },
+        "materialsSummaryText": {
+          "type": "string",
+          "description": "Human-readable materials totals and details for the summary date."
+        },
+        "supervisorUpdateEntityId": {
+          "type": "string",
+          "description": "Entity id of the supervisor-update row created on Correct."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "summaryDate",
+      "status",
+      "boqId",
+      "activityId"
+    ]
+  },
+  {
+    "id": "et_store_v1",
+    "name": "Store",
+    "slug": "store",
+    "description": "A project store / warehouse. Exactly one active store is expected per account for the material request flow. Store Head contact is denormalised on the entity for messaging.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": [
+        "store-inventory"
+      ]
+    },
+    "appliesToLevel": "PROJECT",
+    "category": "MASTER_DATA",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Store",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "storeCode",
+        "storeName",
+        "isActive",
+        "storeHead"
+      ],
+      "properties": {
+        "isActive": {
+          "type": "boolean",
+          "description": "Only active stores are considered when resolving the default store for a request."
+        },
+        "location": {
+          "type": "string",
+          "description": "Physical location or site name of the store."
+        },
+        "storeCode": {
+          "type": "string",
+          "description": "Short unique code for the store (e.g. STORE-01)."
+        },
+        "storeHead": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$"
+            }
+          },
+          "description": "Denormalised Store Head contact used for WhatsApp messaging."
+        },
+        "storeName": {
+          "type": "string",
+          "description": "Human-readable store name."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "storeCode",
+      "storeName",
+      "isActive"
+    ]
+  },
+  {
+    "id": "et_material_request_v1",
+    "name": "Material Request",
+    "slug": "material-request",
+    "description": "WhatsApp material issue request flowing from requester through Store Head and Dispatch Head to delivery confirmation. Holds the full workflow state.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "MATERIAL",
+    "category": "LOGISTICS",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Material Request",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "status",
+        "requestNumber",
+        "material",
+        "quantity",
+        "unit",
+        "requestor",
+        "store",
+        "storeHead",
+        "inventoryEntityId"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "description": "Unit of measure copied from the inventory row."
+        },
+        "store": {
+          "type": "object",
+          "required": [
+            "entityId",
+            "storeCode",
+            "storeName"
+          ],
+          "properties": {
+            "entityId": {
+              "type": "string"
+            },
+            "storeCode": {
+              "type": "string"
+            },
+            "storeName": {
+              "type": "string"
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "DRAFT",
+            "PENDING_STORE_APPROVAL",
+            "RESERVED_AWAITING_DISPATCH",
+            "VEHICLE_ASSIGNED",
+            "DISPATCHED",
+            "DELIVERED",
+            "CANCELLED",
+            "REJECTED_OUT_OF_STOCK",
+            "AWAITING_REJECT_REASON",
+            "REJECTED",
+            "AWAITING_FAILURE_REASON",
+            "DELIVERY_FAILED"
+          ],
+          "type": "string",
+          "description": "Lifecycle status of the material request."
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Optional purpose / activity for the request."
+        },
+        "vehicle": {
+          "type": "object",
+          "properties": {
+            "driverName": {
+              "type": "string"
+            },
+            "driverPhone": {
+              "type": "string"
+            },
+            "vehicleNumber": {
+              "type": "string"
+            }
+          }
+        },
+        "failedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "material": {
+          "enum": [
+            "Cement OPC 53",
+            "Sand",
+            "Aggregate 20mm",
+            "Aggregate 40mm",
+            "TMT Bar Fe500",
+            "DI Pipe",
+            "HDPE Pipe",
+            "Bitumen VG30",
+            "Diesel",
+            "Binding Wire",
+            "Bricks",
+            "Ready Mix Concrete"
+          ],
+          "type": "string",
+          "description": "Resolved material name from the shared enum."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Requested quantity."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requestor": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$"
+            }
+          }
+        },
+        "storeHead": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$"
+            }
+          }
+        },
+        "rejectedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reservedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cancelledAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deliveredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "dispatchHead": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "employeeId": {
+              "type": "string"
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$"
+            }
+          }
+        },
+        "dispatchedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requiredDate": {
+          "type": "string",
+          "description": "Optional required-by date as YYYY-MM-DD. Empty string when not provided."
+        },
+        "failureReason": {
+          "type": "string",
+          "description": "Reason typed by requester on Not Received."
+        },
+        "requestNumber": {
+          "type": "string",
+          "description": "Human-readable request number (e.g. MR-20260804-AB12)."
+        },
+        "sentToStoreAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Reason typed by Store Head on Reject."
+        },
+        "deliveryLocation": {
+          "type": "string",
+          "description": "Optional delivery / unloading location."
+        },
+        "inventoryEntityId": {
+          "type": "string",
+          "description": "Entity id of the store-inventory row used for this request."
+        },
+        "vehicleAssignedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "availableAtRequest": {
+          "type": "number",
+          "description": "Snapshot of available quantity at validate time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "status",
+      "requestNumber",
+      "material",
+      "requiredDate"
+    ]
+  },
+  {
+    "id": "et_daily_log_v1",
+    "name": "Daily Log",
+    "slug": "daily-log",
+    "description": "One Daily Progress Report (DPR) submitted by an engineer over WhatsApp and approved or rejected by a supervisor. Cross-references Asset / Activity when catalog match succeeds.",
+    "parentMode": "NONE",
+    "isParentRequired": false,
+    "hierarchy": {
+      "allowedParentSlugs": [],
+      "allowedChildSlugs": []
+    },
+    "appliesToLevel": "ACTIVITY",
+    "category": "JUNCTION",
+    "jsonSchema": {
+      "type": "object",
+      "title": "Daily Log",
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "required": [
+        "status",
+        "assetId",
+        "logDate",
+        "openingOdometer",
+        "closingOdometer",
+        "odometerUsage",
+        "workDone",
+        "engineer",
+        "supervisor"
+      ],
+      "properties": {
+        "unit": {
+          "type": "string",
+          "description": "Optional unit of work (e.g. cum, m, MT)."
+        },
+        "shift": {
+          "type": "string",
+          "description": "Optional shift: shift-single | shift-Morning | shift-Evening (or free text)."
+        },
+        "status": {
+          "enum": [
+            "DRAFT",
+            "PENDING_APPROVAL",
+            "APPROVED",
+            "REJECTED",
+            "CANCELLED"
+          ],
+          "type": "string",
+          "description": "Lifecycle status. DRAFT when the engineer has submitted but not yet confirmed, PENDING_APPROVAL once sent to the supervisor, then APPROVED, REJECTED or CANCELLED."
+        },
+        "assetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Asset identifier the work was done on, as typed by the engineer and upper-cased. Prefer matching against asset catalog when present."
+        },
+        "logDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The date the work was performed, normalised to YYYY-MM-DD in a code node. Never normalised by the LLM."
+        },
+        "activity": {
+          "type": "string",
+          "description": "Optional activity display name. Empty string when the engineer did not supply one."
+        },
+        "engineer": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Engineer's name, taken from employee context."
+            },
+            "employeeId": {
+              "type": "string",
+              "description": "Internal Employee id of the submitting engineer."
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$",
+              "description": "Engineer's WhatsApp number, used to send acknowledgments and decision notifications."
+            }
+          },
+          "description": "The employee who submitted the daily log."
+        },
+        "manpower": {
+          "type": "object",
+          "properties": {
+            "skilled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unskilled": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "description": "Optional engineer-reported worker counts; supervisor can override on Correct."
+        },
+        "workDone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Free-text description of the work completed during the day."
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the supervisor approved or rejected the log."
+        },
+        "activityId": {
+          "type": "string",
+          "description": "Optional activity code / id typed by the engineer (informational xref)."
+        },
+        "supervisor": {
+          "type": "object",
+          "required": [
+            "employeeId",
+            "name",
+            "phoneNumber"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Supervisor's name as stored in the employee record, not as typed by the engineer."
+            },
+            "employeeId": {
+              "type": "string",
+              "description": "Internal Employee id of the matched supervisor."
+            },
+            "matchScore": {
+              "type": "number",
+              "maximum": 100,
+              "minimum": 0,
+              "description": "fuzzball token_set_ratio score of the name match, 0-100."
+            },
+            "phoneNumber": {
+              "type": "string",
+              "pattern": "^[+]?[0-9]{10,15}$",
+              "description": "Supervisor's WhatsApp number. The approval template is sent here and the button clicker is authorised against it."
+            },
+            "requestedName": {
+              "type": "string",
+              "description": "The raw supervisor name the engineer typed, kept for audit of the fuzzy match."
+            }
+          },
+          "description": "The supervisor resolved by fuzzy-matching the name the engineer typed against active employees whose designation is Supervisor."
+        },
+        "cancelledAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the engineer cancelled the log at the confirmation step."
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the engineer submitted the details and the DRAFT was created."
+        },
+        "assetEntityId": {
+          "type": "string",
+          "description": "Resolved asset entity id when Asset ID matched the asset catalog; empty when free-text only."
+        },
+        "odometerUsage": {
+          "type": "number",
+          "minimum": 0,
+          "description": "closingOdometer minus openingOdometer. Computed once in a code node and stored, never recomputed and never computed by the LLM."
+        },
+        "subcontractor": {
+          "type": "string",
+          "description": "Optional subcontractor name. Empty string when the engineer did not supply one."
+        },
+        "decidedByPhone": {
+          "type": "string",
+          "description": "Phone number of the person who clicked Approve or Reject, recorded for audit."
+        },
+        "closingOdometer": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Odometer reading at the end of the day. Must be greater than or equal to openingOdometer."
+        },
+        "openingOdometer": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Odometer reading at the start of the day, exactly as the engineer reported it."
+        },
+        "subContractorId": {
+          "type": "string",
+          "description": "Optional subcontractor id typed by the engineer (informational xref)."
+        },
+        "sentForApprovalAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the log moved to PENDING_APPROVAL and the supervisor was notified."
+        }
+      },
+      "additionalProperties": false
+    },
+    "searchableFields": [
+      "assetId",
+      "status",
+      "logDate",
+      "activityId"
+    ]
+  }
+]
