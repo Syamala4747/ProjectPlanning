@@ -4,6 +4,9 @@ This application turns project details into an Excel construction plan. It can
 plan roads, pipelines, and buildings, update an existing plan, and—when
 requested separately—send the plan's records to a database.
 
+For setup instructions and copy-ready commands, see
+[GETTING_STARTED.md](GETTING_STARTED.md).
+
 ## The whole process in one view
 
 **Project details → schedule and cost planning → Excel workbook → optional
@@ -87,14 +90,13 @@ It writes the generated records as a JSON file beside the workbook. This JSON
 is an intermediate representation for the upload process; it is not the Excel
 file and is not itself proof that records reached the database.
 
-The standard builder creates records for the original 14 entity types. The
-one-command BluConn API flow also adds six **simulated demo types**:
-stores, store inventory, material requests, store transactions, daily logs,
-and daily-log summaries. Store and inventory records are derived from supported
-materials and the generated procurement/issue requests. Daily logs and
-summaries are based on the workbook's planned daily schedule. These rows are
-marked as simulated and are not actual field activity or confirmed inventory.
-Use them for demo/testing only; do not treat them as operational records.
+The entity builder creates records from workbook data and the configured
+entity schema. Generated daily logs and related progress records are based on
+the plan and represent simulated activity, not verified field work. For the
+BluConn API route, worker-only engineering logs that have no asset are mapped
+to a separate `labour-daily-logs` entity type; equipment/operator logs retain
+their Asset relationship. Confirm that the receiving application supports this
+additional entity type before relying on its UI to display worker logs.
 
 ## 6. Validation before upload
 
@@ -153,44 +155,54 @@ must be reachable from the computer running the Python script. A Docker
 service name is normally visible only inside Docker's network; a script running
 on Windows needs the database's host-published address and port.
 
-### Route B: Node sends requests to the BluConn API
+### Route B: Python sends requests to the BluConn API
 
-The Node uploader can take an Excel workbook, convert it to entity JSON, and
-send the records to the BluConn API in one run. It uses the API URL, account
-ID, and bearer token configured in the local `.env` file. It can also upload
-an existing entity JSON file. For a workbook, it includes the six simulated
-demo types described above and resolves their API-generated entity references
-before sending dependent records. It maps JSON keys to the API's canonical
-hyphenated entity-type slugs and reuses matching existing project, asset, and
-material IDs so child records can still be linked on a repeat upload. Since
-the API already has logistics IDs with the same short values, the API route
-prefixes logistics IDs with the project ID and updates their procurement
-references; the source JSON and direct PostgreSQL route remain unchanged. It
-does not sign in through Cognito, use a user ID, or read or require
-`DATABASE_URL`.
+The separate `scripts/push_to_api.py` command reads the same workbook or
+entity JSON, reuses the existing entity builder and source-backed workbook
+validation, and uploads through BluConn's account-scoped API. Configure
+`BLUCONN_API_URL`, `BLUCONN_ACCOUNT_ID`, and `BLUCONN_AUTH_TOKEN` in the
+environment or local `.env` file. The configured bearer token is sent in the
+Authorization header. This route does not import the PostgreSQL uploader, use
+`DATABASE_URL`, or connect directly to PostgreSQL.
 
-For flat entity rows, the script converts groups of JSON records into temporary
-Excel files in memory and sends them through the API bulk-upload endpoint.
-When an entity schema has nested objects or arrays, the script sends JSON
-records directly to the API so those values remain objects and arrays rather
-than becoming spreadsheet text. Rows that require a parent but have no parent
-reference (for example, an engineering log without an asset) are attempted
-without a parent, matching the direct PostgreSQL uploader. If the API requires
-a parent or rejects the record for another reason, the failure is reported.
-The BluConn backend handles writing accepted records to its database. The API
-route does not automatically run the Python database uploader's workbook
-validation.
+Example:
 
-Before each API upload, the Node uploader applies the API entity schema:
-date-only values are converted when a date-time is required, blank optional
-values that violate a format or pattern are omitted, and required fields,
-enums, patterns, and date-time values are checked locally. A missing required
-value stops that upload with the field path instead of sending a row the API
-will reject.
+```powershell
+python scripts/push_to_api.py --xlsx "output\south_road.xlsx" --project-type road
+```
 
-API credentials and database credentials are different. Keep the bearer token
-Bearer tokens expire and must be replaced with a fresh token when needed. The
-current API uploader does not send a separate user-ID header.
+An existing JSON file can also be uploaded; provide its source workbook for
+validation:
+
+```powershell
+python scripts/push_to_api.py --json "output\south_road_actual_data.json" --source-xlsx "output\south_road.xlsx"
+```
+
+The API route creates or reuses entity types and type relationships, checks
+existing business IDs (scoped by project), and uploads in parent-before-child
+order. Child records are batched by their resolved API parent ID. Authentication
+or authorization failures stop the request; retryable reads and rate-limited
+writes are retried, while ambiguous server/network failures are reported
+rather than blindly resubmitted. Each run writes an
+`*_api_upload_report.xlsx` with uploaded, skipped, duplicate, and failed counts
+plus per-record details where the API provides them. Date-only values are sent
+as midnight UTC timestamps when required by the API schema. Equipment/operator
+Engineering Daily Logs remain children of their Asset. Generated worker-only
+logs without an asset are uploaded to a separate parentless `labour-daily-logs`
+entity type, so the script does not invent an equipment relationship or require
+changing the existing BluConn Engineering Daily Logs type. The receiving
+application must support this additional entity type to display those worker
+logs in its UI. The Project `terrain` field is populated only for road projects;
+pipeline and building project records omit it because terrain is not applicable.
+
+The direct PostgreSQL and API routes use separate configuration and commands.
+The API route does not delete or update previously uploaded records; matching
+business IDs are skipped. The BluConn backend handles persisting accepted
+records.
+
+API credentials and database credentials are different. The API uploader
+sends the configured token as a bearer token; renew it when it expires. Never
+put credentials in command-line arguments, source files, or shared reports.
 
 ## 8. How to tell what happened
 
@@ -203,9 +215,10 @@ There are three different outcomes to distinguish:
    destination and reported successful insert/API counts.
 
 A workbook or a passing validation report alone does not mean data was
-uploaded. A connection error means the push did not reach the database. After
-a successful push, review the push summary/report and confirm the project in
-the BluConn application.
+uploaded. A failed or interrupted write can have an ambiguous outcome if the
+server accepted it before the connection closed; reconcile the destination
+before retrying. After a successful push, review the push summary/report and
+confirm the project in the BluConn application.
 
 ## Main parts of the application
 
@@ -217,4 +230,4 @@ the BluConn application.
 - **Entity builder and validator:** converts workbook content into structured
   records and checks them against the workbook.
 - **Python database uploader:** connects directly to PostgreSQL.
-- **Node API uploader:** sends authenticated requests to the BluConn API.
+- **BluConn API uploader:** sends authenticated requests to the BluConn API.

@@ -133,6 +133,7 @@ def test_generated_entity_shape_includes_all_reference_fields():
         slug_to_key.get(entity["slug"], entity["slug"]): [{}]
         for entity in reference
     }
+    entities["project"] = [{"projectType": "road"}]
     entities["asset"] = [{"assetId": "ASSET1", "assetName": "Excavator"}]
     entities["material"] = [{"materialId": "MAT1", "materialName": "Cement", "unit": "bag"}]
     entities["supervisor_update"] = [{

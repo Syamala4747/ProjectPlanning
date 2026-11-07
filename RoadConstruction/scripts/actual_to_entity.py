@@ -348,14 +348,10 @@ def _build_project(plan_rows, inputs, project_type, project_id):
     total_exec    = sum(r.total_cost  for r in plan_rows)
     start  = min((r.start  for r in plan_rows if r.start),  default=date.today())
     finish = max((r.finish for r in plan_rows if r.finish), default=date.today())
-    terrain = str(inputs.get("Terrain", "plain")).strip().lower()
-    if terrain == "plain":
-        terrain = "plains"
-    return {
+    project = {
         "projectId":               project_id,
         "projectName":             str(inputs.get("Project Name", inputs.get("Project Length", project_id))),
         "projectType":             project_type,
-        "terrain":                 terrain,
         "projectStatus":           "In Progress",
         "startDate":               _iso(start),
         "estimatedCompletionDate": _iso(finish),
@@ -369,6 +365,10 @@ def _build_project(plan_rows, inputs, project_type, project_id):
         "scheduleVarianceDays":    0,
         "currency":                "INR",
     }
+    if str(project_type).strip().lower() == "road":
+        terrain = str(inputs.get("Terrain", "plain")).strip().lower()
+        project["terrain"] = "plains" if terrain == "plain" else terrain
+    return project
 
 
 def _build_boq(plan_rows, project_id):
@@ -707,6 +707,11 @@ def _build_edl(log_rows, plan_rows, asset_name_to_id, worker_ids,
                     fuel_assigned += fuel_litres
                     fuel_cost_assigned += fuel_cost
                     emitted_operators += 1
+                elif not operator_count and emitted_edls == 1:
+                    # Preserve activity-level fuel on one EDL when its crew
+                    # has no operator row to carry the source fuel totals.
+                    fuel_litres = round(log.fuel_consumption, 6)
+                    fuel_cost = round(log.fuel_cost, 2)
 
                 edl_list.append({
                     "engineeringDailyLogId": f"EDL{str(edl_idx).zfill(5)}",
@@ -1180,7 +1185,6 @@ def _apply_entity_type_reference(entities: Dict[str, List[Dict]]) -> None:
                     "plannedStartDate": row.get("startDate", ""),
                     "plannedCompletionDate": row.get("estimatedCompletionDate", ""),
                     "totalDurationDays": row.get("durationDays", 0),
-                    "terrain": row.get("terrain", "plains"),
                     "preConstructionCost": 0.0,
                     "siteOverheadCost": 0.0,
                     "executionCost": execution_cost,
@@ -1203,6 +1207,11 @@ def _apply_entity_type_reference(entities: Dict[str, List[Dict]]) -> None:
                     "overallPlannedProgress": row.get("overallActualProgress", 0.0),
                     "lastProgressUpdateDate": row.get("startDate", ""),
                 })
+                if row["projectType"] == "Highway":
+                    terrain = row.get("terrain")
+                    row["terrain"] = terrain or "plains"
+                else:
+                    row.pop("terrain", None)
             elif slug == "assumption":
                 key = str(row.get("parameterKey", ""))
                 raw_value = row.get("parameterValue", "")
@@ -1484,6 +1493,13 @@ def _apply_entity_type_reference(entities: Dict[str, List[Dict]]) -> None:
                 })
 
             for field_name, schema in properties.items():
+                if (
+                    slug == "project"
+                    and field_name == "terrain"
+                    and row.get("projectType") != "Highway"
+                ):
+                    row.pop(field_name, None)
+                    continue
                 row[field_name] = _reference_value(
                     row.get(field_name, _reference_default(schema)),
                     schema,

@@ -12,8 +12,10 @@ py -3.12 -m venv .venv312
 python -m pip install openpyxl pyyaml psycopg2-binary
 ```
 
-For database pushes, configure `DATABASE_URL` in the `.env` file. Keep the
-database password private.
+For direct PostgreSQL pushes, configure `DATABASE_URL` in `.env`. For BluConn
+API pushes, configure `BLUCONN_API_URL`, `BLUCONN_ACCOUNT_ID`, and
+`BLUCONN_AUTH_TOKEN` there instead. Keep all credentials private; each uploader
+uses only its own route's configuration.
 
 ## Road project
 
@@ -86,6 +88,31 @@ not delete future-dated records from an earlier full push. The workbook's
 generated daily-log data is simulated planning data, not verified field
 activity.
 
+### Push a road Excel through the BluConn API
+
+The API route is independent from the direct PostgreSQL command above. It
+uses the `BLUCONN_API_URL`, `BLUCONN_ACCOUNT_ID`, and `BLUCONN_AUTH_TOKEN`
+environment variables and does not connect to PostgreSQL:
+
+```powershell
+python scripts/push_to_api.py --xlsx "output\south_road.xlsx" --project-type road
+```
+
+For an existing entity JSON file, provide its source workbook so the same
+source-backed validation can run:
+
+```powershell
+python scripts/push_to_api.py `
+  --json "output\south_road_actual_data.json" `
+  --source-xlsx "output\south_road.xlsx"
+```
+
+The API route creates/uses entity types and relationships, checks existing
+business IDs, batches uploads in parent-before-child order, and writes a
+`*_api_upload_report.xlsx` beside the entity JSON. Configure the environment
+variables in `.env` or the process environment; credentials are never passed
+as command-line arguments.
+
 ## Pipeline project
 
 ### Create a new pipeline Excel
@@ -127,6 +154,15 @@ For the updated workbook, use:
 
 ```powershell
 python scripts/push_to_db.py --xlsx "output\south_pipeline_updated.xlsx" --project-type pipeline
+```
+
+### Push a pipeline Excel through the BluConn API
+
+This is a separate route from PostgreSQL; it uses the `BLUCONN_*` settings
+configured above:
+
+```powershell
+python scripts/push_to_api.py --xlsx "output\south_pipeline.xlsx" --project-type pipeline
 ```
 
 ## Building project
@@ -173,12 +209,24 @@ For the updated workbook, use:
 python scripts/push_to_db.py --xlsx "output\south_building_updated.xlsx" --project-type building
 ```
 
+### Push a building Excel through the BluConn API
+
+```powershell
+python scripts/push_to_api.py --xlsx "output\south_building.xlsx" --project-type building
+```
+
 ## What the push command does
 
-The push command creates the entity JSON from the selected Excel, validates it,
-and only sends records to the database if validation allows it. It also writes
-the entity-validation and database-push Excel reports beside the workbook.
-Review the validation report and push summary after running the command.
+Each push command creates entity JSON from the selected Excel and validates it
+before upload. The PostgreSQL command and BluConn API command are independent;
+choose one route for a project rather than sending the same records through
+both. Each route writes an entity-validation report and a route-specific upload
+report. Review the validation result and upload counts, then confirm the
+project in the destination.
+
+The generated daily logs are simulated planning data, not verified field
+activity. An interrupted API write can have an ambiguous outcome if BluConn
+accepted it before the connection closed; check the destination before retrying.
 
 The legacy JSON push command is still available:
 
