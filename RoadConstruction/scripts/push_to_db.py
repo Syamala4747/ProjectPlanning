@@ -23,7 +23,9 @@ DATABASE_URL must be in .env or set as an environment variable.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
+import math
 import os
 import re
 import sys
@@ -513,6 +515,58 @@ def insert_entities(cur, data: Dict, type_id_map: Dict[str, str],
     return stats, duplicates
 
 
+def update_project_progress(
+    cur,
+    type_id_map: Dict[str, str],
+    account_id: str,
+    project: Dict[str, Any],
+) -> bool:
+    """Update only the as-of progress fields on an existing project entity."""
+    project_type_id = type_id_map.get("project")
+    project_id = str(project.get("projectId") or "")
+    if not project_type_id or not project_id:
+        raise ValueError("Progress snapshot is missing its project entity type or ID.")
+
+    cur.execute(
+        """
+        SELECT id
+        FROM entities
+        WHERE account_id = %s
+          AND entity_type_id = %s
+          AND data ->> 'projectId' = %s
+        ORDER BY created_at, id
+        """,
+        (account_id, project_type_id, project_id),
+    )
+    matching = cur.fetchall()
+    if len(matching) > 1:
+        raise RuntimeError(
+            f"Found {len(matching)} database project records for {project_id!r}; "
+            "cannot safely apply a progress snapshot."
+        )
+    if not matching:
+        return False
+
+    cur.execute(
+        """
+        UPDATE entities
+        SET data = data || jsonb_build_object(
+                'overallActualProgress', %s,
+                'lastProgressUpdateDate', %s
+            ),
+            updated_at = %s
+        WHERE id = %s
+        """,
+        (
+            project["overallActualProgress"],
+            project["lastProgressUpdateDate"],
+            _now(),
+            matching[0][0],
+        ),
+    )
+    return True
+
+
 def write_push_report(
     json_path: str,
     stats: Dict[str, Dict[str, int]],
@@ -677,7 +731,132 @@ def export_excel_to_json(
     return str(json_path)
 
 
-def validate_json_for_push(json_path: str, data: Dict[str, List[Dict]]):
+_PROGRESS_DATE_FIELDS = {
+    "engineering_daily_logs": ("date",),
+    "supervisor_update": ("date",),
+    "material_issue_request": ("date",),
+    "material_procurement_request": ("requestDate", "deliveryDate"),
+    "logistics": ("dispatchDate", "deliveryDate"),
+    "material_transaction": ("date",),
+}
+
+
+def _as_date(value: Any, field_name: str) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value).strip()[:10])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid or missing {field_name}: {value!r}") from exc
+
+
+def apply_progress_snapshot(
+    entities: Dict[str, List[Dict[str, Any]]],
+    actual_progress_pct: float,
+    status_date: date,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Return a project-level progress snapshot with dated records capped inclusively."""
+    if not math.isfinite(actual_progress_pct) or not 0 <= actual_progress_pct <= 100:
+        raise ValueError("Progress must be a finite percentage between 0 and 100.")
+    if not isinstance(status_date, date):
+        raise ValueError("Status date must be a date.")
+
+    snapshot = copy.deepcopy(entities)
+    projects = snapshot.get("project", [])
+    if len(projects) != 1:
+        raise ValueError(
+            f"Expected exactly one project entity for a progress snapshot; found {len(projects)}."
+        )
+
+    project = projects[0]
+    project_start = _as_date(project.get("startDate"), "project start date")
+    if status_date < project_start:
+        raise ValueError(
+            f"Status date {status_date} is before project start date {project_start}."
+        )
+
+    project["overallActualProgress"] = round(actual_progress_pct, 2)
+    project["lastProgressUpdateDate"] = status_date.isoformat()
+
+    for collection, date_fields in _PROGRESS_DATE_FIELDS.items():
+        rows = snapshot.get(collection, [])
+        retained = []
+        for row in rows:
+            row_dates = [_as_date(row.get(field), field) for field in date_fields]
+            if all(event_date <= status_date for event_date in row_dates):
+                retained.append(row)
+        snapshot[collection] = retained
+
+    for collection, date_fields in _PROGRESS_DATE_FIELDS.items():
+        for row in snapshot.get(collection, []):
+            if any(_as_date(row.get(field), field) > status_date for field in date_fields):
+                raise ValueError(
+                    f"{collection} contains a record after status date {status_date}."
+                )
+    return snapshot
+
+
+def export_progress_snapshot_to_json(
+    xlsx_path: str,
+    project_type: str,
+    actual_progress_pct: float,
+    status_date: date,
+) -> str:
+    """Validate a source workbook, then export its progress snapshot to a distinct JSON."""
+    from scripts.actual_to_entity import build_entities
+
+    workbook_path = Path(xlsx_path).resolve()
+    if not workbook_path.is_file():
+        raise FileNotFoundError(f"Excel workbook not found: {workbook_path}")
+
+    generated = build_entities(str(workbook_path), project_type, 42)
+    supported = {json_slug for _, json_slug, _, _, _ in HIERARCHY}
+    data = {
+        slug: rows
+        for slug, rows in generated.items()
+        if slug in supported or rows
+    }
+    unsupported = unsupported_entity_records(data)
+    if unsupported:
+        details = ", ".join(
+            f"{slug}={count}" for slug, count in sorted(unsupported.items())
+        )
+        raise ValueError(
+            "The workbook generated entity types this database pusher does not "
+            f"support: {details}"
+        )
+
+    snapshot = apply_progress_snapshot(data, actual_progress_pct, status_date)
+    progress_label = f"{actual_progress_pct:g}".replace(".", "p")
+    json_path = workbook_path.with_name(
+        f"{workbook_path.stem}_progress_{progress_label}pct_asof_"
+        f"{status_date.isoformat()}_actual_data.json"
+    )
+    # Validate the unfiltered export against the complete workbook before the
+    # intentional as-of pruning. The snapshot itself is checked above.
+    validate_json_for_push(
+        str(json_path),
+        data,
+        source_workbook=str(workbook_path),
+    )
+    with json_path.open("w", encoding="utf-8") as output_file:
+        json.dump(snapshot, output_file, indent=2, ensure_ascii=False, default=str)
+
+    print(
+        f"  Progress snapshot: {actual_progress_pct:g}% as of {status_date}; "
+        "date-based records after the status date were omitted."
+    )
+    print("  The full planned schedule remains in the snapshot.")
+    return str(json_path)
+
+
+def validate_json_for_push(
+    json_path: str,
+    data: Dict[str, List[Dict]],
+    source_workbook: Optional[str] = None,
+):
     """Write the source-backed Excel sanity report beside the JSON being pushed."""
     from scripts.entity_sanity_checks import (
         validate_entity_export,
@@ -691,7 +870,11 @@ def validate_json_for_push(json_path: str, data: Dict[str, List[Dict]]):
         if json_file.name.endswith(suffix)
         else json_file.stem
     )
-    workbook_path = json_file.with_name(f"{stem}.xlsx")
+    workbook_path = (
+        Path(source_workbook).resolve()
+        if source_workbook
+        else json_file.with_name(f"{stem}.xlsx")
+    )
     report_path = json_file.with_name(f"{stem}_entity_validation.xlsx")
 
     report = validate_entity_export(str(workbook_path), data)
@@ -732,6 +915,17 @@ def main() -> None:
         choices=["road", "pipeline", "building"],
         help="Project type when using --xlsx (default: road)",
     )
+    p.add_argument(
+        "--progress",
+        "--actual-progress",
+        dest="actual_progress",
+        type=float,
+        help="Record a project-level actual progress snapshot (0-100)",
+    )
+    p.add_argument(
+        "--status-date",
+        help="Inclusive cutoff date for progress-snapshot records (YYYY-MM-DD)",
+    )
     p.add_argument("--wipe",  action="store_true", help="Delete existing entities for this account first")
     p.add_argument(
         "--schema-only",
@@ -741,10 +935,35 @@ def main() -> None:
     args = p.parse_args()
     if args.wipe and args.schema_only:
         p.error("--wipe cannot be used with --schema-only")
+    if (args.actual_progress is None) != (args.status_date is None):
+        p.error("--progress and --status-date must be provided together")
+    if args.actual_progress is not None:
+        if not args.xlsx:
+            p.error("--progress snapshots require --xlsx; they cannot be used with --json")
+        if args.wipe or args.schema_only:
+            p.error("--progress cannot be combined with --wipe or --schema-only")
+        if not math.isfinite(args.actual_progress) or not 0 <= args.actual_progress <= 100:
+            p.error("--progress must be a finite percentage between 0 and 100")
+        try:
+            status_date = date.fromisoformat(args.status_date)
+        except ValueError:
+            p.error("--status-date must use YYYY-MM-DD format")
+        if status_date.isoformat() != args.status_date:
+            p.error("--status-date must use YYYY-MM-DD format")
+    else:
+        status_date = None
 
     if args.xlsx:
         try:
-            json_path = export_excel_to_json(args.xlsx, args.project_type)
+            if status_date is None:
+                json_path = export_excel_to_json(args.xlsx, args.project_type)
+            else:
+                json_path = export_progress_snapshot_to_json(
+                    args.xlsx,
+                    args.project_type,
+                    args.actual_progress,
+                    status_date,
+                )
         except (FileNotFoundError, ValueError, OSError) as exc:
             print(f"Could not export entities from Excel: {exc}")
             sys.exit(1)
@@ -777,11 +996,12 @@ def main() -> None:
 
     total = sum(len(v) for v in data.values())
     print(f"  Records: {total:,} across {len(data)} entity types")
-    try:
-        validate_json_for_push(json_path, data)
-    except ValueError as exc:
-        print(f"\n  ✗ {exc}")
-        sys.exit(1)
+    if status_date is None:
+        try:
+            validate_json_for_push(json_path, data)
+        except ValueError as exc:
+            print(f"\n  ✗ {exc}")
+            sys.exit(1)
 
     print("\n  Connecting to database...")
     conn = connect()
@@ -830,6 +1050,24 @@ def main() -> None:
             push_stats, duplicates = insert_entities(
                 cur, data, type_id_map, account_id, push_stats, duplicates
             )
+            if status_date is not None:
+                project_updated = update_project_progress(
+                    cur,
+                    type_id_map,
+                    account_id,
+                    data["project"][0],
+                )
+                if project_updated:
+                    print(
+                        "  Updated existing project with actual progress "
+                        f"{data['project'][0]['overallActualProgress']:g}% as of "
+                        f"{data['project'][0]['lastProgressUpdateDate']}."
+                    )
+                else:
+                    print(
+                        "  Project progress snapshot is included in the newly "
+                        "inserted project record."
+                    )
 
         conn.commit()
         commit_status = "SCHEMA_ONLY" if args.schema_only else "COMMITTED"

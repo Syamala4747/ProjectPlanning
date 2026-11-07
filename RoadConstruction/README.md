@@ -1,252 +1,220 @@
-# Road Construction Project Planning & Constraint-Based Scheduling System
+# How the Construction Planning System Works
 
-A Python-based engineering scheduling and cost estimation system for **Road & Highway Construction Projects** conforming to **MoRTH Specifications (5th Revision)** and **MoRTH Standard Data Book (2019)** with **Constraint-Based CPM Scheduling & Resource Optimization**.
+This application turns project details into an Excel construction plan. It can
+plan roads, pipelines, and buildings, update an existing plan, and—when
+requested separately—send the plan's records to a database.
 
----
+## The whole process in one view
 
-## Architecture & Data Flow
+**Project details → schedule and cost planning → Excel workbook → optional
+progress update → entity records → validation → one database route**
 
-```
-User Input (Length km, Required Duration, Max Budget, Start Date)
-   │
-   ▼
-DataLoader (road_guidelines.json + road_assumptions.yaml)
-   │
-   ▼
-QuantityCalculator (IRC:73 / MoRTH Cross-section Quantities)
-   │
-   ▼
-ConstraintScheduler (Baseline Plan Evaluation)
-   ├── Calculate Normal Duration & Cost (Standard Gangs, 1 Front)
-   ├── Run CPM Engine (Baseline Critical Path & Floats)
-   │
-   ▼
-Iterative Resource Optimization Loop (If Baseline Duration > Required Duration)
-   ├── Step A: Scale Parallel Work Fronts (2, 3, 4, 5+ Fronts)
-   ├── Step B: Scale Equipment & Gangs on Critical Bottlenecks (Embankment, Subgrade, DBM, BC, Drainage)
-   ├── Step C: Staggered Section Handover (Fast-Tracking / Lead-Lag on Linear Chain)
-   ├── Step D: Extended / Double Shifts (1.5 - 2.0 shifts with Overtime Premiums)
-   ├── Recalculate: Duration, Cost, CPM, Total Duration, Total Cost
-   └── Stop condition: Duration <= Target AND Cost <= Budget (or report Infeasibility)
-   │
-   ▼
-ProgressCalculator (Optimized Monthly Distribution & Planned S-Curve)
-   │
-   ▼
-WBSGenerator (3-Level Tree: Project Root -> Work Packages -> Activities with Roll-ups)
-   │
-   ▼
-ExcelReportGenerator (14-Sheet Executive Workbook with openpyxl Charts & Comparison Tables)
-   │
-   ▼
-road_project_schedule.xlsx
-```
+Creating or updating an Excel workbook does **not** connect to a database.
+Database upload is a separate action. The Excel workbook itself is never sent
+to the database; the uploader reads information from it and sends the records
+it creates from that information.
 
----
+## 1. Project details and configuration
 
-## Key Features
+The user describes the project. The details depend on the kind of work:
 
-1. **Hard Constraint Enforcement**: Duration and budget are treated as rigid constraints (maximum limits). The engine iteratively compresses the schedule to meet target deadlines while verifying financial viability.
-2. **MoRTH SDB Traceability**: Every activity is linked to official MoRTH specification sections (e.g., Section 201, 301, 305, 401, 406, 502, 505, 801), Standard Data Book item numbers, and page references.
-3. **Deterministic CPM Engine with Fast-Tracking**: Performs topological sorting, forward pass, backward pass, float calculations, and zero-float critical path sequence extraction with relationship lags.
-4. **Physically Grounded Cost Impact**: Every resource addition (extra equipment fleets, parallel work fronts, mobilization costs, overtime wage premiums, supervision) strictly and realistically increases cost without artificial inflation.
-5. **Dynamic 3-Level WBS Hierarchy**: Generates a standardized Work Breakdown Structure (`1.0 Project` -> `1.1 Work Package` -> `1.1.1 Activity`) with bottom-up roll-up calculations for costs, durations, and weights.
-6. **Clear Infeasibility Reporting**: If no configuration can satisfy both constraints, clearly outputs: `"No feasible schedule found within the given budget and duration."` with specific constraint violation details.
-7. **14-Sheet Excel Workbook Structure**:
-   - `01_Project_Summary`: Project Info, BASELINE Section (Duration, Cost, Finish, Status), and OPTIMIZED / CONSTRAINT-BASED Section (Required Dur, Opt Dur, Max Budget, Opt Cost, Statuses).
-   - `02_Project_Inputs`: User Constraints clearly labeled (`Required Duration = CONSTRAINT`, `Maximum Budget = CONSTRAINT`) and engineering geometry inputs.
-   - `03_Assumptions`: Normative baseline productivities, normal crews, equipment sets, and planned unit rates.
-   - `04_WBS_Hierarchy`: Dedicated 3-level Work Breakdown Structure tree with dynamic package roll-up costs, durations, and weights.
-   - `05_Activities`: Master activity sheet with WBS Code & Work Package columns and side-by-side Baseline vs. Optimized crews, durations, costs, duration saved, and additional costs.
-   - `06_Baseline_CPM`: ONLY the baseline schedule using default resources and normal productivity.
-   - `07_Baseline_Cost`: Baseline rate analysis and total baseline cost with WBS alignment (unforced against budget).
-   - `08_Constraint_Optimization`: The optimization log showing Iteration 0 (Baseline) through Final Iteration with PASS/FAIL constraint statuses.
-   - `09_Optimized_CPM`: The final constraint-based schedule (ES, EF, LS, LF, Total Float, Free Float, Critical Path).
-   - `10_Optimized_Cost`: Optimized rate analysis and itemized direct cost, overheads, contractor profit, and weights for the final crashed schedule with WBS alignment.
-   - `11_Baseline_vs_Optimized`: Executive comparison table and detailed resource change breakdown.
-   - `12_Monthly_Schedule`: Monthly Gantt progress matrix generated from the OPTIMIZED schedule.
-   - `13_S_Curve`: Planned monthly and cumulative progress trajectory with embedded line chart.
-   - `14_Critical_Path`: Baseline vs. Optimized critical path sequences and critical activities table.
+- **Road:** title, length, lanes, terrain, target duration, budget, and start
+  date.
+- **Pipeline:** title, length, pipe size and material, installation method,
+  work fronts, target duration, budget, and start date.
+- **Building:** title, built-up area, floors, building and construction type,
+  quality, target duration, budget, and start date.
 
+The application selects the matching project configuration. Each project type
+has guideline data and assumptions, such as activity catalogs, production
+rates, resource requirements, calendars, and costs. The application checks
+these inputs before planning. Missing or invalid required configuration stops
+workbook generation; configuration warnings are shown for the user to review.
 
----
+## 2. How the plan is calculated
 
-## Installation & Requirements
+The planning engine turns the project details and configuration into work:
 
-Ensure you have Python 3.8+ installed with the following packages:
+1. It calculates quantities and selects the activities that apply to the
+   project.
+2. It estimates activity durations and costs from quantities, productivity,
+   crews, equipment, and other assumptions.
+3. It schedules the activities according to their dependencies using the
+   Critical Path Method (CPM).
+4. It compares the baseline schedule with the user's duration and budget
+   limits. When needed, it evaluates resource increases, work fronts, shifts,
+   or overlapping work to reduce the duration while accounting for added
+   costs.
+5. It calculates the final schedule, critical path, costs, work breakdown,
+   monthly progress, and planned progress curve.
 
-```bash
-pip install pyyaml openpyxl
-```
+The result may be feasible or infeasible. An infeasible result explains which
+target could not be met; it is not silently presented as meeting the target.
 
----
+## 3. The Excel workbook
 
-## How to Run
+Before saving, the application checks the schedule and dependencies. It then
+creates the project's Excel workbook with the summary, inputs, assumptions,
+activities, baseline and optimized schedules and costs, work breakdown,
+monthly schedule, progress curve, and critical-path details.
 
-### 1. Interactive Mode:
-```bash
-python main.py
-```
-You will be prompted to enter:
-```
-Project Title: 10 KM 2-Lane Highway Project
-# Output: Automatically detects 2-Lane Highway (IRC:SP:73 standard) and 10 km length!
-```
+Workbook generation ends here. It creates the Excel file only: it does not
+create the database JSON, run the entity checks, or connect to PostgreSQL or
+the BluConn API.
 
-### 2. Command-Line Argument Mode:
-```bash
-# 2-Lane Highway:
-python main.py --title "10 KM 2-Lane Highway Project" --duration "300 days" --budget 250 --output 10km_2lane.xlsx
+## 4. Updating a plan
 
-# 6-Lane Expressway:
-python main.py --title "50 KM 6-Lane Mega Expressway" --duration "730 days" --budget 3000 --output 50km_6lane.xlsx
+An update starts from an existing workbook; it does not replace the baseline.
+The application reads the original project details and reconstructs its
+baseline using the applicable configuration. It compares reported progress
+at a status date with planned progress, estimates which work remains, and
+recalculates the schedule and feasibility for the target date.
 
-# 7-Lane Highway Project:
-python main.py --title "10 KM 7-Lane Highway Project" --duration "365 days" --budget 700 --output 10km_7lane.xlsx
+If activity-by-activity progress is not supplied, the application estimates
+activity progress from the overall reported progress and notes that limitation.
+The result is saved as a separate updated Excel workbook. Updating a plan does
+not upload it to the database.
 
-# Explicit hilly-terrain model (requires a complete hilly_terrain_standards
-# activity catalog in assumptions.yaml):
-python main.py --title "25 KM 4-Lane Highway Project" --terrain hilly --duration "800 days" --budget 1000 --output hilly_25km.xlsx
+## 5. Turning the workbook into database records
 
-# A title containing "hilly", "hill", or "mountain" also selects hilly.
-# Otherwise the planner uses the plain-terrain activity_master by default.
-```
+When the user chooses to push a workbook, the Python entity builder reads its
+plan, daily-log, input, and assumption sheets. It creates structured records
+for projects, activities, plans, materials, equipment, daily logs, requests,
+transactions, supervisor updates, and related entity types.
 
----
+The builder adds and conforms fields using the entity-type reference file.
+It writes the generated records as a JSON file beside the workbook. This JSON
+is an intermediate representation for the upload process; it is not the Excel
+file and is not itself proof that records reached the database.
 
-## Project Structure
+The standard builder creates records for the original 14 entity types. The
+one-command BluConn API flow also adds six **simulated demo types**:
+stores, store inventory, material requests, store transactions, daily logs,
+and daily-log summaries. Store and inventory records are derived from supported
+materials and the generated procurement/issue requests. Daily logs and
+summaries are based on the workbook's planned daily schedule. These rows are
+marked as simulated and are not actual field activity or confirmed inventory.
+Use them for demo/testing only; do not treat them as operational records.
 
-```
-RoadConstruction/
-│
-├── main.py                          # Application CLI entry point (new-project + update-plan)
-├── road_assumptions.yaml            # Baseline rates, norms & calendar assumptions
-├── road_guidelines.json             # MoRTH Standard Data Book 2019 specification
-│
-├── src/
-│   ├── __init__.py
-│   ├── models.py                    # Data models & typed structures
-│   ├── data_loader.py               # JSON & YAML parser
-│   ├── quantity_calculator.py       # Geometric cross-section quantity engine
-│   ├── cost_calculator.py           # Unit rate analysis & resource crashing cost calculator
-│   ├── duration_calculator.py       # Productivity-based duration engine
-│   ├── cpm_engine.py                # Critical Path Method engine with lead/lag support
-│   ├── constraint_scheduler.py      # Core Constraint-Based Optimization Engine
-│   ├── dependency_manager.py        # Precedence & cycle validation
-│   ├── activity_generator.py        # Scope extraction & activity generator
-│   ├── wbs_generator.py             # 3-level hierarchical WBS builder
-│   ├── progress_calculator.py       # Monthly period distribution engine
-│   ├── s_curve.py                   # S-Curve progression aggregator
-│   ├── excel_report.py              # 14-sheet openpyxl Excel workbook builder (new project)
-│   ├── workbook_reader.py           # Reads existing workbook to reconstruct project state
-│   ├── update_planner.py            # Update engine: compare progress & replan remaining work
-│   └── update_excel_report.py       # 8-sheet Excel workbook builder (updated plan)
-│
-├── tests/
-│   └── test_update_plan.py          # Tests for the update-plan workflow
-│
-└── README.md
+## 6. Validation before upload
+
+The entity validator compares the generated records with the source workbook.
+Its checks cover counts, costs, activity and BOQ relationships, daily work,
+materials, equipment, requests, transactions, dates, and cross-references.
+It produces an Excel validation report beside the workbook.
+
+- **PASS:** the checks succeeded.
+- **FAIL:** the upload stops until the reported problems are addressed.
+- **INCOMPLETE:** some evidence could not be checked; the report explains why.
+
+Validation checks the generated records against the workbook. It does not
+confirm database connectivity or prove that a later database/API request was
+successful.
+
+## 7. Choose one of the two database routes
+
+Both routes start with entity records, but they reach the database differently.
+Choose one route for a project; do not send the same project through both.
+
+### Route A: Python connects directly to PostgreSQL
+
+The Python uploader can take the workbook or an already-generated JSON file.
+For a workbook, it builds the JSON, runs validation, and proceeds only when
+validation allows the push. It then reads the database connection details from
+the local `.env` configuration and connects directly from the user's computer
+to PostgreSQL using a database driver.
+
+It prepares the entity types and their relationships, then inserts records in
+parent-before-child order so each record can be linked to its parent. It checks
+for matching project and entity IDs already in the database and skips those
+records rather than inserting them again. Successful work is committed as a
+database transaction; an insertion error causes the transaction to roll back.
+The uploader writes a database-push Excel report with sent, inserted,
+already-existing, duplicate, and failure counts.
+
+For an as-of progress snapshot, push a workbook with `--progress` and
+`--status-date`, for example:
+
+```powershell
+python scripts/push_to_db.py --xlsx "output\north.xlsx" --project-type road --progress 30 --status-date 2027-02-12
 ```
 
----
+The status date is inclusive. This writes a separate snapshot JSON, records
+the project-level actual progress and status date, and omits generated
+daily-log, supervisor, material, logistics, and transaction records after that
+date. The full planned schedule remains included; activity-level completion is
+not inferred from an overall percentage. Existing project progress is updated
+when the project is already in the database, but future records from an earlier
+full push are not deleted. Generated daily-log data is simulated and is not
+confirmation of field activity.
 
-## Update-Plan Command: Revising an Existing Plan with Actual Progress
+Because this route connects directly to PostgreSQL, the database host and port
+must be reachable from the computer running the Python script. A Docker
+service name is normally visible only inside Docker's network; a script running
+on Windows needs the database's host-published address and port.
 
-### Overview
+### Route B: Node sends requests to the BluConn API
 
-The `update-plan` command lets you revise an already-generated project plan without
-regenerating the entire project from scratch. It reads the existing Excel workbook,
-compares actual progress with the original baseline, identifies delays, and generates
-a revised plan for the remaining work.
+The Node uploader can take an Excel workbook, convert it to entity JSON, and
+send the records to the BluConn API in one run. It uses the API URL, account
+ID, and bearer token configured in the local `.env` file. It can also upload
+an existing entity JSON file. For a workbook, it includes the six simulated
+demo types described above and resolves their API-generated entity references
+before sending dependent records. It maps JSON keys to the API's canonical
+hyphenated entity-type slugs and reuses matching existing project, asset, and
+material IDs so child records can still be linked on a repeat upload. Since
+the API already has logistics IDs with the same short values, the API route
+prefixes logistics IDs with the project ID and updates their procurement
+references; the source JSON and direct PostgreSQL route remain unchanged. It
+does not sign in through Cognito, use a user ID, or read or require
+`DATABASE_URL`.
 
-The existing new-project command (`python main.py --title ...`) remains unchanged and
-continues to produce the same 14-sheet workbook.
+For flat entity rows, the script converts groups of JSON records into temporary
+Excel files in memory and sends them through the API bulk-upload endpoint.
+When an entity schema has nested objects or arrays, the script sends JSON
+records directly to the API so those values remain objects and arrays rather
+than becoming spreadsheet text. Rows that require a parent but have no parent
+reference (for example, an engineering log without an asset) are attempted
+without a parent, matching the direct PostgreSQL uploader. If the API requires
+a parent or rejects the record for another reason, the failure is reported.
+The BluConn backend handles writing accepted records to its database. The API
+route does not automatically run the Python database uploader's workbook
+validation.
 
-### Usage
+Before each API upload, the Node uploader applies the API entity schema:
+date-only values are converted when a date-time is required, blank optional
+values that violate a format or pattern are omitted, and required fields,
+enums, patterns, and date-time values are checked locally. A missing required
+value stops that upload with the field path instead of sending a row the API
+will reject.
 
-```bash
-python main.py update-plan \
-  --input "road_project_schedule.xlsx" \
-  --start-date "2026-04-01" \
-  --status-date "2026-10-01" \
-  --actual-progress 10 \
-  --target-date "2027-04-01" \
-  --output "road_project_schedule_updated.xlsx"
-```
+API credentials and database credentials are different. Keep the bearer token
+Bearer tokens expire and must be replaced with a fresh token when needed. The
+current API uploader does not send a separate user-ID header.
 
-### Required Inputs
+## 8. How to tell what happened
 
-| Argument | Description |
-|---|---|
-| `--input` | Path to the existing Excel project plan workbook |
-| `--status-date` | Date on which actual progress is reported (YYYY-MM-DD) |
-| `--actual-progress` | Actual cumulative project progress as a percentage (0–100) |
-| `--output` | Filename for the updated Excel workbook |
+There are three different outcomes to distinguish:
 
-### Optional Inputs
+1. **Workbook created:** the planning or update step completed.
+2. **Records prepared and validated:** entity JSON was created and the
+   validation report shows its result.
+3. **Records reached the database:** the selected uploader connected to its
+   destination and reported successful insert/API counts.
 
-| Argument | Description |
-|---|---|
-| `--target-date` | Future date by which the target should be achieved (YYYY-MM-DD). **Optional**: If omitted, the optimized completion date from the previous Excel workbook is automatically used. |
-| `--start-date` | Original project start date. If omitted, the date from the workbook is used. |
-| `--target-progress` | Cumulative progress target at the target date. If omitted, the baseline target for that date is used. |
-| `--activity-progress` | JSON file with activity-level progress: `{"ACT-01": 100.0, "ACT-02": 50.0, ...}` |
-| `--guidelines` | Path to road_guidelines.json (default: `road_guidelines.json`) |
-| `--assumptions` | Path to road_assumptions.yaml (default: `road_assumptions.yaml`) |
-| `--no-accel-cost` | Disable time-driven acceleration cost terms |
+A workbook or a passing validation report alone does not mean data was
+uploaded. A connection error means the push did not reach the database. After
+a successful push, review the push summary/report and confirm the project in
+the BluConn application.
 
-### How It Works
+## Main parts of the application
 
-1. **Read workbook** — Extracts the project inputs (length, lanes, terrain, start date,
-   duration, budget) from the existing workbook's Project Inputs sheet.
-2. **Re-derive baseline** — Re-runs the deterministic `ConstraintScheduler` with the same
-   inputs to reconstruct the full baseline schedule, activities, costs, and S-curve.
-3. **Compare progress** — Computes the baseline cumulative progress at the status date
-   and compares it with the actual progress to identify the progress gap.
-4. **Estimate activity completion** — If activity-level progress is provided, uses it
-   directly. Otherwise, scales each activity's baseline completion by the overall
-   actual/baseline ratio and reports this as a limitation.
-5. **Replan remaining work** — Builds a remaining-work activity list (completed
-   activities get zero duration; in-progress activities get duration proportional to
-   remaining quantity) and re-runs the existing CPM engine from the status date.
-6. **Check feasibility & accelerate** — If the revised schedule exceeds the target date,
-   applies the same least-cost crashing logic (add crews/shifts on critical activities)
-   to compress the remaining schedule. Reports whether the target is achievable.
-7. **Generate output** — Produces a separate 8-sheet workbook (the original is never
-   overwritten).
-
-### Updated Excel Output (8 Sheets)
-
-| Sheet | Content |
-|---|---|
-| `01_Update_Summary` | Executive dashboard: progress gap, revised duration, feasibility, costs |
-| `02_Baseline_Schedule` | Original optimized CPM schedule from the existing workbook |
-| `03_Actual_Progress` | Per-activity baseline vs actual completion comparison |
-| `04_Activity_Status` | Completed / remaining quantities for each activity |
-| `05_Revised_CPM` | Revised CPM schedule for remaining work (durations, dates, critical path) |
-| `06_Revised_Cost` | Remaining-work cost, acceleration surcharge, and total project cost |
-| `07_S_Curve_Comparison` | Baseline, actual, and revised forecast S-curves with chart (delay days highlighted in distinct red) |
-| `08_Target_Feasibility` | Feasibility verdict, projected delay, and resource changes applied |
-
-### Activity-Level Progress
-
-For accurate activity-level replanning, provide a JSON file mapping activity IDs to
-completion percentages:
-
-```json
-{
-  "ACT-01": 100.0,
-  "ACT-02": 100.0,
-  "ACT-05": 50.0,
-  "ACT-06": 0.0
-}
-```
-
-When this is omitted, the system estimates per-activity completion by scaling baseline
-completions proportionally and reports the limitation in the output.
-
-### Running Tests
-
-```bash
-python -m pytest tests/test_update_plan.py -v
-```
+- **Project configuration:** project-specific guidelines and assumptions for
+  roads, pipelines, and buildings.
+- **Planning engine:** quantity, cost, duration, calendar, resource, and CPM
+  calculations.
+- **Excel reporting:** creates baseline and updated project workbooks.
+- **Entity builder and validator:** converts workbook content into structured
+  records and checks them against the workbook.
+- **Python database uploader:** connects directly to PostgreSQL.
+- **Node API uploader:** sends authenticated requests to the BluConn API.

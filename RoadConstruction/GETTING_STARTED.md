@@ -61,6 +61,31 @@ For the updated workbook, use:
 python scripts/push_to_db.py --xlsx "output\south_road_updated.xlsx" --project-type road
 ```
 
+### Push a progress snapshot
+
+To push the project's cumulative actual progress as of a date, provide the
+original workbook, progress percentage, and inclusive status date:
+
+```powershell
+python scripts/push_to_db.py `
+  --xlsx "output\north.xlsx" `
+  --project-type road `
+  --progress 30 `
+  --status-date 2027-02-12
+```
+
+This writes a separate progress-snapshot JSON, records the percentage and date
+on the project entity, and excludes generated daily-log, supervisor, material,
+logistics, and transaction records dated after the status date. The original
+planned schedule remains unchanged and included. This is a project-level
+snapshot; it does not infer actual progress for individual activities.
+
+The database pusher skips entity IDs that already exist. In progress-snapshot
+mode, it updates the existing project's progress and status date, but it does
+not delete future-dated records from an earlier full push. The workbook's
+generated daily-log data is simulated planning data, not verified field
+activity.
+
 ## Pipeline project
 
 ### Create a new pipeline Excel
